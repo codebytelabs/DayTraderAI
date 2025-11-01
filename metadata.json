@@ -1,0 +1,5 @@
+{
+  "name": "Expert Day-Trading Bot Dashboard",
+  "description": "A comprehensive dashboard to monitor, analyze, and manage an automated day-trading bot using Alpaca, Supabase, OpenRouter, and Perplexity AI. This UI provides real-time insights into performance, positions, risk, and operational status.",
+  "requestFramePermissions": []
+}
