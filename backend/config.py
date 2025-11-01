@@ -13,11 +13,12 @@ class Settings(BaseSettings):
     supabase_key: str
     supabase_service_key: str
     
-    # OpenRouter Configuration
+    # OpenRouter Configuration (Models tested and optimized for quality + speed)
     openrouter_api_key: str = ""
     openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_primary_model: str = "google/gemini-2.5-flash-preview-09-2025"
-    openrouter_secondary_model: str = "google/gemini-2.5-flash-lite-preview-09-2025"
+    openrouter_primary_model: str = "openai/gpt-oss-safeguard-20b"  # Best: 408 score, 1.4s
+    openrouter_secondary_model: str = "google/gemini-2.5-flash-preview-09-2025"  # Fast: 322 score, 1.7s
+    openrouter_tertiary_model: str = "openai/gpt-oss-120b"  # Balanced: 221 score, 3.4s
     openrouter_backup_model: str = "minimax/minimax-m2:free"
     openrouter_temperature: float = 0.7
     

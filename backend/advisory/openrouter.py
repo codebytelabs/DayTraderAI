@@ -17,13 +17,17 @@ class OpenRouterClient:
         self.base_url = settings.openrouter_api_base_url
         self.primary_model = settings.openrouter_primary_model
         self.secondary_model = settings.openrouter_secondary_model
+        self.tertiary_model = settings.openrouter_tertiary_model
         self.backup_model = settings.openrouter_backup_model
         self.temperature = settings.openrouter_temperature
         
         if not self.api_key:
             logger.warning("OpenRouter API key not configured")
         else:
-            logger.info(f"OpenRouter initialized with primary model: {self.primary_model}")
+            logger.info(f"OpenRouter initialized:")
+            logger.info(f"  Primary (analysis): {self.primary_model}")
+            logger.info(f"  Secondary (chat): {self.secondary_model}")
+            logger.info(f"  Tertiary (quick): {self.tertiary_model}")
     
     async def chat_completion(
         self,
@@ -230,7 +234,7 @@ Provide:
     
     async def quick_insight(self, query: str) -> Optional[str]:
         """
-        Quick insight using backup free model.
+        Quick insight using tertiary model (extremely fast).
         
         Args:
             query: Quick question
@@ -243,5 +247,5 @@ Provide:
             {"role": "user", "content": query}
         ]
         
-        # Use backup free model for quick queries
-        return await self.chat_completion(messages, model=self.backup_model, max_tokens=500)
+        # Use tertiary model for quick queries (Gemini Flash Lite - extremely fast)
+        return await self.chat_completion(messages, model=self.tertiary_model, max_tokens=500)

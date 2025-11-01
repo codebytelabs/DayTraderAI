@@ -1,0 +1,170 @@
+[
+  {
+    "model": "anthropic/claude-sonnet-4.5",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.03,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-haiku-4.5",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-3.5-haiku",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-preview-09-2025",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-5-mini",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-120b",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-safeguard-20b",
+    "test": "trade_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-sonnet-4.5",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-haiku-4.5",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-3.5-haiku",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-preview-09-2025",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-5-mini",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-120b",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-safeguard-20b",
+    "test": "copilot_chat",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-sonnet-4.5",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-haiku-4.5",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "anthropic/claude-3.5-haiku",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-preview-09-2025",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-5-mini",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-120b",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  },
+  {
+    "model": "openai/gpt-oss-safeguard-20b",
+    "test": "market_analysis",
+    "success": false,
+    "response_time": 0.0,
+    "error": "module 'certifi' has no attribute 'where'"
+  }
+]

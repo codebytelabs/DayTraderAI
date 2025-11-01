@@ -1,0 +1,143 @@
+Using OpenRouter API: https://openrouter.ai/api/v1
+API Key: sk-or-v1-1ca6e1b8dc4...
+================================================================================
+OPENROUTER MODEL TESTING
+================================================================================
+
+Testing 8 models across 3 scenarios...
+Priority: Quality > Speed > Cost
+
+
+================================================================================
+TEST 1: TRADE ANALYSIS (Critical - needs best quality)
+================================================================================
+
+Testing anthropic/claude-sonnet-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-haiku-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-3.5-haiku...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-lite-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-5-mini...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-120b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-safeguard-20b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+================================================================================
+TEST 2: COPILOT CHAT (Needs speed + good quality)
+================================================================================
+
+Testing anthropic/claude-sonnet-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-haiku-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-3.5-haiku...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-lite-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-5-mini...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-120b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-safeguard-20b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+================================================================================
+TEST 3: MARKET ANALYSIS (Needs quality + reasonable speed)
+================================================================================
+
+Testing anthropic/claude-sonnet-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-haiku-4.5...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing anthropic/claude-3.5-haiku...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing google/gemini-2.5-flash-lite-preview-09-2025...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-5-mini...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-120b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+Testing openai/gpt-oss-safeguard-20b...
+✗ Failed - module 'certifi' has no attribute 'where'
+
+================================================================================
+ANALYSIS & RECOMMENDATIONS
+================================================================================
+
+TRADE ANALYSIS:
+--------------------------------------------------------------------------------
+❌ No successful results for this test
+
+COPILOT CHAT:
+--------------------------------------------------------------------------------
+❌ No successful results for this test
+
+MARKET ANALYSIS:
+--------------------------------------------------------------------------------
+❌ No successful results for this test
+
+================================================================================
+FINAL CONFIGURATION RECOMMENDATIONS
+================================================================================
+
+Based on ACTUAL testing (quality and speed priorities):
+
+
+TERTIARY MODEL (Quick Insights):
+  google/gemini-2.5-flash-lite-preview-09-2025
+
+BACKUP MODEL (Fallback):
+  minimax/minimax-m2:free
+
+================================================================================
+UPDATE YOUR .env FILE
+================================================================================
+
+Add these lines to backend/.env:
+
+OPENROUTER_TERTIARY_MODEL=google/gemini-2.5-flash-lite-preview-09-2025
+OPENROUTER_BACKUP_MODEL=minimax/minimax-m2:free
+
+✓ Detailed results saved to: backend/model_test_results.json
+
+================================================================================
+TESTING COMPLETE!
+================================================================================
+
+Next steps:
+1. Review the recommendations above
+2. Update backend/.env with recommended models
+3. Restart the backend
+4. Start trading with optimized models!
