@@ -33,3 +33,46 @@ backend/**/*.pyc
 backend/.pytest_cache/
 backend/**/.pytest_cache/
 *.egg-info/
+*.egg
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# Environment
+backend/.env
+.env.local
+.env.*.local
+
+# Test results
+backend/test_results*.json
+backend/integration_test_results.json
+backend/model_test_results.json
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib

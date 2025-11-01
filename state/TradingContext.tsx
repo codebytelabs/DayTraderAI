@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { AdvisoryMessage, LogEntry, Order, Position, TradeAnalysis } from '../types';
-import { SimulatorStats, useTradingSimulator } from '../simulation/useTradingSimulator';
+import { useBackendTrading, BackendStats } from '../hooks/useBackendTrading';
 import { useConfig } from './ConfigContext';
 import { OrderSide } from '../types';
 
 export interface TradingContextValue {
-  stats: SimulatorStats;
-  performanceData: ReturnType<typeof useTradingSimulator>['performanceData'];
+  stats: BackendStats;
+  performanceData: ReturnType<typeof useBackendTrading>['performanceData'];
   positions: Position[];
   orders: Order[];
   logs: LogEntry[];
@@ -22,6 +22,8 @@ export interface TradingContextValue {
     riskPerTradePct: number;
   };
   watchlist: string[];
+  isConnected: boolean;
+  error: string | null;
 }
 
 const TradingContext = createContext<TradingContextValue | undefined>(undefined);
@@ -36,6 +38,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { config } = useConfig();
 
   const watchlist = useMemo(() => normaliseWatchlist(config.strategy.watchlist), [config.strategy.watchlist]);
+  
+  // Use real backend instead of simulator
   const {
     stats,
     performanceData,
@@ -47,12 +51,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     closePosition,
     cancelOrder,
     placeOrder,
-    config: simConfig,
-  } = useTradingSimulator({
-    universe: watchlist,
-    maxPositions: config.strategy.maxPositions,
-    riskPerTradePct: config.strategy.riskPerTradePct,
-  });
+    isConnected,
+    error,
+  } = useBackendTrading();
 
   const contextValue = useMemo<TradingContextValue>(() => {
     const getStateSummary = () => {
@@ -73,8 +74,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : orders.map((order) => `${order.side.toUpperCase()} ${order.qty} ${order.symbol} (${order.status})`).join('; ');
       const latestLog = logs.at(-1)?.message ?? 'No logs yet.';
       return [
-        `Equity ${stats.dailyPl >= 0 ? 'up' : 'down'} ${stats.dailyPl.toFixed(2)} (${stats.dailyPlPc.toFixed(2)}%).`,
-        `Win rate ${(stats.winRate * 100).toFixed(1)}%, profit factor ${stats.profitFactor.toFixed(2)}.`,
+        `Equity ${stats.daily_pl >= 0 ? 'up' : 'down'} ${stats.daily_pl.toFixed(2)} (${stats.daily_pl_pct.toFixed(2)}%).`,
+        `Win rate ${(stats.win_rate * 100).toFixed(1)}%, profit factor ${stats.profit_factor.toFixed(2)}.`,
         openPositionSummary,
         pendingOrders,
         `Latest log: ${latestLog}`,
@@ -105,22 +106,26 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       getStateSummary,
       getStateSnapshot,
       riskSettings: {
-        maxPositions: simConfig.maxPositions,
-        riskPerTradePct: simConfig.riskPerTradePct,
+        maxPositions: config.strategy.maxPositions,
+        riskPerTradePct: config.strategy.riskPerTradePct,
       },
-        watchlist,
+      watchlist,
+      isConnected,
+      error,
     };
   }, [
     advisories,
     cancelOrder,
     closePosition,
+    config.strategy.maxPositions,
+    config.strategy.riskPerTradePct,
+    error,
+    isConnected,
     logs,
     orders,
     performanceData,
     placeOrder,
     positions,
-    simConfig.maxPositions,
-    simConfig.riskPerTradePct,
     stats,
     tradeAnalyses,
     watchlist,

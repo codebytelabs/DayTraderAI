@@ -348,6 +348,115 @@ async def sync():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/logs")
+async def get_logs(limit: int = 100):
+    """Get recent system logs."""
+    try:
+        logs = trading_state.get_logs(limit=limit)
+        return [
+            {
+                "id": i,
+                "timestamp": log.timestamp.isoformat(),
+                "level": log.level,
+                "message": log.message,
+                "source": log.source
+            }
+            for i, log in enumerate(logs)
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get logs: {e}")
+        return []
+
+
+@app.get("/advisories")
+async def get_advisories(limit: int = 50):
+    """Get recent AI advisories."""
+    try:
+        advisories = supabase_client.get_advisories(limit=limit)
+        return [
+            {
+                "id": adv.get("id"),
+                "timestamp": adv.get("timestamp"),
+                "type": adv.get("type", "analysis"),
+                "symbol": adv.get("symbol"),
+                "content": adv.get("content"),
+                "model": adv.get("model"),
+                "confidence": adv.get("confidence", 0.5)
+            }
+            for adv in advisories
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get advisories: {e}")
+        return []
+
+
+@app.get("/analyses")
+async def get_analyses(limit: int = 50):
+    """Get recent trade analyses."""
+    try:
+        # Get recent trades with analysis
+        trades = supabase_client.get_trades(limit=limit)
+        analyses = []
+        
+        for trade in trades:
+            if trade.get("reason"):  # Has analysis
+                analyses.append({
+                    "id": trade.get("id"),
+                    "timestamp": trade.get("timestamp"),
+                    "symbol": trade.get("symbol"),
+                    "side": trade.get("side"),
+                    "action": "entry" if trade.get("entry_time") else "exit",
+                    "analysis": trade.get("reason"),
+                    "pnl": trade.get("pnl", 0),
+                    "pnl_pct": trade.get("pnl_pct", 0)
+                })
+        
+        return analyses
+    except Exception as e:
+        logger.error(f"Failed to get analyses: {e}")
+        return []
+
+
+@app.post("/chat")
+async def chat(message: str):
+    """Chat with AI copilot."""
+    try:
+        from advisory.openrouter import OpenRouterClient
+        
+        openrouter = OpenRouterClient()
+        
+        # Get current trading context
+        metrics = trading_state.get_metrics()
+        positions = trading_state.get_all_positions()
+        
+        trading_context = {
+            "equity": metrics.equity,
+            "daily_pl": metrics.daily_pl,
+            "daily_pl_pct": metrics.daily_pl_pct,
+            "open_positions": len(positions),
+            "win_rate": metrics.win_rate,
+            "trading_enabled": trading_state.is_trading_allowed()
+        }
+        
+        response = await openrouter.copilot_response(
+            user_message=message,
+            trading_context=trading_context
+        )
+        
+        return {
+            "success": True,
+            "response": response or "I'm having trouble responding right now.",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Chat failed: {e}")
+        return {
+            "success": False,
+            "response": "Sorry, I'm having technical difficulties.",
+            "error": str(e)
+        }
+
+
 @app.get("/engine/status")
 async def get_engine_status():
     """Get trading engine status."""

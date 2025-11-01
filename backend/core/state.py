@@ -34,6 +34,14 @@ class Order:
 
 
 @dataclass
+class LogEntry:
+    timestamp: datetime
+    level: str
+    message: str
+    source: str
+
+
+@dataclass
 class TradingMetrics:
     equity: float
     cash: float
@@ -61,6 +69,8 @@ class TradingState:
         self._lock = Lock()
         self.positions: Dict[str, Position] = {}
         self.orders: Dict[str, Order] = {}
+        self.logs: List[LogEntry] = []
+        self.max_logs = 1000  # Keep last 1000 logs
         self.metrics = TradingMetrics(
             equity=0,
             cash=0,
@@ -162,6 +172,26 @@ class TradingState:
         """Check if trading is allowed."""
         with self._lock:
             return self.is_trading_enabled and not self.metrics.circuit_breaker_triggered
+    
+    def add_log(self, level: str, message: str, source: str = "system"):
+        """Add a log entry."""
+        with self._lock:
+            log = LogEntry(
+                timestamp=datetime.utcnow(),
+                level=level,
+                message=message,
+                source=source
+            )
+            self.logs.append(log)
+            
+            # Keep only last max_logs entries
+            if len(self.logs) > self.max_logs:
+                self.logs = self.logs[-self.max_logs:]
+    
+    def get_logs(self, limit: int = 100) -> List[LogEntry]:
+        """Get recent logs."""
+        with self._lock:
+            return self.logs[-limit:] if limit else self.logs
 
 
 # Global state instance
