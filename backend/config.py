@@ -13,9 +13,18 @@ class Settings(BaseSettings):
     supabase_key: str
     supabase_service_key: str
     
-    # LLM Services
-    perplexity_api_key: str = ""
+    # OpenRouter Configuration
     openrouter_api_key: str = ""
+    openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_primary_model: str = "google/gemini-2.5-flash-preview-09-2025"
+    openrouter_secondary_model: str = "google/gemini-2.5-flash-lite-preview-09-2025"
+    openrouter_backup_model: str = "minimax/minimax-m2:free"
+    openrouter_temperature: float = 0.7
+    
+    # Perplexity Configuration
+    perplexity_api_key: str = ""
+    perplexity_api_base_url: str = "https://api.perplexity.ai"
+    perplexity_default_model: str = "sonar-pro"
     
     # Strategy
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
