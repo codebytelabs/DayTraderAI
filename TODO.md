@@ -1,69 +1,199 @@
 # DayTraderAI Execution Plan
 
 ## Mission
-Deliver the production-grade "Ultimate Expert Day-Trading Bot" in phased releases. The dashboard already hosts a rich simulator; the next sprints wire it into real Alpaca/Supabase/LLM services, enforce deterministic risk, and automate promotion gates.
+Build a production-grade day trading bot that actually makes money. Current state: beautiful frontend simulator. Goal: real Alpaca trading with bulletproof risk management.
 
-## Squad Setup (4 Parallel Agents)
-- **Agent Alpha – Core Services & OMS**
-  - Owns backend services (Python/Node), Alpaca execution bridge, websockets, order/state reconciliation, secrets handling.
-- **Agent Beta – Data, Features & Risk Science**
-  - Drives ingestion (bars, corporate actions, calendars), feature store, supervised gatekeeper, risk analytics, walk-forward experiments.
-- **Agent Gamma – Frontend & Copilot UX**
-  - Evolves the React console, copilot orchestration, actionable insights, and monitoring dashboards.
-- **Agent Delta – Ops, QA & Automation**
-  - Focuses on CI/CD, infrastructure-as-code, alerting, runbooks, simulations, and compliance tooling.
+## Current Status
+✅ Frontend dashboard with simulator
+✅ UI for positions, orders, charts, logs
+✅ Settings management
+❌ No real trading execution
+❌ No backend service
+❌ No data persistence
+❌ No risk management system
 
-Each agent works from separate branches, syncs daily via shared Supabase board, and contributes to weekly demo builds.
+## Architecture Overview
+```
+Frontend (React/TS) ←→ Backend (Python/FastAPI) ←→ Alpaca API
+                              ↓
+                         Supabase DB
+                              ↓
+                    LLMs (Perplexity/OpenRouter)
+```
+
+## Phase 1: Backend Foundation (THIS WEEK)
+**Goal: Get real paper trading working**
+
+### Backend Structure
+```
+backend/
+├── main.py                 # FastAPI server
+├── config.py              # Settings from .env
+├── requirements.txt       # Dependencies
+├── core/
+│   ├── alpaca_client.py  # Alpaca wrapper
+│   ├── supabase_client.py # DB wrapper
+│   └── state.py          # Shared state
+├── trading/
+│   ├── risk_manager.py   # Pre-trade checks
+│   ├── order_manager.py  # Order execution
+│   ├── position_manager.py # Position tracking
+│   └── strategy.py       # EMA strategy
+├── data/
+│   ├── market_data.py    # Data ingestion
+│   └── features.py       # Indicators
+├── advisory/
+│   ├── perplexity.py     # News
+│   └── openrouter.py     # LLM
+└── api/
+    ├── routes.py         # REST API
+    └── websocket.py      # Real-time updates
+```
+
+### Week 1 Tasks (Backend Foundation)
+- [x] Plan architecture and file structure
+- [x] Setup Python backend with FastAPI
+- [x] Implement Alpaca client (paper trading)
+- [x] Create Supabase schema and client
+- [x] Build RiskManager with core checks
+- [x] Implement OrderManager with idempotency
+- [x] Create feature computation engine
+- [x] Build EMA strategy engine
+- [x] Add REST API endpoints
+- [ ] Setup Supabase database (run schema)
+- [ ] Configure .env with API keys
+- [ ] Test backend startup
+- [ ] Test end-to-end paper trading
+- [ ] Create market data ingestion loop
+- [ ] Create position monitoring loop
+- [ ] Integrate frontend with backend API
+
+### Week 2 Tasks (Strategy Execution)
+- [ ] Position monitoring with auto-stops
+- [ ] WebSocket for real-time updates
+- [ ] Performance metrics calculation
+- [ ] Frontend API integration
+- [ ] Replace simulator with real backend
+- [ ] Add manual trading controls
+- [ ] Implement emergency kill switch
+- [ ] Test full trading cycle
+
+### Week 3 Tasks (Advisory & Enhancement)
+- [ ] Perplexity news integration
+- [ ] OpenRouter advisory system
+- [ ] Enhanced risk controls (sector, correlation)
+- [ ] Backtesting framework setup
+- [ ] Walk-forward validation
+- [ ] Slippage and fill tracking
+- [ ] Mark-to-market analytics
+
+### Week 4 Tasks (Production Readiness)
+- [ ] Comprehensive error handling
+- [ ] Monitoring and alerting
+- [ ] Paper→live promotion checklist
+- [ ] Documentation and runbooks
+- [ ] Disaster recovery procedures
+- [ ] Performance optimization
+- [ ] Security audit
 
 ---
 
-## Stream A – Backend & OMS (Agent Alpha)
-- [ ] Scaffold backend service (FastAPI or Node/Express) with modular layers: ingestion, strategy evaluation, risk checks, execution.
-- [ ] Implement secrets management: load from `.env`, rotate via CLI, never expose to frontend.
-- [ ] Build Alpaca REST/WebSocket client with deterministic `client_order_id`, position reconciliation on restart, and bracket maintenance.
-- [ ] Expose GraphQL/REST endpoints for dashboard (positions, orders, metrics, logs, controls) + SSE/WebSocket channel for real-time events.
-- [ ] Mirror simulator strategy in backend (EMA breakout) with unit tests, enabling easy swap to advanced strategies later.
-- [ ] Add command ingestion endpoint so the copilot can delegate actions server-side (close/cancel/place orders, toggle risk limits).
+## Critical Implementation Details
 
-## Stream B – Data, Features & Risk (Agent Beta)
-- [ ] Integrate Alpaca/Polygon historical data with corporate-action hygiene (split/dividend modes as per blueprint).
-- [ ] Populate Supabase `features`, `metrics`, `trades`, `advisories` tables; design retention policies & indexes.
-- [ ] Implement feature pipelines (ATR, volume z-score, regime detectors) and scheduled walk-forward retraining harness (VectorBT/Backtrader).
-- [ ] Train and version the supervised gatekeeper model; define feature schema freeze, evaluation metrics, and promotion policy.
-- [ ] Engineering for risk rails: position sizing ≤2% capital, daily 5% breaker, sector/ correlation caps, short locate handling.
-- [ ] Develop performance analytics jobs: mark-outs, slippage tiers, fill-rate tracking, latency distributions.
+### Risk Management (Non-Negotiable)
+Every order MUST pass these checks:
+1. Position size ≤ 2% equity at risk
+2. Total positions ≤ max_positions
+3. Daily loss < 5% circuit breaker
+4. Symbol liquidity filters (volume, spread)
+5. Sufficient buying power
+6. Market open and not halted
 
-## Stream C – Frontend & Copilot UX (Agent Gamma)
-- [ ] Connect dashboard to backend API (replace simulator state with live endpoints while keeping offline demo mode).
-- [ ] Enhance copilot prompt orchestration: chain-of-thought scratchpad, structured JSON response parser, explicit action confirmation steps.
-- [ ] Add news timeline (Perplexity) with source verification + veto toggles.
-- [ ] Visualise readiness checklist from live metrics; include drill progress, uptime, and alert counters.
-- [ ] Implement strategy configuration editor (per-strategy parameters, gatekeeper thresholds, retrain cadence).
-- [ ] Add unit tests for hooks/components (React Testing Library, Vitest) and capture storybook scenarios.
+### Order Idempotency
+```python
+def generate_order_id(symbol, side, qty, price, timestamp_minute):
+    payload = f"{symbol}|{side}|{qty}|{price:.4f}|{timestamp_minute}"
+    return hashlib.sha256(payload.encode()).hexdigest()[:24]
+```
 
-## Stream D – Ops, QA & Automation (Agent Delta)
-- [ ] Define IaC (Terraform/ Pulumi) to provision Supabase, server runtime, secret vault, observability stack.
-- [ ] Configure CI: lint, type-check, unit/integration suites, contract tests against mock Alpaca.
-- [ ] Build synthetic market replay harness for regression testing (intraday scenarios w/ halts, splits, earnings). 
-- [ ] Instrument OpenTelemetry tracing + metrics ingestion (Prometheus/Grafana or Supabase-edge triggers).
-- [ ] Draft incident runbooks (Alpaca outage, Supabase failover, model degradation) and automate notification routing (Slack/email/SMS).
-- [ ] Execute quarterly disaster-recovery drill: backup restore, key rotation, fallback to simulator-only mode.
+### Fail-Safe Defaults
+- If Alpaca API fails → halt trading
+- If position sync fails → halt new trades
+- If data feed gaps → skip affected symbols
+- Emergency kill switch → close all positions
+
+### Supabase Schema
+```sql
+-- trades: all executed trades
+-- positions: current positions
+-- orders: order history
+-- market_data: OHLCV bars
+-- features: computed indicators
+-- advisories: LLM insights
+-- metrics: performance stats
+-- config: strategy parameters
+```
 
 ---
 
-## Cross-Cutting Milestones
-- **M1: Backend MVP (2 weeks)** – live Alpaca paper trading, Supabase persistence, dashboard consuming real data.
-- **M2: Gatekeeper & Walk-Forward (4 weeks)** – supervised filter live in shadow mode, automated walk-forward/backtest pipeline, readiness checklist drawing from actual metrics.
-- **M3: Ops Hardening (6 weeks)** – monitoring/alerting complete, runbooks tested, compliance tooling in place, pilot live trading under capital throttle.
+## Milestones
+- **M1 (Week 1)**: Backend running, paper trading live
+- **M2 (Week 2)**: Frontend connected, full trading cycle
+- **M3 (Week 3)**: Advisory system, enhanced analytics
+- **M4 (Week 4)**: Production-ready, promotion gates passed
 
-## Dependencies & References
+## Tech Stack
+- **Backend**: Python 3.11+, FastAPI, alpaca-py, supabase-py, pandas, numpy
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Trading**: Alpaca (paper → live)
+- **LLMs**: Perplexity (news), OpenRouter (advisory)
+
+## Environment Variables (.env)
+```bash
+# Alpaca
+ALPACA_API_KEY=your_key
+ALPACA_SECRET_KEY=your_secret
+ALPACA_BASE_URL=https://paper-api.alpaca.markets  # paper trading
+
+# Supabase
+SUPABASE_URL=your_project_url
+SUPABASE_KEY=your_anon_key
+SUPABASE_SERVICE_KEY=your_service_key
+
+# LLMs
+PERPLEXITY_API_KEY=your_key
+OPENROUTER_API_KEY=your_key
+
+# Strategy
+WATCHLIST=SPY,QQQ,AAPL,MSFT,NVDA,TSLA,AMD,GOOG,AMZN,META
+MAX_POSITIONS=5
+RISK_PER_TRADE_PCT=0.01
+CIRCUIT_BREAKER_PCT=0.05
+
+# Server
+BACKEND_PORT=8000
+FRONTEND_URL=http://localhost:5173
+```
+
+## Getting Started (After Backend Built)
+```bash
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Edit with your keys
+python main.py
+
+# Frontend (separate terminal)
+npm run dev
+```
+
+## References
 - Blueprint: [`DayTraderAI_idea.md`](./DayTraderAI_idea.md)
-- Frontend guide: [`README.md`](./README.md)
-- Keys/Secrets: maintain via `.env` (backend) and Settings drawer (frontend demo)
+- Frontend: [`README.md`](./README.md)
 
-## Daily Rituals
-- 10:00 UTC stand-up (15m) – each agent posts blockers & achievements.
-- Async status board in Supabase/Notion; update milestones at EOD.
-- Weekly Friday release candidate cut, Monday retro.
+---
 
-Stay ruthless about measurement, fail-safe defaults, and deterministic recoveries—every promotion gate must be earned with data. 🚀
+**Remember**: Paper trade extensively. Measure everything. Never risk more than you can afford to lose. This is experimental software. 🚀
