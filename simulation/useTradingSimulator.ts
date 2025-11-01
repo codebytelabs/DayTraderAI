@@ -26,11 +26,17 @@ interface TickerData {
   prevEmas: { short: number, long: number };
 }
 interface MarketData { [symbol: string]: TickerData; }
-interface Stats { dailyPl: number; dailyPlPc: number; winRate: number; profitFactor: number; wins: number; losses: number; }
+export interface SimulatorStats { dailyPl: number; dailyPlPc: number; winRate: number; profitFactor: number; wins: number; losses: number; }
 
-const generateInitialMarket = (): MarketData => {
+export interface TradingSimulatorOptions {
+  universe?: string[];
+  maxPositions?: number;
+  riskPerTradePct?: number;
+}
+
+const generateInitialMarket = (symbols: string[]): MarketData => {
   const market: MarketData = {};
-  SIMULATED_UNIVERSE.forEach(symbol => {
+  symbols.forEach(symbol => {
     const price = 200 + Math.random() * 300;
     market[symbol] = {
       price: price,
@@ -44,14 +50,18 @@ const generateInitialMarket = (): MarketData => {
   return market;
 };
 
-export const useTradingSimulator = () => {
-  const [market, setMarket] = useState<MarketData>(generateInitialMarket);
+export const useTradingSimulator = (options: TradingSimulatorOptions = {}) => {
+  const universe = options.universe && options.universe.length ? options.universe : SIMULATED_UNIVERSE;
+  const maxPositions = options.maxPositions ?? MAX_POSITIONS;
+  const riskPerTradePct = options.riskPerTradePct ?? RISK_PER_TRADE;
+
+  const [market, setMarket] = useState<MarketData>(() => generateInitialMarket(universe));
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [advisories, setAdvisories] = useState<AdvisoryMessage[]>([]);
   const [tradeAnalyses, setTradeAnalyses] = useState<TradeAnalysis[]>([]);
-  const [stats, setStats] = useState<Stats>({ dailyPl: 0, dailyPlPc: 0, winRate: 0, profitFactor: 1, wins: 0, losses: 0 });
+  const [stats, setStats] = useState<SimulatorStats>({ dailyPl: 0, dailyPlPc: 0, winRate: 0, profitFactor: 1, wins: 0, losses: 0 });
   const [performanceData, setPerformanceData] = useState<PerformanceDataPoint[]>([]);
 
   const idCounter = useRef({ order: 0, position: 0, log: 0, advisory: 0, analysis: 0 });
@@ -61,6 +71,25 @@ export const useTradingSimulator = () => {
   const lastAdvisoryTime = useRef(Date.now());
   const candleTimestamp = useRef(0);
   const currentCandle = useRef<Omit<PerformanceDataPoint, 'timestamp' | 'pnl' | 'winRate' | 'profitFactor' | 'wins' | 'losses'>>({ open: INITIAL_EQUITY, high: INITIAL_EQUITY, low: INITIAL_EQUITY, close: INITIAL_EQUITY });
+  const universeKey = universe.join(',');
+
+  useEffect(() => {
+    setMarket(generateInitialMarket(universe));
+    setPositions([]);
+    setOrders([]);
+    setLogs([]);
+    setAdvisories([]);
+    setTradeAnalyses([]);
+    setStats({ dailyPl: 0, dailyPlPc: 0, winRate: 0, profitFactor: 1, wins: 0, losses: 0 });
+    setPerformanceData([]);
+    idCounter.current = { order: 0, position: 0, log: 0, advisory: 0, analysis: 0 };
+    equity.current = INITIAL_EQUITY;
+    totalGrossLoss.current = 0;
+    totalGrossProfit.current = 0;
+    lastAdvisoryTime.current = Date.now();
+    candleTimestamp.current = 0;
+    currentCandle.current = { open: INITIAL_EQUITY, high: INITIAL_EQUITY, low: INITIAL_EQUITY, close: INITIAL_EQUITY };
+  }, [universeKey, maxPositions, riskPerTradePct]);
 
   const addLog = useCallback((level: LogLevel, message: string) => {
     setLogs(prev => {
@@ -227,13 +256,13 @@ export const useTradingSimulator = () => {
       Object.keys(market).forEach((symbol) => {
         const ticker = market[symbol];
         const hasPosition = positions.some(p => p.symbol === symbol);
-          if (positions.length < MAX_POSITIONS && !hasPosition) {
+          if (positions.length < maxPositions && !hasPosition) {
               const { emas, prevEmas } = ticker;
               if (prevEmas.short < prevEmas.long && emas.short > emas.long) { // Bullish Crossover
-                  const positionSize = Math.floor((equity.current * RISK_PER_TRADE) / (ticker.atr * STOP_LOSS_ATR_MULT));
+                  const positionSize = Math.floor((equity.current * riskPerTradePct) / (ticker.atr * STOP_LOSS_ATR_MULT));
                   if (positionSize > 0) placeOrder(symbol, OrderSide.BUY, positionSize, `${EMA_SHORT}/${EMA_LONG} Bullish EMA Crossover`);
               } else if (prevEmas.short > prevEmas.long && emas.short < emas.long) { // Bearish Crossover
-                  const positionSize = Math.floor((equity.current * RISK_PER_TRADE) / (ticker.atr * STOP_LOSS_ATR_MULT));
+                  const positionSize = Math.floor((equity.current * riskPerTradePct) / (ticker.atr * STOP_LOSS_ATR_MULT));
                   if (positionSize > 0) placeOrder(symbol, OrderSide.SELL, positionSize, `${EMA_SHORT}/${EMA_LONG} Bearish EMA Crossover`);
               }
           }
@@ -250,7 +279,7 @@ export const useTradingSimulator = () => {
         idCounter.current.advisory++;
         const newAdvisory: AdvisoryMessage = {
           id: idCounter.current.advisory, source: Math.random() > 0.5 ? 'Perplexity' : 'OpenRouter',
-          symbol: SIMULATED_UNIVERSE[Math.floor(Math.random() * SIMULATED_UNIVERSE.length)],
+          symbol: universe[Math.floor(Math.random() * universe.length)],
           content: `Analysis suggests ${Math.random() > 0.5 ? 'bullish continuation' : 'potential reversal pattern'}. Watch key resistance levels.`,
           timestamp: new Date().toISOString()
         }
@@ -263,5 +292,21 @@ export const useTradingSimulator = () => {
     return () => clearInterval(timer);
   }, [market, orders, positions, stats.wins, stats.losses, addLog, placeOrder, closePosition, generateTradeAnalysis, cancelOrder]);
 
-  return { stats, performanceData, positions, orders, logs, advisories, tradeAnalyses, closePosition, cancelOrder };
+  return {
+    stats,
+    performanceData,
+    positions,
+    orders,
+    logs,
+    advisories,
+    tradeAnalyses,
+    closePosition,
+    cancelOrder,
+    placeOrder,
+    config: {
+      universe,
+      maxPositions,
+      riskPerTradePct,
+    },
+  };
 };

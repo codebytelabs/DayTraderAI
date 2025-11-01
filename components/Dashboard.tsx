@@ -7,7 +7,8 @@ import { PerformanceChart } from './PerformanceChart';
 import { ReadinessChecklist } from './ReadinessChecklist';
 import { LogFeed } from './LogFeed';
 import { AdvisoryPanel } from './AdvisoryPanel';
-import { useTradingSimulator } from '../simulation/useTradingSimulator';
+import { ChatPanel } from './ChatPanel';
+import { useTrading } from '../state/TradingContext';
 import { TradeAnalysisLog } from './TradeAnalysisLog';
 
 export const Dashboard: React.FC = () => {
@@ -21,7 +22,7 @@ export const Dashboard: React.FC = () => {
     tradeAnalyses,
     closePosition,
     cancelOrder,
-  } = useTradingSimulator();
+  } = useTrading();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -45,6 +46,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Right Sidebar */}
       <div className="lg:col-span-3 xl:col-span-1 flex flex-col gap-6">
+        <ChatPanel />
         <AdvisoryPanel advisories={advisories} />
         <ReadinessChecklist />
         <LogFeed logs={logs} />

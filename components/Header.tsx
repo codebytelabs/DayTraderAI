@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ConnectionStatuses, ServiceStatus } from '../types';
+import { useConfig } from '../state/ConfigContext';
 
 const StatusIndicator: React.FC<{ status: ServiceStatus; name: string }> = ({ status, name }) => {
   const statusConfig = {
@@ -17,25 +18,41 @@ const StatusIndicator: React.FC<{ status: ServiceStatus; name: string }> = ({ st
   );
 };
 
-export const Header: React.FC = () => {
-    const [statuses, setStatuses] = useState<ConnectionStatuses>({
-        alpaca: ServiceStatus.CONNECTED,
-        supabase: ServiceStatus.CONNECTED,
-        perplexity: ServiceStatus.DEGRADED,
-        openRouter: ServiceStatus.CONNECTED,
-    });
+interface HeaderProps {
+  onOpenSettings: () => void;
+}
 
-    // Mock status changes
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setStatuses(prev => ({
-                ...prev,
-                perplexity: Math.random() > 0.8 ? ServiceStatus.DISCONNECTED : ServiceStatus.CONNECTED,
-                supabase: Math.random() > 0.95 ? ServiceStatus.DEGRADED : ServiceStatus.CONNECTED,
-            }))
-        }, 15000);
-        return () => clearInterval(interval);
-    }, []);
+export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => {
+  const [statuses, setStatuses] = useState<ConnectionStatuses>({
+    alpaca: ServiceStatus.CONNECTED,
+    supabase: ServiceStatus.CONNECTED,
+    perplexity: ServiceStatus.DEGRADED,
+    openRouter: ServiceStatus.CONNECTED,
+  });
+  const { config } = useConfig();
+
+  // Mock status changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStatuses((prev) => ({
+        ...prev,
+        perplexity: Math.random() > 0.8 ? ServiceStatus.DISCONNECTED : ServiceStatus.CONNECTED,
+        supabase: Math.random() > 0.95 ? ServiceStatus.DEGRADED : ServiceStatus.CONNECTED,
+      }));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeProviderLabel = useMemo(() => {
+    switch (config.chat.provider) {
+      case 'openrouter':
+        return `Copilot: OpenRouter (${config.openRouter.model})`;
+      case 'perplexity':
+        return `Copilot: Perplexity (${config.perplexity.model})`;
+      default:
+        return 'Copilot: Manual (LLM disabled)';
+    }
+  }, [config.chat.provider, config.openRouter.model, config.perplexity.model]);
 
   return (
     <header className="bg-brand-surface p-4 flex justify-between items-center border-b border-brand-surface-2">
@@ -47,6 +64,14 @@ export const Header: React.FC = () => {
         <StatusIndicator status={statuses.supabase} name="Supabase" />
         <StatusIndicator status={statuses.perplexity} name="Perplexity" />
         <StatusIndicator status={statuses.openRouter} name="OpenRouter" />
+        <div className="hidden xl:block text-sm text-brand-text-secondary">{activeProviderLabel}</div>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="px-3 py-2 bg-brand-accent hover:bg-brand-accent-hover text-sm font-semibold rounded-md transition"
+        >
+          Settings
+        </button>
       </div>
     </header>
   );
