@@ -3,14 +3,20 @@
 ## Mission
 Build a production-grade day trading bot that actually makes money. Current state: beautiful frontend simulator. Goal: real Alpaca trading with bulletproof risk management.
 
-## Current Status
+## Current Status (Updated)
 ✅ Frontend dashboard with simulator
 ✅ UI for positions, orders, charts, logs
 ✅ Settings management
-❌ No real trading execution
-❌ No backend service
-❌ No data persistence
-❌ No risk management system
+✅ Backend service (FastAPI)
+✅ Alpaca integration (paper trading)
+✅ Supabase integration (database)
+✅ Risk management system
+✅ Order management (idempotent)
+✅ Strategy engine (EMA crossover)
+✅ OpenRouter + Perplexity (tested models)
+❌ Automation loops (market data, strategy, position monitoring)
+❌ Frontend-backend integration
+❌ End-to-end testing with real data
 
 ## Architecture Overview
 ```
@@ -50,7 +56,7 @@ backend/
     └── websocket.py      # Real-time updates
 ```
 
-### Week 1 Tasks (Backend Foundation)
+### COMPLETED ✅
 - [x] Plan architecture and file structure
 - [x] Setup Python backend with FastAPI
 - [x] Implement Alpaca client (paper trading)
@@ -60,13 +66,36 @@ backend/
 - [x] Create feature computation engine
 - [x] Build EMA strategy engine
 - [x] Add REST API endpoints
-- [ ] Setup Supabase database (run schema)
-- [ ] Configure .env with API keys
-- [ ] Test backend startup
-- [ ] Test end-to-end paper trading
-- [ ] Create market data ingestion loop
-- [ ] Create position monitoring loop
-- [ ] Integrate frontend with backend API
+- [x] OpenRouter client with tested models
+- [x] Perplexity client for news
+- [x] Configuration system (.env)
+- [x] Test OpenRouter models (REAL testing)
+- [x] Optimize model selection
+
+### JUST COMPLETED ✅
+- [x] **Market data ingestion loop** - Fetch bars continuously
+- [x] **Strategy evaluation loop** - Auto-detect signals and trade
+- [x] **Position monitoring loop** - Auto-close stops/targets
+- [x] **Position manager module** - Track and update positions
+- [x] **Trading engine** - Orchestrates all automation loops
+- [x] **Metrics loop** - Calculate and store performance
+- [x] **Engine control endpoints** - Start/stop/status API
+
+### READY FOR TESTING 🧪
+- [ ] **Run setup** - Install dependencies (./setup.sh)
+- [ ] **Run test suite** - Automated tests (./test_suite.sh)
+- [ ] **Unit tests** - Test each module independently
+- [ ] **API tests** - Test all endpoints with real data
+- [ ] **Integration tests** - Test full trading cycle
+- [ ] **Use case tests** - Validate expected behavior
+- [ ] **Fix issues** - Debug and resolve problems
+- [ ] **UAT ready** - Confirm ready for user testing
+
+### PENDING (Nice to Have - Later)
+- [ ] **Frontend API integration** - Replace simulator with real backend
+- [ ] **WebSocket** - Real-time updates to frontend
+- [ ] **Backtesting framework** - Historical testing
+- [ ] **Advanced analytics** - More metrics and charts
 
 ### Week 2 Tasks (Strategy Execution)
 - [ ] Position monitoring with auto-stops

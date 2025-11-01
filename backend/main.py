@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -11,8 +12,11 @@ from core.supabase_client import SupabaseClient
 from core.state import trading_state, Position as StatePosition
 from trading.risk_manager import RiskManager
 from trading.order_manager import OrderManager
+from trading.position_manager import PositionManager
 from trading.strategy import EMAStrategy
+from trading.trading_engine import TradingEngine, set_trading_engine, get_trading_engine
 from data.features import FeatureEngine
+from data.market_data import MarketDataManager
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -22,15 +26,17 @@ alpaca_client: Optional[AlpacaClient] = None
 supabase_client: Optional[SupabaseClient] = None
 risk_manager: Optional[RiskManager] = None
 order_manager: Optional[OrderManager] = None
+position_manager: Optional[PositionManager] = None
 strategy: Optional[EMAStrategy] = None
+market_data_manager: Optional[MarketDataManager] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize clients on startup."""
-    global alpaca_client, supabase_client, risk_manager, order_manager, strategy
+    """Initialize clients and start trading engine on startup."""
+    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager
     
-    logger.info("Starting DayTraderAI Backend...")
+    logger.info("🚀 Starting DayTraderAI Backend...")
     
     try:
         # Initialize clients
@@ -38,20 +44,42 @@ async def lifespan(app: FastAPI):
         supabase_client = SupabaseClient()
         risk_manager = RiskManager(alpaca_client)
         order_manager = OrderManager(alpaca_client, supabase_client, risk_manager)
+        position_manager = PositionManager(alpaca_client, supabase_client)
         strategy = EMAStrategy(order_manager)
+        market_data_manager = MarketDataManager(alpaca_client, supabase_client)
+        
+        # Initialize trading engine
+        engine = TradingEngine(
+            alpaca_client=alpaca_client,
+            supabase_client=supabase_client,
+            risk_manager=risk_manager,
+            order_manager=order_manager,
+            position_manager=position_manager,
+            strategy=strategy,
+            market_data_manager=market_data_manager
+        )
+        set_trading_engine(engine)
         
         # Sync initial state
         await sync_state()
         
-        logger.info("Backend initialized successfully")
+        # Start trading engine in background
+        asyncio.create_task(engine.start())
+        
+        logger.info("✅ Backend initialized successfully")
+        logger.info("✅ Trading engine started")
         
     except Exception as e:
-        logger.error(f"Failed to initialize backend: {e}")
+        logger.error(f"❌ Failed to initialize backend: {e}")
         raise
     
     yield
     
-    logger.info("Shutting down...")
+    # Shutdown
+    logger.info("🛑 Shutting down...")
+    engine = get_trading_engine()
+    if engine:
+        await engine.stop()
 
 
 app = FastAPI(
@@ -320,11 +348,54 @@ async def sync():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/engine/status")
+async def get_engine_status():
+    """Get trading engine status."""
+    engine = get_trading_engine()
+    if not engine:
+        return {"running": False, "message": "Engine not initialized"}
+    
+    return {
+        "running": engine.is_running,
+        "watchlist": engine.watchlist,
+        "trading_enabled": trading_state.is_trading_allowed(),
+        "market_open": alpaca_client.is_market_open() if alpaca_client else False
+    }
+
+
+@app.post("/engine/start")
+async def start_engine(background_tasks: BackgroundTasks):
+    """Start the trading engine."""
+    engine = get_trading_engine()
+    if not engine:
+        raise HTTPException(status_code=500, detail="Engine not initialized")
+    
+    if engine.is_running:
+        return {"success": False, "message": "Engine already running"}
+    
+    background_tasks.add_task(engine.start)
+    return {"success": True, "message": "Engine starting"}
+
+
+@app.post("/engine/stop")
+async def stop_engine():
+    """Stop the trading engine."""
+    engine = get_trading_engine()
+    if not engine:
+        raise HTTPException(status_code=500, detail="Engine not initialized")
+    
+    if not engine.is_running:
+        return {"success": False, "message": "Engine not running"}
+    
+    await engine.stop()
+    return {"success": True, "message": "Engine stopped"}
+
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=settings.backend_port,
-        reload=True,
+        reload=False,  # Disable reload for production
         log_level=settings.log_level.lower()
     )
