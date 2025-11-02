@@ -29,87 +29,102 @@ export const Dashboard: React.FC = () => {
   } = useTrading();
 
   return (
-    <div className="grid grid-cols-12 gap-5">
-      {/* Connection Status */}
-      {!isConnected && (
-        <div className="col-span-12 bg-red-900/20 border border-red-500 rounded-lg p-4">
-          <p className="text-red-400 font-semibold">⚠️ Backend Disconnected</p>
-          <p className="text-red-300 text-sm">
-            {error || "Unable to connect to trading backend"}
-          </p>
-        </div>
-      )}
-      {streamingStatus !== "connected" && (
-        <div
-          className={`col-span-12 rounded-lg p-4 border ${
-            streamingStatus === "error"
-              ? "bg-orange-900/20 border-orange-500"
-              : "bg-yellow-900/20 border-yellow-500"
-          }`}
-        >
-          <p className="text-sm font-semibold text-brand-warning">
-            {streamingStatus === "connecting" &&
-              "⚡ Establishing real-time stream…"}
-            {streamingStatus === "disabled" &&
-              "⚠️ Streaming disabled. Using 10s polling fallback."}
-            {streamingStatus === "error" &&
-              "⚠️ Streaming unavailable. Falling back to polling."}
-          </p>
-        </div>
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+      <div className="max-w-[1920px] mx-auto space-y-6">
+        {/* Connection Status Alerts */}
+        {!isConnected && (
+          <div className="bg-red-500/10 backdrop-blur-sm border border-red-500/30 rounded-xl p-4 shadow-lg">
+            <p className="text-red-400 font-semibold flex items-center gap-2">
+              <span className="text-lg">⚠️</span> Backend Disconnected
+            </p>
+            <p className="text-red-300/80 text-sm mt-1">
+              {error || "Unable to connect to trading backend"}
+            </p>
+          </div>
+        )}
+        {streamingStatus !== "connected" && (
+          <div
+            className={`backdrop-blur-sm rounded-xl p-4 border shadow-lg ${
+              streamingStatus === "error"
+                ? "bg-orange-500/10 border-orange-500/30"
+                : "bg-yellow-500/10 border-yellow-500/30"
+            }`}
+          >
+            <p className="text-sm font-semibold text-yellow-400 flex items-center gap-2">
+              {streamingStatus === "connecting" && (
+                <>
+                  <span className="animate-pulse">⚡</span> Establishing real-time stream…
+                </>
+              )}
+              {streamingStatus === "disabled" && (
+                <>
+                  <span>⚠️</span> Streaming disabled. Using 10s polling fallback.
+                </>
+              )}
+              {streamingStatus === "error" && (
+                <>
+                  <span>⚠️</span> Streaming unavailable. Falling back to polling.
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
-      {/* KPIs */}
-      <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-6 gap-6">
-        <StatCard
-          title="Today's P/L"
-          value={stats.daily_pl.toLocaleString("en-US", {
-            style: "currency",
-            currency: "USD",
-          })}
-          change={`${stats.daily_pl_pct.toFixed(2)}%`}
-          isPositive={stats.daily_pl >= 0}
-        />
-        <StatCard
-          title="Win Rate"
-          value={`${(stats.win_rate * 100).toFixed(1)}%`}
-          change={`${stats.wins}W / ${stats.losses}L`}
-          isPositive={stats.win_rate >= 0.5}
-        />
-        <StatCard
-          title="Profit Factor"
-          value={stats.profit_factor.toFixed(2)}
-          isPositive={stats.profit_factor >= 1}
-        />
-        <StatCard
-          title="Open Positions"
-          value={positions.length.toString()}
-          isPositive={true}
-        />
-      </div>
-
-      {/* Main Content Row */}
-      <div className="col-span-12 grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div className="xl:col-span-8 flex flex-col gap-6">
-          <SimpleChart data={performanceData} />
-          <PositionsTable positions={positions} closePosition={closePosition} />
-          <OrdersTable orders={orders} cancelOrder={cancelOrder} />
+        {/* KPI Cards - Improved spacing and layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <StatCard
+            title="Today's P/L"
+            value={stats.daily_pl.toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            })}
+            change={`${stats.daily_pl_pct.toFixed(2)}%`}
+            isPositive={stats.daily_pl >= 0}
+          />
+          <StatCard
+            title="Win Rate"
+            value={`${(stats.win_rate * 100).toFixed(1)}%`}
+            change={`${stats.wins}W / ${stats.losses}L`}
+            isPositive={stats.win_rate >= 0.5}
+          />
+          <StatCard
+            title="Profit Factor"
+            value={stats.profit_factor.toFixed(2)}
+            isPositive={stats.profit_factor >= 1}
+          />
+          <StatCard
+            title="Open Positions"
+            value={positions.length.toString()}
+            isPositive={true}
+          />
         </div>
-        <div className="xl:col-span-4 flex flex-col gap-6">
-          <ChatPanel />
-          <div className="max-h-96 overflow-y-auto">
+
+        {/* Main Content - Two Column Layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Left Column - Trading Data (2/3 width) */}
+          <div className="xl:col-span-2 space-y-6">
+            <SimpleChart data={performanceData} />
+            <PositionsTable positions={positions} closePosition={closePosition} />
+            <OrdersTable orders={orders} cancelOrder={cancelOrder} />
+          </div>
+
+          {/* Right Column - Interactive Panels (1/3 width) */}
+          <div className="flex flex-col gap-6">
+            <ChatPanel />
             <AdvisoryPanel advisories={advisories} />
           </div>
         </div>
-      </div>
 
-      {/* Analysis Row */}
-      <div className="col-span-12 grid grid-cols-1 xl:grid-cols-12 gap-6 mt-6">
-        <div className="xl:col-span-8 max-h-96 overflow-y-auto">
-          <TradeAnalysisLog analyses={tradeAnalyses} />
-        </div>
-        <div className="xl:col-span-4 flex flex-col gap-6">
-          <ReadinessChecklist />
-          <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Bottom Section - Analysis & Logs */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Trade Analysis (2/3 width) */}
+          <div className="xl:col-span-2">
+            <TradeAnalysisLog analyses={tradeAnalyses} />
+          </div>
+
+          {/* Right Column - Status & Logs (1/3 width) */}
+          <div className="flex flex-col gap-6">
+            <ReadinessChecklist />
             <LogFeed logs={logs} />
           </div>
         </div>

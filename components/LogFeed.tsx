@@ -16,11 +16,24 @@ export const LogFeed: React.FC<LogFeedProps> = ({ logs }) => {
       case LogLevel.INFO:
         return 'text-sky-400';
       case LogLevel.WARN:
-        return 'text-brand-warning';
+        return 'text-yellow-400';
       case LogLevel.ERROR:
-        return 'text-brand-danger';
+        return 'text-rose-400';
       default:
-        return 'text-brand-text-secondary';
+        return 'text-slate-400';
+    }
+  };
+  
+  const getLogLevelBg = (level: LogLevel) => {
+    switch (level) {
+      case LogLevel.INFO:
+        return 'bg-sky-500/10';
+      case LogLevel.WARN:
+        return 'bg-yellow-500/10';
+      case LogLevel.ERROR:
+        return 'bg-rose-500/10';
+      default:
+        return 'bg-slate-500/10';
     }
   };
   
@@ -30,20 +43,28 @@ export const LogFeed: React.FC<LogFeedProps> = ({ logs }) => {
     }
   }, [logs]);
 
-
   return (
-    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2">
-      <h3 className="text-lg font-semibold text-brand-text mb-4">Live Logs</h3>
-      <div ref={logContainerRef} className="font-mono text-xs text-brand-text-secondary space-y-1 h-72 overflow-y-auto pr-2 flex flex-col-reverse">
-        {/* We reverse here to make new logs appear at the top with flex-col-reverse */}
-        <div>
-        {logs.slice().reverse().map((log) => (
-          <div key={log.id} className="flex">
-            <span className="flex-shrink-0 mr-2">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-            <span className={`font-bold mr-2 w-12 text-center ${getLogLevelColor(log.level)}`}>[{log.level.toUpperCase()}]</span>
-            <span className="flex-grow break-words">{log.message}</span>
-          </div>
-        ))}
+    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-slate-700/50">
+      <div className="flex items-center gap-2 mb-5">
+        <span className="text-xl">📋</span>
+        <h3 className="text-xl font-bold text-white">Live Logs</h3>
+      </div>
+      <div 
+        ref={logContainerRef} 
+        className="font-mono text-xs space-y-1.5 h-80 overflow-y-auto pr-2 flex flex-col-reverse scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+      >
+        <div className="space-y-1.5">
+          {logs.slice().reverse().map((log) => (
+            <div key={log.id} className="flex items-start gap-2 p-2 rounded-md hover:bg-slate-800/30 transition-colors">
+              <span className="flex-shrink-0 text-slate-500 font-medium">
+                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <span className={`flex-shrink-0 px-2 py-0.5 rounded text-xs font-bold ${getLogLevelColor(log.level)} ${getLogLevelBg(log.level)}`}>
+                {log.level.toUpperCase()}
+              </span>
+              <span className="flex-grow text-slate-300 break-words">{log.message}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

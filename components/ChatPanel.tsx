@@ -254,20 +254,25 @@ export const ChatPanel: React.FC = () => {
   }, [config.chat.provider]);
 
   return (
-    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 h-[460px] flex flex-col">
-      <header className="mb-3">
-        <h3 className="text-lg font-semibold text-brand-text">Ops Copilot</h3>
-        <p className="text-xs text-brand-text-secondary">
+    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-slate-700/50 h-[500px] flex flex-col">
+      <header className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">🤖</span>
+          <h3 className="text-xl font-bold text-white">Ops Copilot</h3>
+        </div>
+        <p className="text-xs text-slate-400">
           Conversational control centre. Type `help` for supported commands.
         </p>
-        {providerHint && <p className="text-xs text-brand-warning mt-1">{providerHint}</p>}
+        {providerHint && <p className="text-xs text-yellow-400/80 mt-2">{providerHint}</p>}
       </header>
-      <div ref={containerRef} className="flex-1 overflow-y-auto space-y-3 pr-1">
+      <div ref={containerRef} className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap ${
-              message.role === 'user' ? 'bg-brand-accent/20 text-brand-text' : 'bg-brand-surface-2 text-brand-text'
+            className={`rounded-lg px-4 py-3 text-sm whitespace-pre-wrap shadow-sm ${
+              message.role === 'user' 
+                ? 'bg-blue-500/20 text-white border border-blue-500/30' 
+                : 'bg-slate-800/50 text-slate-200 border border-slate-700/30'
             }`}
           >
             <div className="flex items-center justify-between text-xs text-brand-text-secondary mb-1">
@@ -335,19 +340,19 @@ export const ChatPanel: React.FC = () => {
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="mt-3 flex items-center space-x-2">
+      <form onSubmit={handleSubmit} className="mt-4 flex items-center gap-2">
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Ask about status, close trades, or plan next steps..."
-          className="flex-1 px-3 py-2 rounded-md bg-brand-surface-2 border border-brand-surface-2 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-accent"
+          className="flex-1 px-4 py-3 rounded-lg bg-slate-900/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
         />
         <button
           type="submit"
           disabled={isProcessing}
-          className="px-3 py-2 bg-brand-accent hover:bg-brand-accent-hover rounded-md text-sm font-semibold disabled:opacity-50"
+          className="px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/20"
         >
-          {isProcessing ? 'Thinking…' : 'Send'}
+          {isProcessing ? '⏳' : '📤'}
         </button>
       </form>
     </div>

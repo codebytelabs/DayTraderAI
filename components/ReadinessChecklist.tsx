@@ -8,11 +8,11 @@ import { ClockIcon } from './icons/ClockIcon';
 const StatusIcon: React.FC<{ status: ChecklistStatus }> = ({ status }) => {
   switch (status) {
     case ChecklistStatus.PASS:
-      return <CheckCircleIcon className="w-5 h-5 text-brand-success" />;
+      return <CheckCircleIcon className="w-5 h-5 text-emerald-400" />;
     case ChecklistStatus.FAIL:
-      return <XCircleIcon className="w-5 h-5 text-brand-danger" />;
+      return <XCircleIcon className="w-5 h-5 text-rose-400" />;
     case ChecklistStatus.PENDING:
-      return <ClockIcon className="w-5 h-5 text-brand-warning" />;
+      return <ClockIcon className="w-5 h-5 text-yellow-400" />;
     default:
       return null;
   }
@@ -105,20 +105,25 @@ export const ReadinessChecklist: React.FC = () => {
   }, [stats, performanceData, positions, riskSettings]);
 
   return (
-    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2">
-      <h3 className="text-lg font-semibold text-brand-text mb-4">Paper → Live Readiness</h3>
-      <div className="space-y-4">
+    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-slate-700/50">
+      <div className="flex items-center gap-2 mb-5">
+        <span className="text-xl">✅</span>
+        <h3 className="text-xl font-bold text-white">Paper → Live Readiness</h3>
+      </div>
+      <div className="space-y-5">
         {checklist.map((categoryItem) => (
           <div key={categoryItem.category}>
-            <h4 className="text-sm font-bold text-brand-text-secondary mb-2">{categoryItem.category}</h4>
-            <ul className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              {categoryItem.category}
+            </h4>
+            <ul className="space-y-2.5">
               {categoryItem.items.map((item) => (
-                <li key={item.name} className="flex items-start justify-between text-sm">
-                  <div className="flex items-center">
+                <li key={item.name} className="flex items-start justify-between text-sm bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
+                  <div className="flex items-center gap-2">
                     <StatusIcon status={item.status} />
-                    <span className="ml-2 text-brand-text">{item.name}</span>
+                    <span className="text-slate-200 font-medium">{item.name}</span>
                   </div>
-                  <span className="text-xs text-brand-text-secondary text-right ml-2">{item.details}</span>
+                  <span className="text-xs text-slate-400 text-right ml-3 font-mono">{item.details}</span>
                 </li>
               ))}
             </ul>

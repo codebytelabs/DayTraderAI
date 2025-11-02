@@ -36,15 +36,20 @@ export const StatCard: React.FC<StatCardProps> = ({ title, value, change, isPosi
   }, [value]);
 
   return (
-    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 transition-transform duration-300 transform hover:-translate-y-1">
-      <h3 className="text-sm font-medium text-brand-text-secondary mb-1">{title}</h3>
-      <p className={`text-2xl font-semibold text-brand-text transition-all duration-500 ${isAnimating ? 'animate-pulse' : ''}`}>{value}</p>
-      {change && (
-        <div className={`flex items-center text-sm mt-1 ${changeColor}`}>
-          {isPositive ? <ArrowUpIcon /> : <ArrowDownIcon />}
-          <span className="ml-1 font-medium">{change}</span>
-        </div>
-      )}
+    <div className="group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-slate-700/50 transition-all duration-300 hover:shadow-2xl hover:border-slate-600/50 hover:-translate-y-1">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="relative">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">{title}</h3>
+        <p className={`text-3xl font-bold text-white transition-all duration-500 ${isAnimating ? 'animate-pulse scale-105' : ''}`}>
+          {value}
+        </p>
+        {change && (
+          <div className={`flex items-center text-sm mt-3 font-semibold ${changeColor}`}>
+            {isPositive ? <ArrowUpIcon /> : <ArrowDownIcon />}
+            <span className="ml-1.5">{change}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
