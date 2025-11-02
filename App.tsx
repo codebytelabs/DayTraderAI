@@ -24,13 +24,30 @@ const AppShell: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  return (
-    <ConfigProvider>
-      <TradingProvider>
-        <AppShell />
-      </TradingProvider>
-    </ConfigProvider>
-  );
+  const [error, setError] = React.useState<Error | null>(null);
+
+  if (error) {
+    return (
+      <div style={{ padding: '20px', color: 'white', backgroundColor: '#1a1a2e' }}>
+        <h1>Error Loading App</h1>
+        <pre style={{ color: 'red' }}>{error.message}</pre>
+        <pre>{error.stack}</pre>
+      </div>
+    );
+  }
+
+  try {
+    return (
+      <ConfigProvider>
+        <TradingProvider>
+          <AppShell />
+        </TradingProvider>
+      </ConfigProvider>
+    );
+  } catch (err) {
+    setError(err as Error);
+    return null;
+  }
 };
 
 export default App;

@@ -1,5 +1,10 @@
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
+from alpaca.trading.requests import (
+    MarketOrderRequest,
+    LimitOrderRequest,
+    GetOrdersRequest,
+    GetPortfolioHistoryRequest,
+)
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
@@ -86,6 +91,25 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to submit order: {e}")
             raise
+
+    def submit_order_request(self, request: BaseOrderRequest):
+        """Submit a pre-built order request (e.g., bracket orders)."""
+        try:
+            order = self.trading_client.submit_order(request)
+            side = getattr(request, "side", None)
+            qty = getattr(request, "qty", None)
+            symbol = getattr(request, "symbol", None)
+            logger.info(
+                "Order submitted: %s %s %s (Class=%s)",
+                getattr(side, "value", side),
+                qty,
+                symbol,
+                getattr(request, "order_class", None),
+            )
+            return order
+        except Exception as e:
+            logger.error(f"Failed to submit order request: {e}")
+            raise
     
     def cancel_order(self, order_id: str):
         """Cancel an order."""
@@ -165,3 +189,64 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to check market status: {e}")
             return False
+    
+    def get_portfolio_history(
+        self,
+        timeframe: str = "1D",
+        period: str = None
+    ) -> Optional[List[Dict]]:
+        """
+        Fetch portfolio equity history from Alpaca.
+        
+        Args:
+            timeframe: Button clicked in UI - "1D" or "All"
+            period: Not used, kept for compatibility
+        
+        Returns:
+            List of portfolio history data points with timestamp and equity
+        """
+        try:
+            # Map UI timeframe to Alpaca API parameters
+            # "1D" = intraday view with 5-minute bars for last trading day
+            # "1W" = 1 week of hourly bars
+            # "All" = all available history with daily bars
+            if timeframe == "1D":
+                api_period = "1D"
+                api_timeframe = "5Min"
+            elif timeframe == "1W":
+                api_period = "1W"
+                api_timeframe = "1H"
+            else:  # "All" or any other value
+                api_period = "all"  # Get all available history
+                api_timeframe = "1D"
+            
+            request = GetPortfolioHistoryRequest(
+                period=api_period,
+                timeframe=api_timeframe,
+                extended_hours=False
+            )
+            
+            # Fetch portfolio history from Alpaca
+            portfolio_history = self.trading_client.get_portfolio_history(history_filter=request)
+            
+            if not portfolio_history:
+                logger.warning("No portfolio history returned from Alpaca")
+                return None
+            
+            # Transform to list of dicts
+            result = []
+            timestamps = portfolio_history.timestamp
+            equity_values = portfolio_history.equity
+            
+            for i in range(len(timestamps)):
+                result.append({
+                    'timestamp': timestamps[i],  # Already in seconds
+                    'equity': equity_values[i]
+                })
+            
+            logger.info(f"Fetched {len(result)} portfolio history points (period={api_period}, timeframe={api_timeframe})")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to get portfolio history: {e}")
+            return None

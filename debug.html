@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Debug</title>
+  </head>
+  <body>
+    <h1>Debug Page</h1>
+    <div id="status">Checking...</div>
+    <div id="data"></div>
+
+    <script>
+      // Test backend connection
+      fetch("http://localhost:8006/health")
+        .then((r) => r.json())
+        .then((data) => {
+          document.getElementById("status").innerHTML = "✅ Backend Connected";
+          document.getElementById("data").innerHTML =
+            "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        })
+        .catch((err) => {
+          document.getElementById("status").innerHTML =
+            "❌ Backend Error: " + err.message;
+        });
+
+      // Test metrics
+      fetch("http://localhost:8006/metrics")
+        .then((r) => r.json())
+        .then((data) => {
+          document.getElementById("data").innerHTML +=
+            "<h2>Metrics:</h2><pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        })
+        .catch((err) => {
+          document.getElementById("data").innerHTML +=
+            "<p>Metrics Error: " + err.message + "</p>";
+        });
+    </script>
+  </body>
+</html>

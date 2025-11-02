@@ -29,13 +29,52 @@ class Settings(BaseSettings):
     
     # Strategy
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
-    max_positions: int = 5
+    max_positions: int = 20
     risk_per_trade_pct: float = 0.01
     circuit_breaker_pct: float = 0.05
     ema_short: int = 9
     ema_long: int = 21
     stop_loss_atr_mult: float = 2.0
     take_profit_atr_mult: float = 4.0
+    bracket_orders_enabled: bool = True
+    default_take_profit_pct: float = 2.0
+    default_stop_loss_pct: float = 1.0
+    
+    # Options
+    options_enabled: bool = False
+    max_options_positions: int = 5
+    options_risk_per_trade_pct: float = 0.02
+    
+    # Streaming
+    streaming_enabled: bool = True
+    stream_reconnect_delay: int = 5
+
+    # Copilot configuration
+    copilot_context_enabled: bool = True
+    copilot_hybrid_routing: bool = True
+    copilot_trade_execution: bool = False
+
+    copilot_context_timeout_ms: int = 800
+    copilot_ai_timeout_ms: int = 15_000
+    copilot_cache_ttl_seconds: int = 60
+
+    copilot_include_account: bool = True
+    copilot_include_positions: bool = True
+    copilot_include_history: bool = True
+    copilot_include_market: bool = True
+    copilot_include_news: bool = True
+    copilot_include_risk: bool = True
+
+    copilot_history_trades: int = 20
+    copilot_news_lookback_hours: int = 24
+    copilot_news_max_items: int = 12
+
+    # Copilot action execution settings
+    copilot_action_execution_enabled: bool = True
+    copilot_action_confidence_threshold: float = 0.7
+    copilot_require_confirmation_above_value: float = 1000.0
+    copilot_max_bulk_operations: int = 10
+    copilot_action_timeout_seconds: float = 5.0
     
     # Server
     backend_port: int = 8000

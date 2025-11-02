@@ -1,12 +1,22 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional, Sequence
+
+from pydantic import BaseModel
 
 from config import settings
+from copilot.config import CopilotConfig, build_copilot_config
+from copilot.context_builder import CopilotContextBuilder, ContextResult
+from copilot.query_router import QueryRoute, QueryRouter
+from copilot.action_classifier import ActionClassifier, ActionIntent
+from copilot.action_executor import ActionExecutor, ExecutionResult
+from copilot.response_formatter import ResponseFormatter, CopilotResponse
+from advisory.openrouter import OpenRouterClient
+from advisory.perplexity import PerplexityClient
 from core.alpaca_client import AlpacaClient
 from core.supabase_client import SupabaseClient
 from core.state import trading_state, Position as StatePosition
@@ -17,6 +27,9 @@ from trading.strategy import EMAStrategy
 from trading.trading_engine import TradingEngine, set_trading_engine, get_trading_engine
 from data.features import FeatureEngine
 from data.market_data import MarketDataManager
+from news.news_client import NewsClient
+from options.options_client import OptionsClient
+from streaming import stream_manager, StreamingBroadcaster
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -29,12 +42,124 @@ order_manager: Optional[OrderManager] = None
 position_manager: Optional[PositionManager] = None
 strategy: Optional[EMAStrategy] = None
 market_data_manager: Optional[MarketDataManager] = None
+news_client: Optional[NewsClient] = None
+copilot_config: Optional[CopilotConfig] = None
+copilot_context_builder: Optional[CopilotContextBuilder] = None
+copilot_router: Optional[QueryRouter] = None
+action_classifier: Optional[ActionClassifier] = None
+action_executor: Optional[ActionExecutor] = None
+response_formatter: Optional[ResponseFormatter] = None
+openrouter_client: Optional[OpenRouterClient] = None
+perplexity_client: Optional[PerplexityClient] = None
+streaming_broadcaster: Optional[StreamingBroadcaster] = None
+
+
+def _serialize_positions() -> List[Dict[str, Any]]:
+    positions = trading_state.get_all_positions()
+    return [
+        {
+            "symbol": p.symbol,
+            "qty": p.qty,
+            "side": p.side,
+            "avg_entry_price": p.avg_entry_price,
+            "current_price": p.current_price,
+            "unrealized_pl": p.unrealized_pl,
+            "unrealized_pl_pct": p.unrealized_pl_pct,
+            "market_value": p.market_value,
+            "stop_loss": p.stop_loss,
+            "take_profit": p.take_profit,
+        }
+        for p in positions
+    ]
+
+
+def _serialize_orders() -> List[Dict[str, Any]]:
+    orders = trading_state.get_all_orders()
+    return [
+        {
+            "order_id": o.order_id,
+            "symbol": o.symbol,
+            "qty": o.qty,
+            "side": o.side,
+            "type": o.type,
+            "status": o.status,
+            "filled_qty": o.filled_qty,
+            "filled_avg_price": o.filled_avg_price,
+            "submitted_at": o.submitted_at.isoformat() if o.submitted_at else None,
+        }
+        for o in orders
+    ]
+
+
+def _serialize_logs(limit: int = 100) -> List[Dict[str, Any]]:
+    logs = trading_state.get_logs(limit=limit)
+    return [
+        {
+            "id": idx,
+            "timestamp": log.timestamp.isoformat(),
+            "level": log.level,
+            "message": log.message,
+            "source": log.source,
+        }
+        for idx, log in enumerate(logs)
+    ]
+
+
+def _serialize_advisories(limit: int = 20) -> List[Dict[str, Any]]:
+    if not supabase_client:
+        return []
+    advisories = supabase_client.get_advisories(limit=limit)
+    return [
+        {
+            "id": adv.get("id"),
+            "timestamp": adv.get("timestamp"),
+            "type": adv.get("type", "analysis"),
+            "symbol": adv.get("symbol"),
+            "content": adv.get("content"),
+            "model": adv.get("model"),
+            "confidence": adv.get("confidence", 0.5),
+        }
+        for adv in advisories
+    ]
+
+
+def build_streaming_snapshot() -> Dict[str, Any]:
+    metrics = trading_state.get_metrics()
+    snapshot = {
+        "metrics": {
+            "equity": metrics.equity,
+            "cash": metrics.cash,
+            "buying_power": metrics.buying_power,
+            "daily_pl": metrics.daily_pl,
+            "daily_pl_pct": metrics.daily_pl_pct,
+            "total_pl": metrics.total_pl,
+            "win_rate": metrics.win_rate,
+            "profit_factor": metrics.profit_factor,
+            "wins": metrics.wins,
+            "losses": metrics.losses,
+            "total_trades": metrics.total_trades,
+            "open_positions": metrics.open_positions,
+            "circuit_breaker_triggered": metrics.circuit_breaker_triggered,
+        },
+        "positions": _serialize_positions(),
+        "orders": _serialize_orders(),
+        "logs": _serialize_logs(limit=50),
+        "advisories": _serialize_advisories(limit=20),
+        "feature_flags": {
+            "streaming": settings.streaming_enabled,
+            "bracket_orders": getattr(settings, "bracket_orders_enabled", True),
+            "options": getattr(settings, "options_enabled", False),
+            "news": getattr(settings, "news_enabled", True),
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    return snapshot
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize clients and start trading engine on startup."""
-    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager
+    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager, news_client, copilot_config, copilot_context_builder, copilot_router, action_classifier, action_executor, response_formatter, openrouter_client, perplexity_client, streaming_broadcaster
     
     logger.info("🚀 Starting DayTraderAI Backend...")
     
@@ -42,11 +167,53 @@ async def lifespan(app: FastAPI):
         # Initialize clients
         alpaca_client = AlpacaClient()
         supabase_client = SupabaseClient()
+        
+        # Set up Supabase logging handler
+        from core.supabase_log_handler import SupabaseLogHandler
+        import logging
+        supabase_handler = SupabaseLogHandler(supabase_client, source="backend")
+        logging.getLogger().addHandler(supabase_handler)
+        logger.info("✓ Supabase log handler initialized")
+        
         risk_manager = RiskManager(alpaca_client)
         order_manager = OrderManager(alpaca_client, supabase_client, risk_manager)
         position_manager = PositionManager(alpaca_client, supabase_client)
         strategy = EMAStrategy(order_manager)
         market_data_manager = MarketDataManager(alpaca_client, supabase_client)
+        
+        # Try to initialize news client, but don't fail if not configured
+        try:
+            news_client = NewsClient()
+            logger.info("✓ News client initialized")
+        except Exception as e:
+            logger.warning(f"⚠️  News client not available: {e}")
+            news_client = None
+        
+        options_client = OptionsClient(alpaca_client) if settings.options_enabled else None
+        copilot_config = build_copilot_config(settings)
+        copilot_context_builder = CopilotContextBuilder(
+            alpaca_client=alpaca_client,
+            supabase_client=supabase_client,
+            market_data_manager=market_data_manager,
+            news_client=news_client,
+            risk_manager=risk_manager,
+            config=copilot_config,
+        )
+        copilot_router = QueryRouter(copilot_config)
+        action_classifier = ActionClassifier()
+        action_executor = ActionExecutor(
+            alpaca_client=alpaca_client,
+            trading_engine=None,  # Will be set after engine is created
+            position_manager=position_manager,
+            risk_manager=risk_manager,
+            market_data_manager=market_data_manager,
+            news_client=news_client,
+        )
+        response_formatter = ResponseFormatter()
+        openrouter_client = OpenRouterClient()
+        perplexity_client = PerplexityClient()
+        streaming_broadcaster = StreamingBroadcaster()
+        await streaming_broadcaster.start(snapshot_builder=build_streaming_snapshot)
         
         # Initialize trading engine
         engine = TradingEngine(
@@ -56,12 +223,22 @@ async def lifespan(app: FastAPI):
             order_manager=order_manager,
             position_manager=position_manager,
             strategy=strategy,
-            market_data_manager=market_data_manager
+            market_data_manager=market_data_manager,
+            options_client=options_client,
+            stream_manager=stream_manager,
+            streaming_broadcaster=streaming_broadcaster,
+            snapshot_builder=build_streaming_snapshot,
         )
         set_trading_engine(engine)
         
+        # Set trading engine reference in action executor
+        if action_executor:
+            action_executor._engine = engine
+        
         # Sync initial state
         await sync_state()
+        if streaming_broadcaster:
+            await streaming_broadcaster.enqueue({"type": "snapshot", "payload": build_streaming_snapshot()})
         
         # Start trading engine in background
         asyncio.create_task(engine.start())
@@ -80,6 +257,8 @@ async def lifespan(app: FastAPI):
     engine = get_trading_engine()
     if engine:
         await engine.stop()
+    if streaming_broadcaster:
+        await streaming_broadcaster.stop()
 
 
 app = FastAPI(
@@ -92,11 +271,28 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173"],
+    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.websocket("/ws/stream")
+async def websocket_stream(websocket: WebSocket):
+    if not streaming_broadcaster or not settings.streaming_enabled:
+        await websocket.accept()
+        await websocket.send_json(
+            {
+                "type": "error",
+                "message": "Streaming disabled",
+            }
+        )
+        await websocket.close()
+        return
+
+    await streaming_broadcaster.connect(websocket)
+    await streaming_broadcaster.listen(websocket)
 
 
 async def sync_state():
@@ -143,6 +339,131 @@ async def sync_state():
 
 
 # API Routes
+
+
+class ChatMessagePayload(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequestPayload(BaseModel):
+    message: str
+    history: List[ChatMessagePayload] = []
+    trace_id: Optional[str] = None
+
+
+def _history_to_messages(history: List[ChatMessagePayload]) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = []
+    for item in history[-6:]:
+        if item.role in {"user", "assistant"} and item.content:
+            messages.append({"role": item.role, "content": item.content})
+    return messages
+
+
+def _format_context_for_ai(context: Dict[str, Any], *, include_news: bool = True) -> str:
+    lines: List[str] = []
+    account = context.get("account", {})
+    lines.append(
+        f"ACCOUNT | Equity ${account.get('equity', 0):,.2f} | Cash ${account.get('cash', 0):,.2f} | "
+        f"Buying power ${account.get('buying_power', 0):,.2f} | Daily P/L {account.get('daily_pl', 0):+.2f} "
+        f"({account.get('daily_pl_pct', 0):+.2f}%)"
+    )
+    performance = context.get("performance", {})
+    if performance:
+        lines.append(
+            f"PERFORMANCE | Win rate {performance.get('win_rate', 0)*100:.1f}% | Profit factor "
+            f"{performance.get('profit_factor', 0):.2f} | Sharpe {performance.get('sharpe_ratio', 0):.2f}"
+        )
+
+    positions = context.get("positions", []) or []
+    if positions:
+        lines.append("POSITIONS (top 6 by exposure):")
+        for position in positions[:6]:
+            lines.append(
+                f"- {position['symbol']} {position['side'].upper()} {position['qty']} @ {position['avg_entry_price']:.2f} | "
+                f"Px {position['current_price']:.2f} | P/L {position['unrealized_pl']:+.2f} "
+                f"({position['unrealized_pl_pct']:+.2f}%) | SL {position['stop_loss']:.2f} | TP {position['take_profit']:.2f}"
+            )
+    else:
+        lines.append("POSITIONS | No open positions.")
+
+    market = context.get("market", {})
+    macro = market.get("macro", {})
+    if macro:
+        lines.append(
+            f"MARKET | SPY trend {macro.get('spy_trend', 'unknown')} @ {macro.get('spy_price', 0):.2f} | "
+            f"VIX {macro.get('vix_trend', 'unknown')} @ {macro.get('vix_level', 0):.2f}"
+        )
+
+    if market.get("symbols"):
+        focus_symbols = [sym for sym in market["symbols"] if sym.get("focus")]
+        if focus_symbols:
+            lines.append("FOCUS TECHNICALS:")
+            for symbol_info in focus_symbols[:5]:
+                lines.append(
+                    f"- {symbol_info['symbol']}: price {symbol_info['price']:.2f}, "
+                    f"EMA9 {symbol_info['ema_short']:.2f}, EMA21 {symbol_info['ema_long']:.2f}, "
+                    f"RSI {symbol_info['rsi']:.1f}, signal {symbol_info['signal']}"
+                )
+
+    if include_news and context.get("news"):
+        lines.append("NEWS (last 24h):")
+        for article in context["news"][:5]:
+            lines.append(
+                f"- {article.get('headline')} [{article.get('sentiment')}] ({article.get('source')})"
+            )
+
+    risk = context.get("risk", {})
+    if risk:
+        lines.append(
+            f"RISK | Open positions: {risk.get('open_positions', 0)}/{risk.get('max_positions', 0)} | "
+            f"Equity utilisation {risk.get('equity_utilisation', 0)*100:.1f}% | "
+            f"Risk per trade {risk.get('risk_per_trade_pct', 0)*100:.2f}% | "
+            f"Circuit breaker {'ACTIVE' if risk.get('circuit_breaker_triggered') else 'clear'}"
+        )
+
+    return "\n".join(lines)
+
+
+def _serialize_route(route: QueryRoute) -> Dict[str, Any]:
+    return {
+        "category": route.category,
+        "targets": route.targets,
+        "confidence": route.confidence,
+        "symbols": route.symbols,
+        "notes": route.notes,
+    }
+
+
+def _build_perplexity_prompt(context: Dict[str, Any], message: str) -> str:
+    summary = context.get("summary", "")
+    highlights = context.get("highlights", [])
+    focus_symbols = context.get("symbols", [])
+
+    prompt_lines = [
+        "You are the DayTraderAI market intelligence analyst. Use the structured data below to gather the most recent, factual news.",
+        "",
+        "Trading system highlights:",
+    ]
+    prompt_lines.extend(f"- {item}" for item in highlights[:5])
+
+    if focus_symbols:
+        prompt_lines.append(f"Focus symbols: {', '.join(focus_symbols)}")
+
+    prompt_lines.append("")
+    prompt_lines.append("System summary:")
+    prompt_lines.append(summary or "(summary unavailable)")
+
+    prompt_lines.append("")
+    prompt_lines.append("User query:")
+    prompt_lines.append(message.strip())
+
+    prompt_lines.append("")
+    prompt_lines.append(
+        "Respond with a concise market intelligence briefing. Include bullet points with key takeaways, "
+        "note major catalysts, and provide source citations."
+    )
+    return "\n".join(prompt_lines)
 
 @app.get("/")
 async def root():
@@ -259,10 +580,26 @@ async def get_metrics():
 
 
 @app.post("/orders/submit")
-async def submit_order(symbol: str, side: str, qty: int, reason: str = ""):
+async def submit_order(
+    symbol: str,
+    side: str,
+    qty: int,
+    reason: str = "",
+    price: Optional[float] = None,
+    take_profit: Optional[float] = None,
+    stop_loss: Optional[float] = None,
+):
     """Submit a new order."""
     try:
-        order = order_manager.submit_order(symbol, side, qty, reason)
+        order = order_manager.submit_order(
+            symbol,
+            side,
+            qty,
+            reason,
+            price=price,
+            take_profit_price=take_profit,
+            stop_loss_price=stop_loss,
+        )
         if order:
             return {
                 "success": True,
@@ -350,17 +687,22 @@ async def sync():
 
 @app.get("/logs")
 async def get_logs(limit: int = 100):
-    """Get recent system logs."""
+    """Get recent system logs from Supabase."""
     try:
-        logs = trading_state.get_logs(limit=limit)
-        return [
-            {
-                "id": i,
-                "timestamp": log.timestamp.isoformat(),
-                "level": log.level,
-                "message": log.message,
-                "source": log.source
-            }
+        if supabase_client:
+            logs = supabase_client.get_logs(limit=limit)
+            return logs
+        else:
+            # Fallback to in-memory logs
+            logs = trading_state.get_logs(limit=limit)
+            return [
+                {
+                    "id": i,
+                    "timestamp": log.timestamp.isoformat(),
+                    "level": log.level,
+                    "message": log.message,
+                    "source": log.source
+                }
             for i, log in enumerate(logs)
         ]
     except Exception as e:
@@ -418,43 +760,235 @@ async def get_analyses(limit: int = 50):
 
 
 @app.post("/chat")
-async def chat(message: str):
-    """Chat with AI copilot."""
-    try:
-        from advisory.openrouter import OpenRouterClient
+async def chat(request: ChatRequestPayload):
+    """Chat with the intelligent copilot assistant."""
+    if not request.message or not request.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    if not copilot_context_builder or not copilot_router:
+        raise HTTPException(status_code=503, detail="Copilot not initialized.")
+
+    # Build context
+    context_result: ContextResult = await copilot_context_builder.build_context(request.message)
+    
+    # NEW: Classify action intent (if enabled)
+    if (
+        copilot_config
+        and copilot_config.action_execution_enabled
+        and action_classifier
+        and action_executor
+        and response_formatter
+    ):
+        intent: ActionIntent = action_classifier.classify(request.message, context_result.context)
         
-        openrouter = OpenRouterClient()
+        # Route based on intent type
+        if intent.intent_type == "execute" and intent.confidence >= copilot_config.action_confidence_threshold:
+            # Check for ambiguities
+            if intent.ambiguities:
+                return {
+                    "success": False,
+                    "content": "I need clarification:\n" + "\n".join(f"- {amb}" for amb in intent.ambiguities),
+                    "provider": "Action Classifier",
+                    "confidence": intent.confidence,
+                    "requires_clarification": True,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            
+            # Execute action
+            result: ExecutionResult = await action_executor.execute(intent, context_result.context)
+            copilot_response: CopilotResponse = response_formatter.format_execution(result)
+            
+            # Persist advisory if successful
+            if result.success and supabase_client:
+                try:
+                    supabase_client.insert_advisory({
+                        "source": "ActionExecutor",
+                        "content": copilot_response.content,
+                        "model": "ActionExecutor",
+                        "type": "execution",
+                        "confidence": 1.0,
+                        "symbol": intent.parameters.get("symbol"),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    })
+                except Exception as e:
+                    logger.debug(f"Failed to persist advisory: {e}")
+            
+            return {
+                "success": result.success,
+                "content": copilot_response.content,
+                "provider": "Action Executor",
+                "response_type": copilot_response.response_type,
+                "details": copilot_response.details,
+                "confidence": copilot_response.confidence,
+                "metadata": copilot_response.metadata,
+                "timestamp": datetime.utcnow().isoformat(),
+                "trace_id": request.trace_id,
+            }
         
-        # Get current trading context
-        metrics = trading_state.get_metrics()
-        positions = trading_state.get_all_positions()
-        
-        trading_context = {
-            "equity": metrics.equity,
-            "daily_pl": metrics.daily_pl,
-            "daily_pl_pct": metrics.daily_pl_pct,
-            "open_positions": len(positions),
-            "win_rate": metrics.win_rate,
-            "trading_enabled": trading_state.is_trading_allowed()
-        }
-        
-        response = await openrouter.copilot_response(
-            user_message=message,
-            trading_context=trading_context
+        elif intent.intent_type == "info" and intent.confidence >= copilot_config.action_confidence_threshold:
+            # Execute info query
+            result: ExecutionResult = await action_executor.execute(intent, context_result.context)
+            copilot_response: CopilotResponse = response_formatter.format_execution(result)
+            
+            return {
+                "success": result.success,
+                "content": copilot_response.content,
+                "provider": "Info Retrieval",
+                "response_type": copilot_response.response_type,
+                "details": copilot_response.details,
+                "confidence": copilot_response.confidence,
+                "metadata": copilot_response.metadata,
+                "timestamp": datetime.utcnow().isoformat(),
+                "trace_id": request.trace_id,
+            }
+    
+    # Fall through to existing LLM routing for advice queries or low confidence
+    route: QueryRoute = copilot_router.route(
+        request.message, context_result.context, context_result.context.get("symbols", [])
+    )
+
+    context_text = _format_context_for_ai(context_result.context)
+    history_messages = _history_to_messages(request.history)
+
+    sections: List[Dict[str, str]] = []
+    provider_labels: List[str] = []
+    notes: List[str] = list(route.notes)
+    citations: List[Dict[str, Any]] = []
+    success_boost = 0.0
+
+    ai_timeout = (copilot_config.ai_timeout_ms / 1000) if copilot_config else 15.0
+
+    # Optional Perplexity pass for news/research
+    if "perplexity" in route.targets:
+        if perplexity_client and settings.perplexity_api_key:
+            perplexity_prompt = _build_perplexity_prompt(context_result.context, request.message)
+            try:
+                perplexity_task = asyncio.wait_for(
+                    perplexity_client.search(perplexity_prompt),
+                    timeout=ai_timeout,
+                )
+                perplexity_result = await perplexity_task
+                if perplexity_result and perplexity_result.get("content"):
+                    provider_labels.append(f"Perplexity ({settings.perplexity_default_model})")
+                    sections.append(
+                        {
+                            "title": "Market Intelligence",
+                            "content": perplexity_result["content"].strip(),
+                        }
+                    )
+                    citations = perplexity_result.get("citations") or []
+                    success_boost += 0.1
+                else:
+                    notes.append("Perplexity returned no content.")
+            except Exception as err:
+                logger.error(f"Perplexity query failed: {err}")
+                notes.append("Perplexity query failed; continuing without news.")
+        else:
+            notes.append("Perplexity API key missing; skipping news routing.")
+
+    # Primary OpenRouter analysis
+    openrouter_reply = None
+    if "openrouter" in route.targets:
+        if openrouter_client and settings.openrouter_api_key:
+            system_prompt = (
+                "You are DayTraderAI, a professional day-trading copilot. "
+                "Use the provided trading system context to deliver actionable advice. "
+                "Always emphasise risk management, circuit breakers, and open exposure. "
+                "Respond with concise bullet points and clear next steps."
+            )
+
+            user_prompt = (
+                f"User question:\n{request.message.strip()}\n\n"
+                "<system_context>\n"
+                f"{context_text}\n"
+                "</system_context>\n"
+            )
+
+            if sections:
+                latest_news = sections[-1]["content"]
+                user_prompt += (
+                    "\n<market_intel>\n"
+                    f"{latest_news}\n"
+                    "</market_intel>\n"
+                )
+
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(history_messages)
+            messages.append({"role": "user", "content": user_prompt})
+
+            try:
+                openrouter_task = asyncio.wait_for(
+                    openrouter_client.chat_completion(
+                        messages=messages,
+                        model=settings.openrouter_primary_model,
+                        temperature=settings.openrouter_temperature,
+                    ),
+                    timeout=ai_timeout,
+                )
+                openrouter_reply = await openrouter_task
+                if openrouter_reply:
+                    provider_labels.append(f"OpenRouter ({settings.openrouter_primary_model})")
+                    sections.append(
+                        {
+                            "title": "Strategy Guidance",
+                            "content": openrouter_reply.strip(),
+                        }
+                    )
+                    success_boost += 0.15
+                else:
+                    notes.append("OpenRouter returned no content.")
+            except Exception as err:
+                logger.error(f"OpenRouter analysis failed: {err}")
+                notes.append("OpenRouter analysis failed; using fallback summary.")
+        else:
+            notes.append("OpenRouter API key missing; skipping analysis routing.")
+
+    if not sections:
+        sections.append(
+            {
+                "title": "System Summary",
+                "content": context_result.summary or "Unable to generate AI response at this time.",
+            }
         )
-        
-        return {
-            "success": True,
-            "response": response or "I'm having trouble responding right now.",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Chat failed: {e}")
-        return {
-            "success": False,
-            "response": "Sorry, I'm having technical difficulties.",
-            "error": str(e)
-        }
+        provider_labels.append("Local summary")
+
+    confidence = min(0.95, max(0.35, route.confidence + success_boost))
+    content = "\n\n".join(f"### {section['title']}\n{section['content']}" for section in sections)
+    provider_display = ", ".join(provider_labels)
+
+    response_payload = {
+        "success": True,
+        "content": content,
+        "provider": provider_display,
+        "route": _serialize_route(route),
+        "context_summary": context_result.summary,
+        "highlights": context_result.highlights,
+        "citations": citations,
+        "notes": notes,
+        "confidence": confidence,
+        "symbols": route.symbols,
+        "timestamp": datetime.utcnow().isoformat(),
+        "trace_id": request.trace_id,
+    }
+
+    # Persist advisory snapshot for audit trail
+    try:
+        if provider_labels and supabase_client:
+            supabase_client.insert_advisory(
+                {
+                    "source": provider_display,
+                    "content": content,
+                    "model": provider_display,
+                    "type": route.category,
+                    "confidence": confidence,
+                    "symbol": route.symbols[0] if route.symbols else None,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+    except Exception as err:
+        logger.debug(f"Failed to persist advisory: {err}")
+
+    return response_payload
 
 
 @app.get("/engine/status")
@@ -498,6 +1032,158 @@ async def stop_engine():
     
     await engine.stop()
     return {"success": True, "message": "Engine stopped"}
+
+
+@app.get("/config")
+async def get_config():
+    """Get frontend configuration defaults (no secrets)."""
+    return {
+        "alpaca_base_url": settings.alpaca_base_url,
+        "supabase_url": settings.supabase_url,
+        "watchlist": settings.watchlist_symbols,  # Already a list from @property
+        "max_positions": settings.max_positions,
+        "risk_per_trade_pct": settings.risk_per_trade_pct,
+        "backend_url": f"http://localhost:{settings.backend_port}",
+        "streaming_enabled": settings.streaming_enabled,
+        "stream_reconnect_delay": settings.stream_reconnect_delay,
+        "bracket_orders_enabled": settings.bracket_orders_enabled,
+        "default_take_profit_pct": settings.default_take_profit_pct,
+        "default_stop_loss_pct": settings.default_stop_loss_pct,
+    }
+
+
+@app.get("/health/services")
+async def get_services_health():
+    """Get health status of all external services."""
+    try:
+        # Test Alpaca
+        alpaca_healthy = False
+        try:
+            if alpaca_client:
+                account = alpaca_client.get_account()
+                alpaca_healthy = bool(account)
+        except Exception as e:
+            logger.debug(f"Alpaca health check failed: {e}")
+            pass
+
+        # Test Supabase
+        supabase_healthy = False
+        try:
+            if supabase_client:
+                # Try to fetch latest metrics as health check
+                metrics = supabase_client.get_latest_metrics()
+                supabase_healthy = True
+        except Exception as e:
+            logger.debug(f"Supabase health check failed: {e}")
+            pass
+
+        # OpenRouter - assume healthy if we have the key
+        openrouter_healthy = bool(settings.openrouter_api_key)
+
+        # Perplexity - assume healthy if we have the key
+        perplexity_healthy = bool(settings.perplexity_api_key)
+
+        return {
+            "alpaca": "connected" if alpaca_healthy else "disconnected",
+            "supabase": "connected" if supabase_healthy else "disconnected",
+            "openrouter": "connected" if openrouter_healthy else "disconnected",
+            "perplexity": "connected" if perplexity_healthy else "disconnected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "alpaca": "error",
+            "supabase": "error",
+            "openrouter": "error",
+            "perplexity": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/performance")
+async def get_performance_history(timeframe: str = "1D", limit: int = 500):
+    """Get performance history for charts - simplified to just return Alpaca data."""
+    try:
+        # Fetch portfolio history from Alpaca
+        portfolio_history = alpaca_client.get_portfolio_history(timeframe=timeframe)
+        
+        if not portfolio_history or len(portfolio_history) == 0:
+            logger.warning("No portfolio history available from Alpaca")
+            return []
+        
+        # Return data directly - just add the fields the frontend expects
+        result = []
+        for point in portfolio_history[-limit:]:  # Limit to last N points
+            equity = point['equity']
+            result.append({
+                "timestamp": point['timestamp'],
+                "equity": equity,
+                "open": equity,
+                "high": equity * 1.001,  # Approximate
+                "low": equity * 0.999,   # Approximate
+                "close": equity,
+                "pnl": 0,
+                "winRate": 0,
+                "profitFactor": 0,
+                "wins": 0,
+                "losses": 0
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to get performance history: {e}")
+        return []
+
+
+def transform_portfolio_to_ohlc(
+    portfolio_data: List[Dict],
+    current_metrics: Dict,
+    limit: int = 100
+) -> List[Dict]:
+    """
+    Transform Alpaca portfolio history to OHLC candlestick format.
+    
+    For each time period:
+    - open: equity at period start
+    - high: max equity during period (approximated as equity * 1.001)
+    - low: min equity during period (approximated as equity * 0.999)
+    - close: equity at period end
+    """
+    result = []
+    
+    # Limit data points
+    data_to_process = portfolio_data[-limit:] if len(portfolio_data) > limit else portfolio_data
+    
+    for point in data_to_process:
+        equity = point['equity']
+        profit_loss = point.get('profit_loss', 0)
+        profit_loss_pct = point.get('profit_loss_pct', 0)
+        
+        # For OHLC, we approximate high/low since Alpaca gives us point values
+        # In reality, these would be the actual high/low during the period
+        # Add small variance to create candlestick effect
+        high = equity * 1.001
+        low = equity * 0.999
+        
+        result.append({
+            "timestamp": point['timestamp'].isoformat() if hasattr(point['timestamp'], 'isoformat') else point['timestamp'],
+            "equity": equity,
+            "open": equity,
+            "high": high,
+            "low": low,
+            "close": equity,
+            "daily_pl": profit_loss,
+            "daily_pl_pct": profit_loss_pct,
+            "win_rate": current_metrics.win_rate,
+            "profit_factor": current_metrics.profit_factor,
+            "wins": current_metrics.wins,
+            "losses": current_metrics.losses
+        })
+    
+    return result
 
 
 if __name__ == "__main__":

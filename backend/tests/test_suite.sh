@@ -48,23 +48,27 @@ test_api() {
     
     echo -n "Testing: $description... "
     
+    # Use temp file to avoid head/tail issues on macOS
+    local temp_file=$(mktemp)
+    
     if [ "$method" = "GET" ]; then
-        response=$(curl -s -w "\n%{http_code}" "$API_BASE$endpoint")
+        curl -s -w "\n%{http_code}" "$API_BASE$endpoint" > "$temp_file"
     else
-        response=$(curl -s -w "\n%{http_code}" -X "$method" "$API_BASE$endpoint")
+        curl -s -w "\n%{http_code}" -X "$method" "$API_BASE$endpoint" > "$temp_file"
     fi
     
-    http_code=$(echo "$response" | tail -n 1)
-    body=$(echo "$response" | head -n -1)
+    http_code=$(tail -n 1 "$temp_file")
+    body=$(sed '$d' "$temp_file")
     
     if [ "$http_code" = "$expected_code" ]; then
         test_result 0 "$description"
-        echo "  Response: $(echo $body | head -c 100)..."
+        echo "  Response: $(echo $body | cut -c1-100)..."
     else
         test_result 1 "$description (Expected $expected_code, got $http_code)"
         echo "  Response: $body"
     fi
     
+    rm -f "$temp_file"
     echo ""
 }
 
@@ -74,7 +78,18 @@ echo "STEP 1: START BACKEND"
 echo "================================================================================"
 echo ""
 
-cd backend
+# Detect if we're in backend directory or root
+if [ -f "main.py" ]; then
+    # Already in backend directory
+    BACKEND_DIR="."
+    LOG_FILE="backend_test.log"
+else
+    # In root directory
+    BACKEND_DIR="backend"
+    LOG_FILE="backend_test.log"
+    cd backend
+fi
+
 if [ ! -d "venv" ]; then
     echo "❌ Virtual environment not found. Run ./setup.sh first"
     exit 1
@@ -82,9 +97,8 @@ fi
 
 echo "Starting backend..."
 source venv/bin/activate
-python main.py > ../backend_test.log 2>&1 &
+python main.py > $LOG_FILE 2>&1 &
 BACKEND_PID=$!
-cd ..
 
 echo "Backend PID: $BACKEND_PID"
 echo "Waiting for backend to start..."

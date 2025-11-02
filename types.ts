@@ -19,8 +19,8 @@ export interface Position {
   unrealizedPl: number;
   unrealizedPlpc: number;
   marketValue: number;
-  takeProfit: number;
-  stopLoss: number;
+  takeProfit?: number;
+  stopLoss?: number;
 }
 
 export interface Order {
@@ -74,6 +74,7 @@ export interface LogEntry {
   timestamp: string;
   level: LogLevel;
   message: string;
+  source?: string;
 }
 
 export enum ServiceStatus {
@@ -91,20 +92,26 @@ export interface ConnectionStatuses {
 
 export interface AdvisoryMessage {
   id: number;
-  source: 'Perplexity' | 'OpenRouter';
-  symbol?: string;
-  content: string;
   timestamp: string;
+  content: string;
+  symbol?: string;
+  source?: string;
+  type?: string;
+  model?: string;
+  confidence?: number;
 }
 
 export interface TradeAnalysis {
-    id: string;
-    timestamp: string;
-    symbol: string;
-    side: OrderSide;
-    entryPrice: number;
-    takeProfit: number;
-    stopLoss: number;
-    reasoning: string;
-    source: 'Gemini';
+  id: string;
+  timestamp: string;
+  symbol: string;
+  side: OrderSide;
+  action: string;
+  analysis: string;
+  pnl?: number;
+  pnlPct?: number;
+  source?: string;
+  entryPrice?: number;
+  takeProfit?: number;
+  stopLoss?: number;
 }

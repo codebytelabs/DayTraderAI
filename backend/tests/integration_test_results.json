@@ -1,0 +1,134 @@
+{
+  "alpaca": {
+    "passed": 5,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Connection & Authentication",
+        "passed": true,
+        "details": "Equity: $133,166.07, Cash: $79,249.27",
+        "timestamp": "2025-11-01T23:12:31.068252"
+      },
+      {
+        "name": "Market Data Fetching",
+        "passed": true,
+        "details": "AAPL: $270.41, SPY: $682.03",
+        "timestamp": "2025-11-01T23:12:31.807681"
+      },
+      {
+        "name": "Position Retrieval",
+        "passed": true,
+        "details": "Found 10 positions",
+        "timestamp": "2025-11-01T23:12:32.052110"
+      },
+      {
+        "name": "Order Retrieval",
+        "passed": true,
+        "details": "Found 0 orders",
+        "timestamp": "2025-11-01T23:12:32.334540"
+      },
+      {
+        "name": "Market Hours Detection",
+        "passed": true,
+        "details": "Market is CLOSED",
+        "timestamp": "2025-11-01T23:12:32.641435"
+      }
+    ]
+  },
+  "supabase": {
+    "passed": 3,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Connection & Authentication",
+        "passed": true,
+        "details": "Connected to database",
+        "timestamp": "2025-11-01T23:12:33.357277"
+      },
+      {
+        "name": "Metrics Storage",
+        "passed": true,
+        "details": "Saved and retrieved metrics",
+        "timestamp": "2025-11-01T23:12:33.731867"
+      },
+      {
+        "name": "Trade Logging",
+        "passed": true,
+        "details": "Logged trade, retrieved 0 recent trades",
+        "timestamp": "2025-11-01T23:12:34.125209"
+      }
+    ]
+  },
+  "openrouter": {
+    "passed": 3,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Connection & API Call",
+        "passed": true,
+        "details": "Received 1517 char response",
+        "timestamp": "2025-11-01T23:12:36.069705"
+      },
+      {
+        "name": "Trade Analysis Quality",
+        "passed": true,
+        "details": "Analysis includes score: True, action: True",
+        "timestamp": "2025-11-01T23:12:39.817915"
+      },
+      {
+        "name": "Multiple Models Available",
+        "passed": true,
+        "details": "Primary, Secondary, and Tertiary models configured",
+        "timestamp": "2025-11-01T23:12:41.683162"
+      }
+    ]
+  },
+  "perplexity": {
+    "passed": 2,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Connection & API Call",
+        "passed": true,
+        "details": "Received 2385 char response",
+        "timestamp": "2025-11-01T23:12:54.397534"
+      },
+      {
+        "name": "Market Context Quality",
+        "passed": true,
+        "details": "Context includes news: True, market info: True",
+        "timestamp": "2025-11-01T23:13:09.921282"
+      }
+    ]
+  },
+  "workflows": {
+    "passed": 2,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Complete Trading Workflow",
+        "passed": true,
+        "details": "Market Data -> Risk Checks -> Validation",
+        "timestamp": "2025-11-01T23:13:11.835814"
+      },
+      {
+        "name": "AI Advisory Workflow",
+        "passed": true,
+        "details": "Market Context -> Trade Analysis",
+        "timestamp": "2025-11-01T23:13:29.711962"
+      }
+    ]
+  },
+  "error_handling": {
+    "passed": 1,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "Risk Validation & Limits",
+        "passed": true,
+        "details": "Risk manager validates orders correctly (3/3 rejected)",
+        "timestamp": "2025-11-01T23:13:30.978536"
+      }
+    ]
+  }
+}

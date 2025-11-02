@@ -125,6 +125,81 @@ class RiskManager:
         trading_state.update_metrics(circuit_breaker_triggered=False)
         logger.warning("Circuit breaker manually reset")
     
+    def check_options_trade(self, symbol: str, cost: float, contracts: int) -> bool:
+        """
+        Check if an options trade is allowed.
+        
+        Args:
+            symbol: Underlying symbol
+            cost: Total cost of the options trade
+            contracts: Number of contracts
+            
+        Returns:
+            True if trade is allowed
+        """
+        try:
+            # 1. Check if options trading is enabled
+            if not settings.options_enabled:
+                logger.warning("Options trading is disabled")
+                return False
+            
+            # 2. Check circuit breaker
+            if self.check_circuit_breaker():
+                logger.warning("Circuit breaker active - options trade rejected")
+                return False
+            
+            # 3. Check max options positions
+            positions = trading_state.get_all_positions()
+            options_positions = sum(
+                1 for p in positions 
+                if len(p.get('symbol', '')) > 10  # Options symbols are longer
+            )
+            
+            if options_positions >= settings.max_options_positions:
+                logger.warning(
+                    f"Max options positions reached: {options_positions}/{settings.max_options_positions}"
+                )
+                return False
+            
+            # 4. Check buying power
+            account = self.alpaca.get_account()
+            if not account:
+                logger.error("Failed to get account info")
+                return False
+            
+            buying_power = float(account.buying_power)
+            if cost > buying_power:
+                logger.warning(
+                    f"Insufficient buying power for options: need ${cost:.2f}, have ${buying_power:.2f}"
+                )
+                return False
+            
+            # 5. Check risk per trade
+            equity = float(account.equity)
+            max_risk = equity * settings.options_risk_per_trade_pct
+            
+            if cost > max_risk:
+                logger.warning(
+                    f"Options cost exceeds risk limit: ${cost:.2f} > ${max_risk:.2f}"
+                )
+                return False
+            
+            # 6. Sanity checks
+            if contracts <= 0:
+                logger.warning("Invalid number of contracts")
+                return False
+            
+            if contracts > 100:  # Reasonable limit
+                logger.warning(f"Too many contracts: {contracts}")
+                return False
+            
+            logger.info(f"Options risk check PASSED: {contracts} contracts, cost ${cost:.2f}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in options risk check: {e}", exc_info=True)
+            return False
+    
     def emergency_stop(self):
         """Emergency: disable trading and close all positions."""
         logger.error("EMERGENCY STOP TRIGGERED")

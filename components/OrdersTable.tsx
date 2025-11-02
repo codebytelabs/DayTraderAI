@@ -23,7 +23,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({ orders, cancelOrder })
     return (
         <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 overflow-x-auto">
             <h3 className="text-lg font-semibold text-brand-text mb-4">Recent Orders</h3>
-            <div className="max-h-[300px] overflow-y-auto">
+            <div className="max-h-[340px] overflow-y-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="text-xs text-brand-text-secondary uppercase border-b border-brand-surface-2 sticky top-0 bg-brand-surface">
                         <tr>

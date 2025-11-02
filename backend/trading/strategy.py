@@ -83,7 +83,10 @@ class EMAStrategy:
                 symbol=symbol,
                 side=signal,
                 qty=qty,
-                reason=reason
+                reason=reason,
+                price=price,
+                take_profit_price=target_price,
+                stop_loss_price=stop_price,
             )
             
             if order:

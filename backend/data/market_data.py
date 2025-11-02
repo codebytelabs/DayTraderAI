@@ -192,3 +192,47 @@ class MarketDataManager:
         except Exception as e:
             logger.error(f"Failed to get features for {symbol}: {e}")
             return None
+
+    def apply_stream_price(self, symbol: str, price: float, timestamp: Optional[datetime] = None):
+        """
+        Lightweight feature update when a streaming price arrives.
+        Keeps features in sync for copilot/context consumers without heavy recomputation.
+        """
+        if price <= 0:
+            return
+
+        features = trading_state.get_features(symbol) or {"symbol": symbol}
+        features["price"] = price
+        features["last_update"] = (timestamp or datetime.utcnow()).isoformat()
+
+        trading_state.update_features(symbol, features)
+        try:
+            self.supabase.upsert_features(features)
+        except Exception as exc:
+            logger.debug(f"Non-fatal: failed to upsert streaming feature for {symbol}: {exc}")
+
+    def apply_stream_bar(self, symbol: str, bar: Dict[str, float], timestamp: Optional[datetime] = None):
+        """
+        Update stored bar data and cached features based on a streaming bar update.
+        """
+        price = float(bar.get("close") or 0)
+        if price:
+            self.apply_stream_price(symbol, price, timestamp or datetime.utcnow())
+
+        try:
+            self.supabase.insert_bars(
+                [
+                    {
+                        "symbol": symbol,
+                        "timestamp": (timestamp or datetime.utcnow()).isoformat(),
+                        "open": bar.get("open"),
+                        "high": bar.get("high"),
+                        "low": bar.get("low"),
+                        "close": bar.get("close"),
+                        "volume": bar.get("volume"),
+                        "timeframe": "stream",
+                    }
+                ]
+            )
+        except Exception as exc:
+            logger.debug(f"Non-fatal: failed to store streaming bar for {symbol}: {exc}")

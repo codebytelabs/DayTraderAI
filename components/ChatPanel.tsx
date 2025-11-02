@@ -3,7 +3,8 @@ import { nanoid } from 'nanoid/non-secure';
 import { OrderSide } from '../types';
 import { useTrading } from '../state/TradingContext';
 import { useConfig } from '../state/ConfigContext';
-import { CopilotMessage, invokeCopilot } from '../services/copilot';
+import { CopilotMessage, CopilotResult, invokeCopilot } from '../services/copilot';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 type ConversationMessage = {
   id: string;
@@ -11,6 +12,13 @@ type ConversationMessage = {
   content: string;
   timestamp: string;
   provider?: string;
+  meta?: {
+    route?: CopilotResult['route'];
+    notes?: string[];
+    confidence?: number;
+    highlights?: string[];
+    citations?: unknown[];
+  };
 };
 
 const timestamp = () => new Date().toISOString();
@@ -208,14 +216,21 @@ export const ChatPanel: React.FC = () => {
         prompt: trimmed,
         context,
         history,
-        config,
       });
+      const meta = {
+        route: result.route,
+        notes: result.notes,
+        confidence: result.confidence,
+        highlights: result.highlights,
+        citations: result.citations,
+      };
       appendMessage({
         id: nanoid(),
         role: 'assistant',
         content: result.content,
         timestamp: timestamp(),
         provider: result.provider,
+        meta,
       });
     } catch (error) {
       console.error(error);
@@ -232,20 +247,14 @@ export const ChatPanel: React.FC = () => {
   };
 
   const providerHint = useMemo(() => {
-    if (config.chat.provider === 'openrouter' && !config.openRouter.apiKey) {
-      return 'Add your OpenRouter key in Settings to enable rich explanations.';
-    }
-    if (config.chat.provider === 'perplexity' && !config.perplexity.apiKey) {
-      return 'Add your Perplexity key in Settings for news-aware advice.';
-    }
     if (config.chat.provider === 'none') {
-      return 'LLM integration disabled. Using local summaries only.';
+      return 'Copilot context ready, but LLM integration disabled — responses will use local summaries.';
     }
-    return null;
-  }, [config]);
+    return 'Copilot uses backend-managed hybrid routing with market research + strategy analysis.';
+  }, [config.chat.provider]);
 
   return (
-    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 h-[520px] flex flex-col">
+    <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 h-[460px] flex flex-col">
       <header className="mb-3">
         <h3 className="text-lg font-semibold text-brand-text">Ops Copilot</h3>
         <p className="text-xs text-brand-text-secondary">
@@ -262,10 +271,67 @@ export const ChatPanel: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between text-xs text-brand-text-secondary mb-1">
-              <span>{message.role === 'user' ? 'You' : message.provider ?? 'Copilot'}</span>
+              <span>
+                {message.role === 'user' ? 'You' : message.provider ?? 'Copilot'}
+                {message.role === 'assistant' && typeof message.meta?.confidence === 'number'
+                  ? ` · ${(message.meta.confidence * 100).toFixed(0)}% confidence`
+                  : ''}
+              </span>
               <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
             </div>
-            <div>{message.content}</div>
+            <div>
+              {message.role === 'assistant' ? (
+                <MarkdownRenderer content={message.content} />
+              ) : (
+                message.content
+              )}
+            </div>
+            {message.role === 'assistant' && message.meta?.route && (
+              <div className="mt-2 text-xs text-brand-text-secondary space-y-1">
+                <div>
+                  Route: {message.meta.route.category}{' '}
+                  {message.meta.route.targets.length
+                    ? `→ ${message.meta.route.targets.join(', ')}`
+                    : ''}
+                </div>
+                {message.meta.notes && message.meta.notes.length > 0 && (
+                  <div>Notes: {message.meta.notes.join(' | ')}</div>
+                )}
+                {message.meta.citations && message.meta.citations.length > 0 && (
+                  <div className="space-y-1">
+                    <div>Citations:</div>
+                    <ul className="list-disc list-inside">
+                      {message.meta.citations.map((citation, index) => {
+                        if (typeof citation === 'string') {
+                          return <li key={index}>{citation}</li>;
+                        }
+                        if (citation && typeof citation === 'object') {
+                          const url = (citation as { url?: string }).url;
+                          const title = (citation as { title?: string }).title || url;
+                          return (
+                            <li key={index}>
+                              {url ? (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-brand-accent hover:underline"
+                                >
+                                  {title || url}
+                                </a>
+                              ) : (
+                                title || 'Citation'
+                              )}
+                            </li>
+                          );
+                        }
+                        return <li key={index}>{String(citation)}</li>;
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

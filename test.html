@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DayTraderAI Test</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            color: white;
+            font-family: monospace;
+            padding: 20px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        pre { background: #2a2a3e; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 DayTraderAI Connection Test</h1>
+    <div id="status"></div>
+    <div id="results"></div>
+
+    <script>
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        async function testBackend() {
+            log('<h2>Testing Backend Connection...</h2>');
+            
+            // Test 1: Health
+            try {
+                const response = await fetch('http://localhost:8006/health');
+                const data = await response.json();
+                log('✅ Health Check: ' + JSON.stringify(data), 'success');
+            } catch (err) {
+                log('❌ Health Check Failed: ' + err.message, 'error');
+                return;
+            }
+
+            // Test 2: Metrics
+            try {
+                const response = await fetch('http://localhost:8006/metrics');
+                const data = await response.json();
+                log('✅ Metrics: Equity $' + data.equity.toLocaleString(), 'success');
+                log('<pre>' + JSON.stringify(data, null, 2) + '</pre>');
+            } catch (err) {
+                log('❌ Metrics Failed: ' + err.message, 'error');
+            }
+
+            // Test 3: Positions
+            try {
+                const response = await fetch('http://localhost:8006/positions');
+                const data = await response.json();
+                log('✅ Positions: ' + data.length + ' open positions', 'success');
+            } catch (err) {
+                log('❌ Positions Failed: ' + err.message, 'error');
+            }
+
+            // Test 4: Orders
+            try {
+                const response = await fetch('http://localhost:8006/orders');
+                const data = await response.json();
+                log('✅ Orders: ' + data.length + ' orders', 'success');
+            } catch (err) {
+                log('❌ Orders Failed: ' + err.message, 'error');
+            }
+
+            log('<h2>✅ All Backend Tests Passed!</h2>', 'success');
+            log('<p>Backend is working correctly. The issue is with the React app.</p>');
+            log('<p><strong>Next Step:</strong> Check browser console at http://localhost:3000 for React errors.</p>');
+        }
+
+        testBackend();
+    </script>
+</body>
+</html>

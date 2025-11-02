@@ -12,7 +12,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions, close
   return (
     <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2 overflow-x-auto">
       <h3 className="text-lg font-semibold text-brand-text mb-4">Open Positions ({positions.length})</h3>
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className="max-h-[340px] overflow-y-auto">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-brand-text-secondary uppercase border-b border-brand-surface-2 sticky top-0 bg-brand-surface">
             <tr>
@@ -22,6 +22,8 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions, close
               <th scope="col" className="px-4 py-3">P/L ($)</th>
               <th scope="col" className="px-4 py-3">P/L (%)</th>
               <th scope="col" className="px-4 py-3">Market Value</th>
+              <th scope="col" className="px-4 py-3">Take Profit</th>
+              <th scope="col" className="px-4 py-3">Stop Loss</th>
               <th scope="col" className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -41,6 +43,16 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions, close
                 </td>
                 <td className="px-4 py-3">${pos.marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td className="px-4 py-3">
+                  {typeof pos.takeProfit === 'number'
+                    ? `$${pos.takeProfit.toFixed(2)}`
+                    : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  {typeof pos.stopLoss === 'number'
+                    ? `$${pos.stopLoss.toFixed(2)}`
+                    : '—'}
+                </td>
+                <td className="px-4 py-3">
                   <button onClick={() => closePosition(pos.id)} className="text-brand-danger hover:text-red-400 transition-colors" aria-label={`Close position for ${pos.symbol}`}>
                     <MinusCircleIcon className="w-5 h-5" />
                   </button>
@@ -48,7 +60,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions, close
               </tr>
             )) : (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-brand-text-secondary">No open positions.</td>
+                <td colSpan={9} className="text-center py-4 text-brand-text-secondary">No open positions.</td>
               </tr>
             )}
           </tbody>

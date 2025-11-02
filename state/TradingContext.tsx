@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import { AdvisoryMessage, LogEntry, Order, Position, TradeAnalysis } from '../types';
-import { useBackendTrading, BackendStats } from '../hooks/useBackendTrading';
+import { useBackendTrading, BackendStats, StreamingStatus } from '../hooks/useBackendTrading';
 import { useConfig } from './ConfigContext';
 import { OrderSide } from '../types';
 
@@ -12,6 +12,8 @@ export interface TradingContextValue {
   logs: LogEntry[];
   advisories: AdvisoryMessage[];
   tradeAnalyses: TradeAnalysis[];
+  timeframe: string;
+  setTimeframe: (timeframe: string) => void;
   closePosition: (positionId: string, reason?: string) => void;
   cancelOrder: (orderId: string) => void;
   placeOrder: (symbol: string, side: OrderSide, qty: number, reason: string) => void;
@@ -24,6 +26,7 @@ export interface TradingContextValue {
   watchlist: string[];
   isConnected: boolean;
   error: string | null;
+  streamingStatus: StreamingStatus;
 }
 
 const TradingContext = createContext<TradingContextValue | undefined>(undefined);
@@ -48,11 +51,14 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     logs,
     advisories,
     tradeAnalyses,
+    timeframe,
+    setTimeframe,
     closePosition,
     cancelOrder,
     placeOrder,
     isConnected,
     error,
+    streamingStatus,
   } = useBackendTrading();
 
   const contextValue = useMemo<TradingContextValue>(() => {
@@ -100,6 +106,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       logs,
       advisories,
       tradeAnalyses,
+      timeframe,
+      setTimeframe,
       closePosition,
       cancelOrder,
       placeOrder,
@@ -112,6 +120,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       watchlist,
       isConnected,
       error,
+      streamingStatus,
     };
   }, [
     advisories,
@@ -127,8 +136,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     placeOrder,
     positions,
     stats,
+    timeframe,
+    setTimeframe,
     tradeAnalyses,
     watchlist,
+    streamingStatus,
   ]);
 
   return <TradingContext.Provider value={contextValue}>{children}</TradingContext.Provider>;

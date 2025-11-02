@@ -12,7 +12,7 @@ export const AdvisoryPanel: React.FC<AdvisoryPanelProps> = ({ advisories }) => {
   return (
     <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2">
       <h3 className="text-lg font-semibold text-brand-text mb-4">Advisory Feed</h3>
-      <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+      <div className="space-y-4 max-h-72 overflow-y-auto pr-2">
         {recentAdvisories.length > 0 ? recentAdvisories.map((advisory) => (
           <div key={advisory.id} className="text-sm p-3 bg-brand-surface-2 rounded-md">
             <div className="flex justify-between items-center mb-1">

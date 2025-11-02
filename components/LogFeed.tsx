@@ -9,6 +9,8 @@ interface LogFeedProps {
 export const LogFeed: React.FC<LogFeedProps> = ({ logs }) => {
   const logContainerRef = useRef<HTMLDivElement>(null);
 
+  console.log('[LogFeed] Received logs:', logs.length);
+
   const getLogLevelColor = (level: LogLevel) => {
     switch (level) {
       case LogLevel.INFO:
@@ -32,7 +34,7 @@ export const LogFeed: React.FC<LogFeedProps> = ({ logs }) => {
   return (
     <div className="bg-brand-surface p-4 rounded-lg shadow-lg border border-brand-surface-2">
       <h3 className="text-lg font-semibold text-brand-text mb-4">Live Logs</h3>
-      <div ref={logContainerRef} className="font-mono text-xs text-brand-text-secondary space-y-1 h-64 overflow-y-auto pr-2 flex flex-col-reverse">
+      <div ref={logContainerRef} className="font-mono text-xs text-brand-text-secondary space-y-1 h-72 overflow-y-auto pr-2 flex flex-col-reverse">
         {/* We reverse here to make new logs appear at the top with flex-col-reverse */}
         <div>
         {logs.slice().reverse().map((log) => (

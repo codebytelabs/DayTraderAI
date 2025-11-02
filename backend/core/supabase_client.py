@@ -212,3 +212,26 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Failed to get advisories: {e}")
             return []
+
+    # Logs
+    def insert_log(self, log_data: Dict[str, Any]):
+        """Insert system log."""
+        try:
+            result = self.client.table("logs").insert(log_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            # Silently fail - don't want logging to crash the app
+            pass
+    
+    def get_logs(self, limit: int = 100):
+        """Get recent logs."""
+        try:
+            result = self.client.table("logs")\
+                .select("*")\
+                .order("timestamp", desc=True)\
+                .limit(limit)\
+                .execute()
+            return result.data
+        except Exception as e:
+            logger.error(f"Failed to get logs: {e}")
+            return []

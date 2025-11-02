@@ -1,5 +1,3 @@
-import { AppConfig } from '../state/ConfigContext';
-
 export type CopilotMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -9,94 +7,92 @@ export interface CopilotRequest {
   prompt: string;
   context: string;
   history: CopilotMessage[];
-  config: AppConfig;
+  backendUrl?: string;
 }
 
 export interface CopilotResult {
   provider: string;
   content: string;
+  route?: {
+    category: string;
+    targets: string[];
+    confidence: number;
+    symbols: string[];
+    notes: string[];
+  };
+  confidence?: number;
+  citations?: unknown[];
+  notes?: string[];
+  highlights?: string[];
+  contextSummary?: string;
+  timestamp?: string;
 }
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const PERPLEXITY_URL = 'https://api.perplexity.ai/chat/completions';
+const resolveBackendUrl = (override?: string): string => {
+  if (override) {
+    return override;
+  }
 
-const SYSTEM_PROMPT = `You are the DayTraderAI copilot. You understand every subsystem: Alpaca execution, Supabase analytics, Perplexity news, OpenRouter LLM guidance, and deterministic risk rails.
+  if (import.meta.env.VITE_BACKEND_URL) {
+    return import.meta.env.VITE_BACKEND_URL;
+  }
 
-Always:
-- Explain reasoning in bullet-point style paragraphs.
-- Surface risks, blockers, or missing configuration.
-- Suggest next steps for novice traders.
-- Prefer actionable, concise language.
-- If you cannot execute an action, clearly say so and suggest how the user can proceed.
-
-When summarising the trading state, highlight: equity trend, win rate, open positions, pending orders, and notable log messages.`;
-
-export const invokeCopilot = async ({ prompt, context, history, config }: CopilotRequest): Promise<CopilotResult> => {
-  const provider = config.chat.provider;
-
-  if (provider === 'openrouter' && config.openRouter.apiKey) {
+  if (typeof window !== 'undefined') {
     try {
-      const response = await fetch(OPENROUTER_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.openRouter.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: config.openRouter.model,
-          temperature: config.chat.temperature,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...history.slice(-4),
-            { role: 'user', content: `${prompt}\n\n<current_state>\n${context}\n</current_state>` },
-          ],
-        }),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text);
+      const storedConfig = window.localStorage.getItem('daytraderai.config.v1');
+      if (storedConfig) {
+        const parsed = JSON.parse(storedConfig) as { backend?: { apiBaseUrl?: string } };
+        if (parsed?.backend?.apiBaseUrl) {
+          return parsed.backend.apiBaseUrl;
+        }
       }
-      const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content ?? 'No response from OpenRouter.';
-      return { provider: `OpenRouter (${config.openRouter.model})`, content };
+      const legacy = window.localStorage.getItem('daytraderai.backend_url');
+      if (legacy) {
+        return legacy;
+      }
     } catch (error) {
-      console.error('OpenRouter request failed, falling back to local summary', error);
-      return fallbackSummary(prompt, context, 'OpenRouter error');
+      console.warn('Failed to resolve backend URL from storage', error);
     }
   }
 
-  if (provider === 'perplexity' && config.perplexity.apiKey) {
-    try {
-      const response = await fetch(PERPLEXITY_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.perplexity.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: config.perplexity.model,
-          temperature: config.chat.temperature,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...history.slice(-4),
-            { role: 'user', content: `${prompt}\n\n<current_state>\n${context}\n</current_state>` },
-          ],
-        }),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text);
-      }
-      const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content ?? 'No response from Perplexity.';
-      return { provider: `Perplexity (${config.perplexity.model})`, content };
-    } catch (error) {
-      console.error('Perplexity request failed, falling back to local summary', error);
-      return fallbackSummary(prompt, context, 'Perplexity error');
-    }
-  }
+  return 'http://localhost:8006';
+};
 
-  return fallbackSummary(prompt, context, provider === 'none' ? 'LLM disabled' : 'Missing API key');
+export const invokeCopilot = async ({ prompt, context, history, backendUrl }: CopilotRequest): Promise<CopilotResult> => {
+  try {
+    const API_BASE = resolveBackendUrl(backendUrl);
+
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: prompt,
+        history: history.map((entry) => ({ role: entry.role, content: entry.content })),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend chat failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      provider: data.provider || 'DayTraderAI Copilot',
+      content: data.content || data.response || 'No response from AI',
+      confidence: data.confidence,
+      citations: data.citations,
+      notes: data.notes,
+      highlights: data.highlights,
+      contextSummary: data.context_summary,
+      route: data.route,
+      timestamp: data.timestamp,
+    };
+  } catch (error) {
+    console.error('Backend chat request failed, falling back to local summary', error);
+    return fallbackSummary(prompt, context, 'Backend connection error');
+  }
 };
 
 const fallbackSummary = (prompt: string, context: string, reason: string): CopilotResult => {
@@ -111,6 +107,16 @@ const fallbackSummary = (prompt: string, context: string, reason: string): Copil
   return {
     provider: 'Local summary',
     content: lines.join('\n'),
+    route: {
+      category: 'fallback',
+      targets: ['local'],
+      confidence: 0.2,
+      symbols: [],
+      notes: [reason],
+    },
+    confidence: 0.2,
+    notes: [reason],
+    highlights: [],
+    contextSummary: context,
   };
 };
-

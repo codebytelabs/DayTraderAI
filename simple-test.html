@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple React Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div id="root">Loading...</div>
+    
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client"
+      }
+    }
+    </script>
+    
+    <script type="module">
+        import React from 'react';
+        import ReactDOM from 'react-dom/client';
+
+        const App = () => {
+            const [data, setData] = React.useState(null);
+            const [error, setError] = React.useState(null);
+
+            React.useEffect(() => {
+                fetch('http://localhost:8006/metrics')
+                    .then(r => r.json())
+                    .then(d => setData(d))
+                    .catch(e => setError(e.message));
+            }, []);
+
+            if (error) return React.createElement('div', { className: 'text-red-500' }, 'Error: ' + error);
+            if (!data) return React.createElement('div', null, 'Loading...');
+
+            return React.createElement('div', { className: 'space-y-4' },
+                React.createElement('h1', { className: 'text-3xl font-bold' }, '🚀 DayTraderAI'),
+                React.createElement('div', { className: 'bg-gray-800 p-4 rounded' },
+                    React.createElement('p', null, 'Equity: $' + data.equity.toLocaleString()),
+                    React.createElement('p', null, 'Positions: ' + data.open_positions),
+                    React.createElement('p', null, 'Daily P/L: $' + data.daily_pl)
+                ),
+                React.createElement('p', { className: 'text-green-500' }, '✅ Backend Connected!')
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

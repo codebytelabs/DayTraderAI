@@ -6,7 +6,7 @@ interface SettingsDrawerProps {
   onClose: () => void;
 }
 
-type SectionKey = 'api' | 'strategy' | 'chat';
+type SectionKey = 'api' | 'strategy' | 'chat' | 'orders';
 
 const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
   <input
@@ -24,6 +24,7 @@ const SectionToggle: React.FC<{ section: SectionKey; active: SectionKey; onChang
     api: 'API Keys & Services',
     strategy: 'Strategy & Risk',
     chat: 'Copilot & Automation',
+    orders: 'Trade Automation',
   };
   return (
     <button
@@ -51,12 +52,21 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose 
     }
   }, [config, isOpen]);
 
-  const handleChange = (section: keyof AppConfig, key: string, value: string | number) => {
+  const handleChange = (
+    section: keyof AppConfig,
+    key: string,
+    value: string | number | boolean,
+  ) => {
     setForm((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [key]: typeof value === 'string' ? value : Number(value),
+        [key]:
+          typeof value === 'boolean'
+            ? value
+            : typeof value === 'string'
+              ? value
+              : Number(value),
       },
     }));
   };
@@ -99,7 +109,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose 
         <header className="flex items-center justify-between px-6 py-5 border-b border-brand-surface-2">
           <div>
             <h2 className="text-xl font-semibold text-brand-text">System Settings</h2>
-            <p className="text-sm text-brand-text-secondary">Personal keys stay local via browser storage.</p>
+            <p className="text-sm text-brand-text-secondary">Configure trading strategy and UI preferences.</p>
           </div>
           <button
             type="button"
@@ -115,88 +125,59 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose 
             <SectionToggle section="api" active={activeSection} onChange={setActiveSection} />
             <SectionToggle section="strategy" active={activeSection} onChange={setActiveSection} />
             <SectionToggle section="chat" active={activeSection} onChange={setActiveSection} />
+            <SectionToggle section="orders" active={activeSection} onChange={setActiveSection} />
           </nav>
 
           <form className="flex-1 overflow-y-auto px-6 py-6 space-y-6" onSubmit={(e) => e.preventDefault()}>
             {activeSection === 'api' && (
               <>
-                <section>
-                  <h3 className="text-lg font-semibold mb-3 text-brand-text">Alpaca</h3>
-                  <div className="space-y-3">
-                    <Input
-                      value={form.alpaca.baseUrl}
-                      onChange={(event) => handleChange('alpaca', 'baseUrl', event.target.value)}
-                      placeholder="https://paper-api.alpaca.markets/v2"
-                    />
-                    <Input
-                      value={form.alpaca.key}
-                      onChange={(event) => handleChange('alpaca', 'key', event.target.value)}
-                      placeholder="API Key"
-                    />
-                    <Input
-                      value={form.alpaca.secret}
-                      onChange={(event) => handleChange('alpaca', 'secret', event.target.value)}
-                      placeholder="API Secret"
-                    />
-                  </div>
-                </section>
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-300">
+                    <strong>ℹ️ API keys are managed by the backend</strong>
+                    <br />
+                    All sensitive credentials (Alpaca, Supabase, OpenRouter, Perplexity) are configured in <code className="bg-black/30 px-1 rounded">backend/.env</code> for security.
+                  </p>
+                </div>
 
                 <section>
-                  <h3 className="text-lg font-semibold mb-3 text-brand-text">Supabase</h3>
+                  <h3 className="text-lg font-semibold mb-3 text-brand-text">Service Configuration (Read-Only)</h3>
                   <div className="space-y-3">
-                    <Input
-                      value={form.supabase.url}
-                      onChange={(event) => handleChange('supabase', 'url', event.target.value)}
-                      placeholder="https://xyzcompany.supabase.co"
-                    />
-                    <Input
-                      value={form.supabase.anonKey}
-                      onChange={(event) => handleChange('supabase', 'anonKey', event.target.value)}
-                      placeholder="Anon Key"
-                    />
-                    <Input
-                      value={form.supabase.serviceRoleKey}
-                      onChange={(event) => handleChange('supabase', 'serviceRoleKey', event.target.value)}
-                      placeholder="Service Role Key"
-                    />
+                    <label className="block text-sm text-brand-text-secondary">
+                      Alpaca API URL
+                      <Input
+                        value={form.alpaca.baseUrl}
+                        disabled
+                        className="opacity-60 cursor-not-allowed"
+                      />
+                    </label>
+                    <label className="block text-sm text-brand-text-secondary">
+                      Supabase URL
+                      <Input
+                        value={form.supabase.url}
+                        disabled
+                        className="opacity-60 cursor-not-allowed"
+                      />
+                    </label>
+                    <label className="block text-sm text-brand-text-secondary">
+                      OpenRouter Model
+                      <Input
+                        value={form.openRouter.model}
+                        disabled
+                        className="opacity-60 cursor-not-allowed"
+                      />
+                    </label>
+                    <label className="block text-sm text-brand-text-secondary">
+                      Perplexity Model
+                      <Input
+                        value={form.perplexity.model}
+                        disabled
+                        className="opacity-60 cursor-not-allowed"
+                      />
+                    </label>
                   </div>
-                </section>
-
-                <section>
-                  <h3 className="text-lg font-semibold mb-3 text-brand-text">Perplexity</h3>
-                  <div className="space-y-3">
-                    <Input
-                      value={form.perplexity.apiKey}
-                      onChange={(event) => handleChange('perplexity', 'apiKey', event.target.value)}
-                      placeholder="Perplexity API Key"
-                    />
-                    <Input
-                      value={form.perplexity.model}
-                      onChange={(event) => handleChange('perplexity', 'model', event.target.value)}
-                      placeholder="sonar-pro"
-                    />
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-lg font-semibold mb-3 text-brand-text">OpenRouter</h3>
-                  <div className="space-y-3">
-                    <Input
-                      value={form.openRouter.apiKey}
-                      onChange={(event) => handleChange('openRouter', 'apiKey', event.target.value)}
-                      placeholder="OpenRouter API Key"
-                    />
-                    <Input
-                      value={form.openRouter.model}
-                      onChange={(event) => handleChange('openRouter', 'model', event.target.value)}
-                      placeholder="openai/gpt-4.1-mini"
-                    />
-                    <Input
-                      value={form.openRouter.fallbackModel}
-                      onChange={(event) => handleChange('openRouter', 'fallbackModel', event.target.value)}
-                      placeholder="Fallback Model"
-                    />
-                  </div>
+                  <p className="text-xs text-brand-text-secondary mt-3">
+                    These values are loaded from the backend configuration. To change them, update <code className="bg-black/30 px-1 rounded">backend/.env</code> and restart the backend.
+                  </p>
                 </section>
               </>
             )}
@@ -264,6 +245,46 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose 
                 </p>
               </section>
             )}
+
+            {activeSection === 'orders' && (
+              <section className="space-y-4">
+                <h3 className="text-lg font-semibold text-brand-text">Bracket Orders</h3>
+                <label className="flex items-center space-x-2 text-sm text-brand-text">
+                  <input
+                    type="checkbox"
+                    checked={!!form.brackets.enabled}
+                    onChange={(event) => handleChange('brackets', 'enabled', event.target.checked)}
+                    className="h-4 w-4 rounded border-brand-surface-2 text-brand-accent focus:ring-brand-accent"
+                  />
+                  <span>Enable automatic take-profit & stop-loss on new entries</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block text-sm text-brand-text-secondary">
+                    Take Profit %
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={form.brackets.takeProfitPct}
+                      onChange={(event) => handleChange('brackets', 'takeProfitPct', event.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm text-brand-text-secondary">
+                    Stop Loss %
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={form.brackets.stopLossPct}
+                      onChange={(event) => handleChange('brackets', 'stopLossPct', event.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-brand-text-secondary">
+                  These settings update local UI guidance. Server-side execution reads values from the backend configuration in <code className="bg-black/30 px-1 rounded">backend/.env</code>.
+                </p>
+              </section>
+            )}
           </form>
         </div>
 
@@ -290,4 +311,3 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose 
     </div>
   );
 };
-

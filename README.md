@@ -43,43 +43,137 @@
 
 **DayTraderAI** is a sophisticated, production-ready autonomous trading system that combines cutting-edge AI technology with robust risk management to execute profitable day trades. Built with modern technologies and best practices, it provides real-time market analysis, automated trade execution, and comprehensive monitoring through an intuitive web interface.
 
+### 💎 What Makes This Special
+
+**Every Trade is Protected:**
+- ✅ **Entry Price** - Calculated by strategy or AI
+- ✅ **Take Profit** - Automatic (2% default or ATR-based)
+- ✅ **Stop Loss** - Automatic (1% default or ATR-based)  
+- ✅ **Trailing Stop** - Optional (follows price to protect profits)
+
+**Trade Both Directions:**
+- 📈 **Long** - Buy stocks or call options (profit from rises)
+- 📉 **Short** - Buy put options (profit from drops)
+- 🎯 **Result** - Opportunities whether market goes UP or DOWN!
+
+**Intelligent Automation:**
+- 🤖 Continuously scans for opportunities
+- 🛡️ Automatically manages risk on every trade
+- 💰 Maximizes profits with trailing stops
+- 🚨 Minimizes losses with automatic stops
+- 🧠 AI-powered analysis and recommendations
+
 ### Why DayTraderAI?
 
-- **🤖 AI-Powered**: Leverages OpenRouter and Perplexity AI for intelligent trade analysis
-- **📊 Real-Time**: Live market data and instant trade execution via Alpaca
-- **🛡️ Risk Management**: Built-in circuit breakers, position limits, and stop-loss mechanisms
-- **📈 Performance Tracking**: Comprehensive metrics, win rates, and profit factors
+- **🤖 AI-Powered**: Hybrid LLM system (Perplexity + OpenRouter) with full portfolio context
+- **📊 Real-Time**: WebSocket streaming for sub-second updates
+- **🛡️ Risk Management**: Multi-layer protection with circuit breakers and automatic stops
+- **📈 Complete Trades**: Every order includes entry, TP, SL, and optional trailing stop
+- **🎯 Both Directions**: Long stocks/calls (bullish) and puts (bearish)
 - **🎨 Beautiful UI**: Modern, responsive dashboard built with React and TypeScript
-- **🔒 Production-Ready**: 100% test coverage, error handling, and monitoring
+- **🔒 Production-Ready**: Comprehensive testing, error handling, and monitoring
+
+**📖 For complete system details, see [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**
 
 ---
 
 ## ✨ Features
 
-### Trading Engine
+### 🎯 Complete Trade Management (Active)
+- ✅ **Bracket Orders** - Every trade includes entry, TP, SL automatically
 - ✅ **Automated Trading** - EMA crossover strategy with ATR-based stops
 - ✅ **Real-Time Execution** - Sub-second order placement via Alpaca API
-- ✅ **Risk Management** - Position sizing, circuit breakers, max drawdown limits
-- ✅ **Multi-Symbol Support** - Trade multiple stocks simultaneously
-- ✅ **Market Hours Detection** - Automatic trading pause outside market hours
+- ✅ **Position Monitoring** - Continuous tracking with automatic exits
+- ✅ **Trailing Stops** - Protect profits as price moves in your favor
+- ✅ **Multi-Symbol Support** - Trade up to 20 positions simultaneously
 
-### AI Integration
-- 🤖 **Trade Analysis** - AI-powered trade evaluation using OpenRouter
-- 📰 **Market Research** - Real-time news and sentiment via Perplexity
-- 💬 **Chat Copilot** - Interactive AI assistant for trading insights
-- 🎯 **Multiple Models** - Primary, secondary, and tertiary AI models for redundancy
+### 🚀 Advanced Features (Built, Integration Pending)
+- 🌊 **WebSocket Streaming** - Real-time market data (sub-second latency)
+- � **Ohptions Trading** - Calls (bullish) and puts (bearish) for leverage
+- 📰 **News Integration** - Real-time market news with AI sentiment analysis
+- 🎯 **Both Directions** - Profit from rising AND falling markets
 
-### Monitoring & Analytics
-- 📊 **Real-Time Dashboard** - Live positions, orders, and performance metrics
-- 📈 **Performance Charts** - Visual representation of equity curves and P/L
-- 📝 **System Logs** - Comprehensive logging of all trading activities
-- 🔔 **Advisories** - AI-generated trade recommendations and alerts
+### 🤖 AI Intelligence
+- 🧠 **Hybrid LLM System** - Perplexity (news) + OpenRouter (analysis)
+- � ***Context-Aware Copilot** - Knows your portfolio, positions, history, metrics
+- � **Technircal Analysis** - Full TA context (EMA, RSI, ATR, trends)
+- 📰 **News Analysis** - Real-time sentiment and market research
+- 🎯 **Trade Recommendations** - Specific, actionable advice with complete parameters
 
-### Risk Controls
-- 🛡️ **Position Limits** - Maximum number of concurrent positions
-- 💰 **Risk Per Trade** - Configurable percentage of equity at risk
-- 🚨 **Circuit Breakers** - Automatic trading halt on excessive losses
+### 🛡️ Risk Management (Multi-Layer Protection)
+- 🚨 **Circuit Breaker** - Auto-halt at 5% daily loss
+- 💰 **Position Sizing** - Max 2% risk per trade
+- 🎯 **Position Limits** - Max 20 concurrent positions
 - ⚖️ **Buying Power Checks** - Prevent over-leveraging
+- 🛡️ **Automatic Stops** - Every trade has stop loss
+- 📊 **Risk Monitoring** - Continuous exposure tracking
+
+### 📊 Monitoring & Analytics
+- 📈 **Real-Time Dashboard** - Live positions, orders, and performance
+- 📉 **Equity Curve** - Portfolio value over time with multiple timeframes
+- 📝 **Trade Log** - Complete history with analysis
+- 🔔 **AI Advisories** - Real-time recommendations and alerts
+- 📊 **Performance Metrics** - Win rate, profit factor, Sharpe ratio
+
+---
+
+## � How Iit Works
+
+### Automated Trading Flow
+
+```
+1. SIGNAL DETECTION
+   ├─ EMA Crossover (bullish/bearish)
+   ├─ News Analysis (positive/negative)
+   └─ AI Recommendations
+
+2. OPPORTUNITY EVALUATION
+   ├─ Stock Trade (direct long/short)
+   ├─ Call Option (bullish + leverage)
+   └─ Put Option (bearish + leverage)
+
+3. RISK VALIDATION
+   ├─ Check position limits (20 max)
+   ├─ Calculate position size (2% risk)
+   ├─ Verify buying power
+   └─ Check circuit breaker
+
+4. ORDER CREATION (Bracket Order)
+   ├─ Entry: Market or Limit
+   ├─ Take Profit: +2% (automatic)
+   ├─ Stop Loss: -1% (automatic)
+   └─ Trailing Stop: Optional
+
+5. EXECUTION
+   ├─ Submit to Alpaca
+   ├─ Confirm fill
+   └─ Start monitoring
+
+6. POSITION MANAGEMENT
+   ├─ Track P/L in real-time
+   ├─ Update trailing stops
+   ├─ Close at TP or SL
+   └─ Log results
+```
+
+### Example Trade
+
+```
+Signal: AAPL shows bullish EMA crossover
+Action: System automatically:
+
+1. Calculates position size: 100 shares (2% risk)
+2. Sets entry: $177.50
+3. Sets take profit: $180.00 (+2.5% = $250 profit)
+4. Sets stop loss: $175.00 (-1.4% = $250 loss)
+5. Places bracket order (all automatic)
+6. Monitors position continuously
+7. If price hits $180 → Closes with $250 profit ✅
+8. If price hits $175 → Closes with $250 loss (protected) ✅
+9. If price goes to $185 → Trailing stop protects $500+ profit ✅
+
+Result: Defined risk, automatic management, protected profits!
+```
 
 ---
 
@@ -213,6 +307,10 @@ cd ..  # Back to root directory
 # Install dependencies
 npm install
 
+# Configure frontend environment
+cp .env.example .env.local
+# Edit .env.local with your configuration (see Configuration section)
+
 # Build frontend
 npm run build
 ```
@@ -230,7 +328,7 @@ psql -U postgres -d your_database -f supabase_schema.sql
 
 ## ⚙️ Configuration
 
-### Environment Variables
+### Backend Environment Variables
 
 Create `backend/.env` with the following:
 
@@ -265,6 +363,36 @@ BACKEND_PORT=8006
 FRONTEND_URL=http://localhost:5173
 LOG_LEVEL=INFO
 ```
+
+### Frontend Environment Variables
+
+Create `.env.local` in the project root with the following:
+
+```env
+# Backend Configuration
+VITE_BACKEND_URL=http://localhost:8006
+
+# Default API URLs (pre-populated in settings)
+VITE_ALPACA_BASE_URL=https://paper-api.alpaca.markets
+VITE_SUPABASE_URL=https://your-project.supabase.co
+
+# Default LLM Models
+VITE_OPENROUTER_MODEL=openai/gpt-4-turbo
+VITE_OPENROUTER_FALLBACK_MODEL=openai/gpt-4o-mini
+VITE_PERPLEXITY_MODEL=sonar-pro
+
+# Strategy Defaults
+VITE_MAX_POSITIONS=5
+VITE_RISK_PER_TRADE_PCT=0.01
+VITE_CHAT_PROVIDER=openrouter
+VITE_CHAT_TEMPERATURE=0.2
+```
+
+**Important Notes:**
+- All frontend environment variables must be prefixed with `VITE_`
+- Never store API keys or secrets in frontend environment variables (they're bundled into the build)
+- API keys should only be configured in `backend/.env`
+- For production, set `VITE_BACKEND_URL` to your deployed backend URL
 
 ### Trading Parameters
 

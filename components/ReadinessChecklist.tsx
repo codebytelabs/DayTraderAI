@@ -23,8 +23,8 @@ export const ReadinessChecklist: React.FC = () => {
 
   const checklist: ChecklistItem[] = useMemo(() => {
     const totalTrades = stats.wins + stats.losses;
-    const winRatePct = stats.winRate * 100;
-    const profitFactor = stats.profitFactor;
+    const winRatePct = stats.win_rate * 100;
+    const profitFactor = stats.profit_factor;
     const maxDrawdown = calculateMaxDrawdown(performanceData);
 
     const performance: ChecklistItem = {

@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Dict, Optional
 from core.alpaca_client import AlpacaClient
 from core.supabase_client import SupabaseClient
 from core.state import trading_state
@@ -8,7 +8,10 @@ from trading.risk_manager import RiskManager
 from trading.order_manager import OrderManager
 from trading.position_manager import PositionManager
 from trading.strategy import EMAStrategy
+from trading.options_strategy import OptionsStrategy
 from data.market_data import MarketDataManager
+from streaming import StreamManager, StreamingBroadcaster
+from options.options_client import OptionsClient
 from config import settings
 from utils.logger import setup_logger
 
@@ -29,7 +32,11 @@ class TradingEngine:
         order_manager: OrderManager,
         position_manager: PositionManager,
         strategy: EMAStrategy,
-        market_data_manager: MarketDataManager
+        market_data_manager: MarketDataManager,
+        options_client: Optional[OptionsClient] = None,
+        stream_manager: Optional[StreamManager] = None,
+        streaming_broadcaster: Optional[StreamingBroadcaster] = None,
+        snapshot_builder: Optional[Callable[[], Dict]] = None,
     ):
         self.alpaca = alpaca_client
         self.supabase = supabase_client
@@ -38,6 +45,18 @@ class TradingEngine:
         self.position_manager = position_manager
         self.strategy = strategy
         self.market_data = market_data_manager
+        self.stream_manager = stream_manager
+        self.streaming_broadcaster = streaming_broadcaster
+        self.snapshot_builder = snapshot_builder
+        self.streaming_enabled = settings.streaming_enabled
+        self.stream_reconnect_delay = settings.stream_reconnect_delay
+        self._streaming_active = False
+        
+        # Initialize options strategy if enabled
+        self.options_strategy = None
+        if options_client and settings.options_enabled:
+            self.options_strategy = OptionsStrategy(options_client)
+            logger.info("Options strategy initialized and enabled")
         
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
@@ -56,7 +75,10 @@ class TradingEngine:
         
         # Initial sync
         await self.sync_account()
-        
+
+        if self.streaming_enabled:
+            await self._start_streaming()
+
         # Start all loops concurrently
         await asyncio.gather(
             self.market_data_loop(),
@@ -70,6 +92,8 @@ class TradingEngine:
         """Stop all trading loops."""
         logger.info("🛑 Stopping Trading Engine...")
         self.is_running = False
+        if self.streaming_enabled:
+            await self._stop_streaming()
         await asyncio.sleep(2)  # Allow loops to finish
         logger.info("Trading Engine stopped")
     
@@ -163,13 +187,60 @@ class TradingEngine:
                         if signal:
                             logger.info(f"📈 Signal detected: {signal.upper()} {symbol}")
                             
-                            # Execute signal
+                            # Execute stock signal
                             success = self.strategy.execute_signal(symbol, signal, features)
                             
                             if success:
-                                logger.info(f"✅ Order submitted for {symbol}")
+                                logger.info(f"✅ Stock order submitted for {symbol}")
                             else:
-                                logger.warning(f"❌ Order rejected for {symbol}")
+                                logger.warning(f"❌ Stock order rejected for {symbol}")
+                            
+                            # Check if we should also trade options
+                            if self.options_strategy and settings.options_enabled:
+                                try:
+                                    account = self.alpaca.get_account()
+                                    equity = float(account.equity)
+                                    current_price = features.get('close', 0)
+                                    
+                                    # Count current options positions
+                                    positions = self.position_manager.get_all_positions()
+                                    options_positions = sum(
+                                        1 for p in positions 
+                                        if len(p.get('symbol', '')) > 10  # Options symbols are longer
+                                    )
+                                    
+                                    # Generate options signal
+                                    options_signal = self.options_strategy.generate_options_signal(
+                                        symbol=symbol,
+                                        signal=signal,
+                                        current_price=current_price,
+                                        account_equity=equity,
+                                        current_options_positions=options_positions
+                                    )
+                                    
+                                    if options_signal:
+                                        logger.info(
+                                            f"📊 Options signal: {options_signal['option_type'].upper()} "
+                                            f"{options_signal['contracts']} contracts of {symbol}"
+                                        )
+                                        
+                                        # Execute options order
+                                        options_order = self.order_manager.submit_options_order(
+                                            option_symbol=options_signal['option_symbol'],
+                                            contracts=options_signal['contracts'],
+                                            premium=options_signal['entry_premium'],
+                                            option_type=options_signal['option_type'],
+                                            underlying_symbol=symbol,
+                                            reason=f"options_{options_signal['signal']}"
+                                        )
+                                        
+                                        if options_order:
+                                            logger.info(f"✅ Options order submitted: {options_order.order_id}")
+                                        else:
+                                            logger.warning(f"❌ Options order rejected for {symbol}")
+                                        
+                                except Exception as e:
+                                    logger.error(f"Error generating options signal for {symbol}: {e}")
                         
                     except Exception as e:
                         logger.error(f"Error evaluating {symbol}: {e}")
@@ -208,6 +279,133 @@ class TradingEngine:
             except Exception as e:
                 logger.error(f"Error in position monitor loop: {e}")
                 await asyncio.sleep(10)
+
+    async def _start_streaming(self):
+        if not self.stream_manager:
+            logger.warning("Stream manager not configured; skipping streaming start")
+            return
+
+        try:
+            self.stream_manager.register_quote_handler(self._handle_quote)
+            self.stream_manager.register_trade_handler(self._handle_trade)
+            self.stream_manager.register_bar_handler(self._handle_bar)
+            await self.stream_manager.start(self.watchlist)
+            self._streaming_active = True
+            logger.info("🔌 Streaming manager connected for watchlist symbols")
+        except Exception as exc:
+            self._streaming_active = False
+            self.streaming_enabled = False
+            logger.error("Streaming start failed (%s); reverting to polling", exc)
+
+    async def _stop_streaming(self):
+        if self.stream_manager and self._streaming_active:
+            await self.stream_manager.stop()
+            self._streaming_active = False
+
+    async def _handle_quote(self, quote):
+        try:
+            symbol = getattr(quote, "symbol", None)
+            if not symbol:
+                return
+
+            bid = float(getattr(quote, "bid_price", 0) or 0)
+            ask = float(getattr(quote, "ask_price", 0) or 0)
+            midpoint = (bid + ask) / 2 if bid and ask else bid or ask
+            if midpoint:
+                self._update_position_price_from_stream(symbol, midpoint)
+
+            payload = {
+                "type": "quote",
+                "symbol": symbol,
+                "bid": bid,
+                "ask": ask,
+                "bid_size": float(getattr(quote, "bid_size", 0) or 0),
+                "ask_size": float(getattr(quote, "ask_size", 0) or 0),
+                "timestamp": getattr(quote, "timestamp", None),
+            }
+            await self._publish_stream_message(payload)
+        except Exception as exc:
+            logger.error("Quote handler error: %s", exc)
+
+    async def _handle_trade(self, trade):
+        try:
+            symbol = getattr(trade, "symbol", None)
+            if not symbol:
+                return
+
+            price = float(getattr(trade, "price", 0) or 0)
+            if price:
+                self._update_position_price_from_stream(symbol, price)
+
+            payload = {
+                "type": "trade",
+                "symbol": symbol,
+                "price": price,
+                "size": float(getattr(trade, "size", 0) or 0),
+                "timestamp": getattr(trade, "timestamp", None),
+            }
+            await self._publish_stream_message(payload)
+        except Exception as exc:
+            logger.error("Trade handler error: %s", exc)
+
+    async def _handle_bar(self, bar):
+        try:
+            symbol = getattr(bar, "symbol", None)
+            if not symbol:
+                return
+
+            payload = {
+                "type": "bar",
+                "symbol": symbol,
+                "open": float(getattr(bar, "open", 0) or 0),
+                "high": float(getattr(bar, "high", 0) or 0),
+                "low": float(getattr(bar, "low", 0) or 0),
+                "close": float(getattr(bar, "close", 0) or 0),
+                "volume": float(getattr(bar, "volume", 0) or 0),
+                "timestamp": getattr(bar, "timestamp", None),
+            }
+            if payload["close"]:
+                self.market_data.apply_stream_price(symbol, payload["close"], payload["timestamp"])
+                self.market_data.apply_stream_bar(symbol, payload, payload["timestamp"])
+            await self._publish_stream_message(payload)
+        except Exception as exc:
+            logger.error("Bar handler error: %s", exc)
+
+    async def _publish_stream_message(self, payload: Dict):
+        if not self.streaming_enabled or not self.streaming_broadcaster:
+            return
+        await self.streaming_broadcaster.enqueue(payload)
+
+    def _update_position_price_from_stream(self, symbol: str, price: float):
+        if price <= 0:
+            return
+
+        position = trading_state.get_position(symbol)
+        if not position:
+            return
+
+        qty = position.qty or 0
+        if qty <= 0:
+            return
+
+        if position.side == "buy":
+            unrealized_pl = (price - position.avg_entry_price) * qty
+            market_value = price * qty
+        else:
+            unrealized_pl = (position.avg_entry_price - price) * qty
+            market_value = -price * qty
+
+        cost_basis = position.avg_entry_price * qty
+        if cost_basis:
+            unrealized_pct = (unrealized_pl / cost_basis) * 100
+        else:
+            unrealized_pct = position.unrealized_pl_pct
+
+        position.current_price = price
+        position.unrealized_pl = unrealized_pl
+        position.unrealized_pl_pct = unrealized_pct
+        position.market_value = market_value
+        trading_state.update_position(position)
     
     async def metrics_loop(self):
         """
@@ -245,6 +443,28 @@ class TradingEngine:
                 })
                 
                 logger.debug(f"Metrics: Equity=${metrics.equity:.2f}, P/L=${metrics.daily_pl:.2f}, Win Rate={metrics.win_rate*100:.1f}%")
+
+                if self.streaming_enabled and self.streaming_broadcaster:
+                    await self.streaming_broadcaster.enqueue(
+                        {
+                            "type": "metrics",
+                            "payload": {
+                                "equity": metrics.equity,
+                                "cash": metrics.cash,
+                                "buying_power": metrics.buying_power,
+                                "daily_pl": metrics.daily_pl,
+                                "daily_pl_pct": metrics.daily_pl_pct,
+                                "total_pl": metrics.total_pl,
+                                "win_rate": metrics.win_rate,
+                                "profit_factor": metrics.profit_factor,
+                                "wins": metrics.wins,
+                                "losses": metrics.losses,
+                                "total_trades": metrics.total_trades,
+                                "open_positions": metrics.open_positions,
+                                "circuit_breaker_triggered": metrics.circuit_breaker_triggered,
+                            },
+                        }
+                    )
                 
                 await asyncio.sleep(300)  # Update every 5 minutes
                 

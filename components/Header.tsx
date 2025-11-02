@@ -1,7 +1,8 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ConnectionStatuses, ServiceStatus } from '../types';
-import { useConfig } from '../state/ConfigContext';
+import { useServiceHealth } from '../hooks/useServiceHealth';
+import { useTrading } from '../state/TradingContext';
 
 const StatusIndicator: React.FC<{ status: ServiceStatus; name: string }> = ({ status, name }) => {
   const statusConfig = {
@@ -23,36 +24,23 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => {
-  const [statuses, setStatuses] = useState<ConnectionStatuses>({
-    alpaca: ServiceStatus.CONNECTED,
-    supabase: ServiceStatus.CONNECTED,
-    perplexity: ServiceStatus.DEGRADED,
-    openRouter: ServiceStatus.CONNECTED,
-  });
-  const { config } = useConfig();
+  const health = useServiceHealth();
+  const { streamingStatus } = useTrading();
 
-  // Mock status changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStatuses((prev) => ({
-        ...prev,
-        perplexity: Math.random() > 0.8 ? ServiceStatus.DISCONNECTED : ServiceStatus.CONNECTED,
-        supabase: Math.random() > 0.95 ? ServiceStatus.DEGRADED : ServiceStatus.CONNECTED,
-      }));
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
+  // Map health status to ServiceStatus enum
+  const statuses: ConnectionStatuses = useMemo(() => ({
+    alpaca: health.alpaca === 'connected' ? ServiceStatus.CONNECTED : ServiceStatus.DISCONNECTED,
+    supabase: health.supabase === 'connected' ? ServiceStatus.CONNECTED : ServiceStatus.DISCONNECTED,
+    perplexity: health.perplexity === 'connected' ? ServiceStatus.CONNECTED : ServiceStatus.DISCONNECTED,
+    openRouter: health.openrouter === 'connected' ? ServiceStatus.CONNECTED : ServiceStatus.DISCONNECTED,
+  }), [health]);
 
-  const activeProviderLabel = useMemo(() => {
-    switch (config.chat.provider) {
-      case 'openrouter':
-        return `Copilot: OpenRouter (${config.openRouter.model})`;
-      case 'perplexity':
-        return `Copilot: Perplexity (${config.perplexity.model})`;
-      default:
-        return 'Copilot: Manual (LLM disabled)';
-    }
-  }, [config.chat.provider, config.openRouter.model, config.perplexity.model]);
+  const streamingServiceStatus: ServiceStatus = useMemo(() => {
+    if (streamingStatus === 'connected') return ServiceStatus.CONNECTED;
+    if (streamingStatus === 'connecting') return ServiceStatus.DEGRADED;
+    if (streamingStatus === 'disabled') return ServiceStatus.DEGRADED;
+    return ServiceStatus.DISCONNECTED;
+  }, [streamingStatus]);
 
   return (
     <header className="bg-brand-surface p-4 flex justify-between items-center border-b border-brand-surface-2">
@@ -64,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => {
         <StatusIndicator status={statuses.supabase} name="Supabase" />
         <StatusIndicator status={statuses.perplexity} name="Perplexity" />
         <StatusIndicator status={statuses.openRouter} name="OpenRouter" />
-        <div className="hidden xl:block text-sm text-brand-text-secondary">{activeProviderLabel}</div>
+        <StatusIndicator status={streamingServiceStatus} name="Streaming" />
         <button
           type="button"
           onClick={onOpenSettings}
