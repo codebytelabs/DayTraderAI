@@ -66,6 +66,21 @@ class EMAStrategy:
             stop_price = calculate_atr_stop(price, atr, self.stop_mult, signal)
             target_price = calculate_atr_target(price, atr, self.target_mult, signal)
             
+            # Enforce minimum stop distance
+            stop_distance = abs(price - stop_price)
+            min_stop_distance = price * settings.min_stop_distance_pct
+            
+            if stop_distance < min_stop_distance:
+                logger.warning(
+                    f"Stop distance too small for {symbol}: ${stop_distance:.2f} < ${min_stop_distance:.2f} "
+                    f"(min {settings.min_stop_distance_pct*100}%). Adjusting..."
+                )
+                # Adjust stop to meet minimum distance
+                if signal == 'buy':
+                    stop_price = price - min_stop_distance
+                else:
+                    stop_price = price + min_stop_distance
+            
             qty = calculate_position_size(
                 equity=equity,
                 risk_pct=settings.risk_per_trade_pct,
@@ -76,6 +91,22 @@ class EMAStrategy:
             if qty <= 0:
                 logger.warning(f"Position size too small for {symbol}")
                 return False
+            
+            # Cap position size at max position value
+            max_position_value = equity * settings.max_position_pct
+            position_value = qty * price
+            
+            if position_value > max_position_value:
+                # Reduce quantity to fit within max position size
+                qty = int(max_position_value / price)
+                logger.warning(
+                    f"Position size capped for {symbol}: {int(position_value/price)} shares → {qty} shares "
+                    f"(${position_value:,.2f} → ${qty * price:,.2f}, max {settings.max_position_pct*100}% of equity)"
+                )
+                
+                if qty <= 0:
+                    logger.warning(f"Position size too small after capping for {symbol}")
+                    return False
             
             # Submit order
             reason = f"EMA({self.ema_short}/{self.ema_long}) {signal.upper()} crossover"

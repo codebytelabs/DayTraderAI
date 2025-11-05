@@ -3,6 +3,7 @@
 ## ✅ Correct Architecture (Implemented)
 
 ### Backend Manages All Secrets
+
 ```
 ┌─────────────────────────────────────┐
 │         Backend (.env)              │
@@ -40,6 +41,7 @@
 ## What Changed
 
 ### Before (❌ Insecure)
+
 - Frontend asked users to enter API keys
 - Keys stored in browser localStorage
 - Keys could be exposed in browser dev tools
@@ -47,6 +49,7 @@
 - Anyone with access to the app could see keys
 
 ### After (✅ Secure)
+
 - **All API keys live in `backend/.env` only**
 - Frontend never sees or stores secrets
 - Settings drawer shows read-only configuration
@@ -95,12 +98,14 @@ VITE_RISK_PER_TRADE_PCT=0.01
 ## Settings Drawer Behavior
 
 ### API Keys & Services Tab
+
 - **Read-only** display of configured services
 - Shows which services are configured
 - Links to backend configuration file
 - No input fields for secrets
 
 ### Strategy & Risk Tab
+
 - **Editable** trading parameters:
   - Watchlist symbols
   - Risk per trade %
@@ -109,6 +114,7 @@ VITE_RISK_PER_TRADE_PCT=0.01
 - Can be synced to backend (future feature)
 
 ### Copilot & Automation Tab
+
 - **Editable** UI preferences:
   - LLM provider selection
   - Temperature setting
@@ -129,6 +135,7 @@ VITE_RISK_PER_TRADE_PCT=0.01
 ## How It Works
 
 ### 1. Backend Startup
+
 ```python
 # backend/main.py
 alpaca_client = AlpacaClient()  # Uses ALPACA_API_KEY from .env
@@ -136,25 +143,28 @@ supabase_client = SupabaseClient()  # Uses SUPABASE_SERVICE_KEY
 ```
 
 ### 2. Frontend Requests Data
+
 ```typescript
 // Frontend makes request
-const data = await apiClient.get('/positions');
+const data = await apiClient.get("/positions");
 // Backend uses its API keys to fetch from Alpaca
 // Returns sanitized data to frontend
 ```
 
 ### 3. Service Health Check
+
 ```typescript
 // Frontend checks service status
-const health = await apiClient.get('/health/services');
+const health = await apiClient.get("/health/services");
 // Returns: { alpaca: 'connected', supabase: 'connected', ... }
 // Backend tests connections using its keys
 ```
 
 ### 4. Configuration Loading
+
 ```typescript
 // Frontend loads display config
-const config = await apiClient.get('/config');
+const config = await apiClient.get("/config");
 // Returns: { alpaca_base_url, watchlist, max_positions, ... }
 // NO API KEYS INCLUDED
 ```
@@ -164,17 +174,20 @@ const config = await apiClient.get('/config');
 If you previously entered API keys in the Settings drawer:
 
 1. **Clear browser storage**:
+
    ```javascript
    localStorage.clear();
    ```
 
 2. **Ensure backend `.env` has all keys**:
+
    ```bash
    cd backend
    cat .env  # Verify all keys are present
    ```
 
 3. **Restart backend**:
+
    ```bash
    python main.py
    ```
@@ -186,18 +199,21 @@ If you previously entered API keys in the Settings drawer:
 ## Troubleshooting
 
 ### Services Show "Disconnected"
+
 1. Check backend is running: `ps aux | grep main.py`
 2. Check backend logs for API errors
 3. Verify keys in `backend/.env` are correct
 4. Test endpoints: `curl http://localhost:8006/health/services`
 
 ### Settings Show Empty Values
+
 1. Ensure backend `/config` endpoint is working
 2. Check browser console for errors
 3. Verify backend is accessible at `VITE_BACKEND_URL`
 4. Clear localStorage and refresh
 
 ### Can't Edit Configuration
+
 - **API Keys**: Correct! Edit `backend/.env` instead
 - **Service URLs**: Read-only, edit `backend/.env`
 - **Trading Parameters**: Should be editable in Strategy tab
@@ -206,6 +222,7 @@ If you previously entered API keys in the Settings drawer:
 ## Best Practices
 
 ✅ **DO**:
+
 - Keep all API keys in `backend/.env`
 - Use environment variables for configuration
 - Rotate keys regularly
@@ -214,6 +231,7 @@ If you previously entered API keys in the Settings drawer:
 - Set up alerts for unusual activity
 
 ❌ **DON'T**:
+
 - Store API keys in frontend code
 - Commit `.env` files to git
 - Share API keys in chat/email

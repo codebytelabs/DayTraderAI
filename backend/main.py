@@ -15,6 +15,7 @@ from copilot.query_router import QueryRoute, QueryRouter
 from copilot.action_classifier import ActionClassifier, ActionIntent
 from copilot.action_executor import ActionExecutor, ExecutionResult
 from copilot.response_formatter import ResponseFormatter, CopilotResponse
+from copilot.command_handler import CommandHandler
 from advisory.openrouter import OpenRouterClient
 from advisory.perplexity import PerplexityClient
 from core.alpaca_client import AlpacaClient
@@ -52,6 +53,7 @@ response_formatter: Optional[ResponseFormatter] = None
 openrouter_client: Optional[OpenRouterClient] = None
 perplexity_client: Optional[PerplexityClient] = None
 streaming_broadcaster: Optional[StreamingBroadcaster] = None
+command_handler: Optional[CommandHandler] = None
 
 
 def _serialize_positions() -> List[Dict[str, Any]]:
@@ -159,7 +161,7 @@ def build_streaming_snapshot() -> Dict[str, Any]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize clients and start trading engine on startup."""
-    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager, news_client, copilot_config, copilot_context_builder, copilot_router, action_classifier, action_executor, response_formatter, openrouter_client, perplexity_client, streaming_broadcaster
+    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager, news_client, copilot_config, copilot_context_builder, copilot_router, action_classifier, action_executor, response_formatter, openrouter_client, perplexity_client, streaming_broadcaster, command_handler
     
     logger.info("🚀 Starting DayTraderAI Backend...")
     
@@ -212,6 +214,7 @@ async def lifespan(app: FastAPI):
         response_formatter = ResponseFormatter()
         openrouter_client = OpenRouterClient()
         perplexity_client = PerplexityClient()
+        command_handler = CommandHandler(alpaca_client)
         streaming_broadcaster = StreamingBroadcaster()
         await streaming_broadcaster.start(snapshot_builder=build_streaming_snapshot)
         
@@ -435,35 +438,205 @@ def _serialize_route(route: QueryRoute) -> Dict[str, Any]:
     }
 
 
-def _build_perplexity_prompt(context: Dict[str, Any], message: str) -> str:
+def _build_perplexity_prompt(context: Dict[str, Any], message: str, route: Optional[QueryRoute] = None) -> str:
     summary = context.get("summary", "")
     highlights = context.get("highlights", [])
     focus_symbols = context.get("symbols", [])
+    
+    # Check query type
+    message_lower = message.lower()
+    is_opportunities = any(kw in message_lower for kw in ["opportunities", "opportunity", "ideas", "signals", "setups", "trades"])
+    is_deep_analysis = route and route.category == "deep_analysis"
 
-    prompt_lines = [
-        "You are the DayTraderAI market intelligence analyst. Use the structured data below to gather the most recent, factual news.",
-        "",
-        "Trading system highlights:",
-    ]
-    prompt_lines.extend(f"- {item}" for item in highlights[:5])
+    if is_deep_analysis and route and route.symbols:
+        # Deep analysis prompt for specific symbols
+        symbols_str = ", ".join(route.symbols)
+        
+        prompt_lines = [
+            f"Conduct COMPREHENSIVE DEEP-DIVE ANALYSIS for: {symbols_str}",
+            "",
+            "For EACH symbol, provide:",
+            "",
+            "1. TECHNICAL ANALYSIS:",
+            "   - Current price, 52-week range, % from highs/lows",
+            "   - Key support and resistance levels",
+            "   - RSI, MACD, moving averages (20/50/200 day)",
+            "   - Volume analysis (vs average)",
+            "   - Chart patterns (if any)",
+            "   - Bollinger Bands position",
+            "   - Momentum assessment (short/medium/long term)",
+            "",
+            "2. FUNDAMENTAL ANALYSIS:",
+            "   - Latest financials (revenue, net income, margins)",
+            "   - Valuation metrics (P/E, P/B, PEG, P/S, EV/EBITDA)",
+            "   - Growth rates (revenue, EPS, FCF)",
+            "   - Balance sheet health (debt/equity, current ratio, cash)",
+            "   - Profitability (ROE, ROA, profit margins)",
+            "   - Fair value assessment",
+            "",
+            "3. SENTIMENT & NEWS:",
+            "   - Recent news headlines (last 7 days) with dates",
+            "   - Overall news sentiment (positive/negative/neutral)",
+            "   - Analyst ratings breakdown",
+            "   - Average price target and upside/downside",
+            "   - Social media sentiment (Reddit, Twitter, StockTwits)",
+            "",
+            "4. OPTIONS ANALYSIS:",
+            "   - Unusual options activity (if any)",
+            "   - Put/call ratio",
+            "   - Implied volatility and IV rank",
+            "   - Notable large trades (calls/puts)",
+            "",
+            "5. INSIDER & INSTITUTIONAL:",
+            "   - Recent insider transactions (last 3 months)",
+            "   - Net insider buying/selling",
+            "   - Institutional ownership %",
+            "   - Recent institutional changes",
+            "   - Top institutional holders",
+            "",
+            "6. EARNINGS:",
+            "   - Next earnings date",
+            "   - EPS estimate and whisper number",
+            "   - Recent earnings surprises",
+            "   - Earnings trend",
+            "",
+            "7. COMPETITIVE LANDSCAPE:",
+            "   - Main competitors",
+            "   - Market share",
+            "   - Competitive advantages",
+            "   - Industry trends",
+            "",
+            "8. RISK FACTORS:",
+            "   - Beta and volatility",
+            "   - Max drawdown (1 year)",
+            "   - Key risks (regulatory, competitive, market)",
+            "",
+            "9. TRADE SETUP:",
+            "   - Bullish entry zone",
+            "   - Stop loss level",
+            "   - Target prices (T1, T2)",
+            "   - Risk/reward ratio",
+            "   - Time horizon",
+            "",
+            "10. BOTTOM LINE:",
+            "   - Overall rating (Strong Buy/Buy/Hold/Sell/Strong Sell)",
+            "   - Confidence level",
+            "   - Key catalyst to watch",
+            "   - Next action recommendation",
+            "",
+            "Provide SPECIFIC NUMBERS, DATES, and SOURCES for all data.",
+            "Use real-time market data.",
+            "Be comprehensive but concise.",
+        ]
+        
+        if len(route.symbols) > 1:
+            prompt_lines.extend([
+                "",
+                "MULTI-SYMBOL ANALYSIS:",
+                "- Compare all symbols side-by-side",
+                "- Rank by attractiveness",
+                "- Show correlation between symbols",
+                "- Suggest portfolio allocation",
+            ])
+        
+        return "\n".join(prompt_lines)
+    
+    elif is_opportunities:
+        # Specialized prompt for opportunities research
+        account = context.get("account", {})
+        cash = account.get("cash", 0)
+        equity = account.get("equity", 0)
+        positions = context.get("positions", [])
+        
+        # Get current sector exposure
+        sectors = {}
+        for pos in positions:
+            symbol = pos.get("symbol")
+            value = abs(pos.get("market_value", 0))
+            # Simple sector mapping (you can enhance this)
+            if symbol in ["AAPL", "MSFT", "GOOGL", "META", "AMZN"]:
+                sectors["Tech"] = sectors.get("Tech", 0) + value
+            elif symbol in ["TSLA"]:
+                sectors["EV/Auto"] = sectors.get("EV/Auto", 0) + value
+            elif symbol in ["NVDA", "AMD"]:
+                sectors["Semiconductors"] = sectors.get("Semiconductors", 0) + value
+        
+        prompt_lines = [
+            "You are a market research analyst finding the BEST trading opportunities RIGHT NOW.",
+            "",
+            "RESEARCH MISSION:",
+            "Find the top 5-7 trading opportunities across different categories:",
+            "1. High-momentum stocks (strong uptrend, breaking out)",
+            "2. Undervalued stocks (oversold, potential reversal)",
+            "3. Sector leaders (strongest in their sector)",
+            "4. Dividend/value plays (stable, defensive)",
+            "5. Options opportunities (high IV, earnings plays)",
+            "",
+            "CURRENT PORTFOLIO CONTEXT:",
+            f"- Available cash: ${cash:,.0f}",
+            f"- Total equity: ${equity:,.0f}",
+            f"- Open positions: {len(positions)}",
+        ]
+        
+        if sectors:
+            prompt_lines.append("- Current sector exposure:")
+            for sector, value in sectors.items():
+                pct = (value / equity * 100) if equity > 0 else 0
+                prompt_lines.append(f"  • {sector}: ${value:,.0f} ({pct:.1f}%)")
+        
+        prompt_lines.extend([
+            "",
+            "RESEARCH REQUIREMENTS:",
+            "For each opportunity, provide:",
+            "- Symbol and company name",
+            "- Current price and recent price action",
+            "- Why it's a good opportunity RIGHT NOW (catalyst, technical setup, fundamentals)",
+            "- Suggested entry price range",
+            "- Suggested stop loss level",
+            "- Suggested take profit target",
+            "- Risk/reward ratio",
+            "- Position size recommendation (% of portfolio)",
+            "- Time horizon (day trade, swing, position)",
+            "- Asset class (stock, ETF, option strategy)",
+            "",
+            "DIVERSIFICATION FOCUS:",
+            "- Suggest opportunities in sectors NOT currently overweight",
+            "- Include at least one defensive/hedge position",
+            "- Consider market cap diversity (large, mid, small cap)",
+            "- Include at least one options strategy if appropriate",
+            "",
+            "Use real-time market data, recent news, earnings calendars, and technical analysis.",
+            "Cite your sources for each recommendation.",
+        ])
+        
+        return "\n".join(prompt_lines)
+    
+    else:
+        # Original news-focused prompt
+        prompt_lines = [
+            "You are the DayTraderAI market intelligence analyst. Use the structured data below to gather the most recent, factual news.",
+            "",
+            "Trading system highlights:",
+        ]
+        prompt_lines.extend(f"- {item}" for item in highlights[:5])
 
-    if focus_symbols:
-        prompt_lines.append(f"Focus symbols: {', '.join(focus_symbols)}")
+        if focus_symbols:
+            prompt_lines.append(f"Focus symbols: {', '.join(focus_symbols)}")
 
-    prompt_lines.append("")
-    prompt_lines.append("System summary:")
-    prompt_lines.append(summary or "(summary unavailable)")
+        prompt_lines.append("")
+        prompt_lines.append("System summary:")
+        prompt_lines.append(summary or "(summary unavailable)")
 
-    prompt_lines.append("")
-    prompt_lines.append("User query:")
-    prompt_lines.append(message.strip())
+        prompt_lines.append("")
+        prompt_lines.append("User query:")
+        prompt_lines.append(message.strip())
 
-    prompt_lines.append("")
-    prompt_lines.append(
-        "Respond with a concise market intelligence briefing. Include bullet points with key takeaways, "
-        "note major catalysts, and provide source citations."
-    )
-    return "\n".join(prompt_lines)
+        prompt_lines.append("")
+        prompt_lines.append(
+            "Respond with a concise market intelligence briefing. Include bullet points with key takeaways, "
+            "note major catalysts, and provide source citations."
+        )
+        return "\n".join(prompt_lines)
 
 @app.get("/")
 async def root():
@@ -495,6 +668,53 @@ async def health():
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/market/status")
+async def get_market_status():
+    """Get detailed market status with countdown timers."""
+    try:
+        from datetime import timezone
+        import pytz
+        
+        # Get current time
+        now_utc = datetime.now(timezone.utc)
+        
+        # Market timezone (Eastern Time)
+        market_tz = pytz.timezone('America/New_York')
+        now_market = now_utc.astimezone(market_tz)
+        
+        # Check if market is open
+        is_open = alpaca_client.is_market_open()
+        
+        # Get market clock from Alpaca
+        clock = alpaca_client.get_clock()
+        
+        # Calculate next open/close times
+        next_open = clock.next_open
+        next_close = clock.next_close
+        
+        # Calculate seconds until next event
+        if is_open:
+            closes_in = int((next_close - now_utc).total_seconds())
+            opens_in = None
+        else:
+            opens_in = int((next_open - now_utc).total_seconds())
+            closes_in = None
+        
+        return {
+            "isOpen": is_open,
+            "opensIn": opens_in,
+            "closesIn": closes_in,
+            "nextOpen": next_open.isoformat() if next_open else None,
+            "nextClose": next_close.isoformat() if next_close else None,
+            "currentTime": now_utc.isoformat(),
+            "marketTime": now_market.isoformat(),
+            "timezone": "America/New_York"
+        }
+    except Exception as e:
+        logger.error(f"Failed to get market status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -857,15 +1077,18 @@ async def chat(request: ChatRequestPayload):
     success_boost = 0.0
 
     ai_timeout = (copilot_config.ai_timeout_ms / 1000) if copilot_config else 15.0
+    
+    # Perplexity needs more time for comprehensive research
+    perplexity_timeout = 45.0  # 45 seconds for deep research queries
 
     # Optional Perplexity pass for news/research
     if "perplexity" in route.targets:
         if perplexity_client and settings.perplexity_api_key:
-            perplexity_prompt = _build_perplexity_prompt(context_result.context, request.message)
+            perplexity_prompt = _build_perplexity_prompt(context_result.context, request.message, route)
             try:
                 perplexity_task = asyncio.wait_for(
                     perplexity_client.search(perplexity_prompt),
-                    timeout=ai_timeout,
+                    timeout=perplexity_timeout,
                 )
                 perplexity_result = await perplexity_task
                 if perplexity_result and perplexity_result.get("content"):
@@ -881,8 +1104,11 @@ async def chat(request: ChatRequestPayload):
                 else:
                     notes.append("Perplexity returned no content.")
             except Exception as err:
+                import traceback
+                error_details = traceback.format_exc()
                 logger.error(f"Perplexity query failed: {err}")
-                notes.append("Perplexity query failed; continuing without news.")
+                logger.error(f"Perplexity error details: {error_details}")
+                notes.append(f"Perplexity query failed: {str(err) or 'Unknown error'}; continuing without news.")
         else:
             notes.append("Perplexity API key missing; skipping news routing.")
 
@@ -890,12 +1116,78 @@ async def chat(request: ChatRequestPayload):
     openrouter_reply = None
     if "openrouter" in route.targets:
         if openrouter_client and settings.openrouter_api_key:
-            system_prompt = (
-                "You are DayTraderAI, a professional day-trading copilot. "
-                "Use the provided trading system context to deliver actionable advice. "
-                "Always emphasise risk management, circuit breakers, and open exposure. "
-                "Respond with concise bullet points and clear next steps."
-            )
+            # Check query type
+            message_lower = request.message.lower()
+            is_opportunities = any(kw in message_lower for kw in ["opportunities", "opportunity", "ideas", "signals", "setups", "trades"])
+            is_deep_analysis = route.category == "deep_analysis"
+            
+            if is_deep_analysis and sections:
+                # Enhanced prompt for deep analysis
+                symbols_str = ", ".join(route.symbols) if route.symbols else "symbol(s)"
+                system_prompt = (
+                    f"You are a professional stock analyst providing DEEP-DIVE ANALYSIS for {symbols_str}.\n\n"
+                    "You have received comprehensive research from Perplexity. Your job is to:\n\n"
+                    "1. **Synthesize** the research into a clear, well-formatted report\n"
+                    "2. **Structure** the response with these sections:\n"
+                    "   - Executive Summary (rating, key catalyst, quick verdict)\n"
+                    "   - Technical Analysis (price action, indicators, patterns, momentum)\n"
+                    "   - Fundamental Analysis (valuation, financials, growth)\n"
+                    "   - Sentiment & News (headlines, ratings, social)\n"
+                    "   - Options Analysis (flow, IV, notable trades)\n"
+                    "   - Insider & Institutional (recent activity, holdings)\n"
+                    "   - Earnings Analysis (next date, estimates, history)\n"
+                    "   - Competitive Analysis (peers, market share, advantages)\n"
+                    "   - Risk Assessment (metrics, factors)\n"
+                    "   - Trade Setup (bullish/bearish scenarios with SPECIFIC prices)\n"
+                    "   - Bottom Line (rating, confidence, next action)\n\n"
+                    "3. **Provide SPECIFIC NUMBERS:**\n"
+                    "   - Exact entry prices, stop losses, targets\n"
+                    "   - Position sizes based on 1% risk rule\n"
+                    "   - Risk/reward ratios\n\n"
+                    "4. **Format beautifully:**\n"
+                    "   - Use markdown headers (##, ###)\n"
+                    "   - Use emojis for visual appeal (📊, 📈, 💰, ⚠️, ✅, 🔴, 🟢)\n"
+                    "   - Use tables for comparisons\n"
+                    "   - Use bullet points for lists\n"
+                    "   - Use bold for emphasis\n\n"
+                    "5. **Include actionable commands:**\n"
+                    "   - `#buy SYMBOL XX @ PRICE`\n"
+                    "   - `#watch SYMBOL`\n"
+                    "   - `#alert SYMBOL > PRICE`\n\n"
+                    "6. **Be comprehensive but concise** - cover all sections but keep each focused.\n\n"
+                    "7. **Cite sources** - mention where data came from.\n\n"
+                    "Make it look professional and actionable. This should be a report a trader can immediately act on."
+                )
+            elif is_opportunities and sections:
+                # Enhanced prompt for opportunities with market research
+                system_prompt = (
+                    "You are DayTraderAI, a professional trading strategist. "
+                    "You have been provided with comprehensive market research from Perplexity. "
+                    "Your job is to:\n"
+                    "1. Analyze the research and validate the opportunities\n"
+                    "2. Prioritize them based on the user's portfolio context\n"
+                    "3. Provide specific, actionable trade recommendations\n"
+                    "4. Include exact entry prices, stop losses, and take profit targets\n"
+                    "5. Calculate position sizes based on 1% risk per trade\n"
+                    "6. Explain how each opportunity complements the existing portfolio\n"
+                    "7. Highlight any risks or concerns\n\n"
+                    "Format your response with:\n"
+                    "- **High Priority Opportunities** (best risk/reward, immediate action)\n"
+                    "- **Medium Priority Opportunities** (good setups, watch for entry)\n"
+                    "- **Defensive/Hedge Positions** (portfolio protection)\n"
+                    "- **Options Strategies** (if applicable)\n\n"
+                    "Always emphasize risk management and position sizing."
+                )
+            else:
+                # Original prompt for other queries
+                system_prompt = (
+                    "You are DayTraderAI, a professional day-trading copilot. "
+                    "Use the provided trading system context to deliver actionable advice. "
+                    "Always emphasise risk management, circuit breakers, and open exposure. "
+                    "When asked about opportunities or trade ideas, provide specific symbols with entry points, "
+                    "stop losses, take profits, and risk/reward ratios. "
+                    "Respond with concise bullet points and clear next steps."
+                )
 
             user_prompt = (
                 f"User question:\n{request.message.strip()}\n\n"
@@ -953,7 +1245,13 @@ async def chat(request: ChatRequestPayload):
         provider_labels.append("Local summary")
 
     confidence = min(0.95, max(0.35, route.confidence + success_boost))
-    content = "\n\n".join(f"### {section['title']}\n{section['content']}" for section in sections)
+    
+    # Format content with markdown
+    formatted_sections = []
+    for section in sections:
+        formatted_sections.append(f"**{section['title']}**\n\n{section['content']}")
+    
+    content = "\n\n".join(formatted_sections)
     provider_display = ", ".join(provider_labels)
 
     response_payload = {
@@ -1040,7 +1338,7 @@ async def get_config():
     return {
         "alpaca_base_url": settings.alpaca_base_url,
         "supabase_url": settings.supabase_url,
-        "watchlist": settings.watchlist_symbols,  # Already a list from @property
+        "watchlist": command_handler.get_watchlist() if command_handler else settings.watchlist_symbols,
         "max_positions": settings.max_positions,
         "risk_per_trade_pct": settings.risk_per_trade_pct,
         "backend_url": f"http://localhost:{settings.backend_port}",
@@ -1049,7 +1347,73 @@ async def get_config():
         "bracket_orders_enabled": settings.bracket_orders_enabled,
         "default_take_profit_pct": settings.default_take_profit_pct,
         "default_stop_loss_pct": settings.default_stop_loss_pct,
+        "options_enabled": settings.options_enabled,
+        "max_options_positions": settings.max_options_positions,
+        "options_risk_per_trade_pct": settings.options_risk_per_trade_pct,
     }
+
+
+@app.get("/watchlist")
+async def get_watchlist():
+    """Get current watchlist."""
+    if not command_handler:
+        raise HTTPException(status_code=503, detail="Command handler not initialized")
+    
+    # Build context for position info
+    context = {"position_details": _serialize_positions()}
+    result = command_handler.view_watchlist(context)
+    
+    return result
+
+
+@app.post("/watchlist/add")
+async def add_to_watchlist(symbols: List[str]):
+    """Add symbols to watchlist."""
+    if not command_handler:
+        raise HTTPException(status_code=503, detail="Command handler not initialized")
+    
+    result = command_handler.add_to_watchlist(symbols)
+    
+    # Update trading engine watchlist
+    engine = get_trading_engine()
+    if engine:
+        engine.watchlist = command_handler.get_watchlist()
+    
+    return result
+
+
+@app.post("/watchlist/remove")
+async def remove_from_watchlist(symbols: List[str]):
+    """Remove symbols from watchlist."""
+    if not command_handler:
+        raise HTTPException(status_code=503, detail="Command handler not initialized")
+    
+    # Build context for position info
+    context = {"position_details": _serialize_positions()}
+    result = command_handler.remove_from_watchlist(symbols, context)
+    
+    # Update trading engine watchlist
+    engine = get_trading_engine()
+    if engine:
+        engine.watchlist = command_handler.get_watchlist()
+    
+    return result
+
+
+@app.post("/watchlist/reset")
+async def reset_watchlist():
+    """Reset watchlist to default."""
+    if not command_handler:
+        raise HTTPException(status_code=503, detail="Command handler not initialized")
+    
+    result = command_handler.reset_watchlist()
+    
+    # Update trading engine watchlist
+    engine = get_trading_engine()
+    if engine:
+        engine.watchlist = command_handler.get_watchlist()
+    
+    return result
 
 
 @app.get("/health/services")

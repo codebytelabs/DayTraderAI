@@ -45,7 +45,7 @@ class PerplexityClient:
         model = model or self.model
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers={

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
     max_positions: int = 20
     risk_per_trade_pct: float = 0.01
+    max_position_pct: float = 0.10  # Max 10% of equity per position
+    min_stop_distance_pct: float = 0.01  # Min 1% stop distance from entry
     circuit_breaker_pct: float = 0.05
     ema_short: int = 9
     ema_long: int = 21

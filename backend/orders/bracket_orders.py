@@ -46,6 +46,10 @@ class BracketOrderBuilder:
             MarketOrderRequest with bracket parameters
         """
         try:
+            # Round prices to 2 decimal places to avoid sub-penny errors
+            take_profit_price = round(take_profit_price, 2)
+            stop_loss_price = round(stop_loss_price, 2)
+            
             order = MarketOrderRequest(
                 symbol=symbol,
                 qty=qty,

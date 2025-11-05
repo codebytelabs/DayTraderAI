@@ -5,6 +5,7 @@ import { useTrading } from '../state/TradingContext';
 import { useConfig } from '../state/ConfigContext';
 import { CopilotMessage, CopilotResult, invokeCopilot } from '../services/copilot';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { CommandPalette } from './CommandPalette';
 
 type ConversationMessage = {
   id: string;
@@ -40,13 +41,14 @@ export const ChatPanel: React.FC = () => {
       id: nanoid(),
       role: 'assistant',
       content:
-        'Hi! I am the DayTraderAI ops copilot. I know the watchlist, risk settings, live positions, orders, logs, and advisories. Ask for a status update, request a recap, or instruct me to close/cancel trades. Provide API keys in Settings to enable full LLM explanations.',
+        'Hi! I am the DayTraderAI ops copilot. I know the watchlist, risk settings, live positions, orders, logs, and advisories. Ask for a status update, request a recap, or instruct me to close/cancel trades. Provide API keys in Settings to enable full LLM explanations.\n\n💡 **Try these commands:**\n• Type `/` for slash commands (e.g., `/market-summary`, `/opportunities`)\n• Type `#` for portfolio actions (e.g., `#AAPL close`, `#close-all`)',
       timestamp: timestamp(),
       provider: 'System',
     },
   ]);
   const [input, setInput] = useState('');
   const [isProcessing, setProcessing] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -340,20 +342,42 @@ export const ChatPanel: React.FC = () => {
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="mt-4 flex items-center gap-2">
-        <input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask about status, close trades, or plan next steps..."
-          className="flex-1 px-4 py-3 rounded-lg bg-slate-900/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+      <form onSubmit={handleSubmit} className="mt-4 relative">
+        <CommandPalette
+          isOpen={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          onSelectCommand={(command) => {
+            setInput(command.prompt);
+            setShowCommandPalette(false);
+          }}
+          onSelectAction={(action) => {
+            setInput(action);
+            setShowCommandPalette(false);
+            handleSubmit(new Event('submit') as any);
+          }}
+          filter={input}
+          positions={trading.positions}
+          orders={trading.orders}
         />
-        <button
-          type="submit"
-          disabled={isProcessing}
-          className="px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/20"
-        >
-          {isProcessing ? '⏳' : '📤'}
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            value={input}
+            onChange={(event) => {
+              const value = event.target.value;
+              setInput(value);
+              setShowCommandPalette(value.startsWith('/') || value.startsWith('#'));
+            }}
+            placeholder="Type / for commands, # for actions, or ask anything..."
+            className="flex-1 px-4 py-3 rounded-lg bg-slate-900/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+          />
+          <button
+            type="submit"
+            disabled={isProcessing}
+            className="px-5 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/20"
+          >
+            {isProcessing ? '⏳' : '📤'}
+          </button>
+        </div>
       </form>
     </div>
   );

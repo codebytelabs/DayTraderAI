@@ -81,6 +81,13 @@ class CopilotContextBuilder:
         market = await self._aggregate_market_context(detected_symbols or None)
         news_items = await self._aggregate_news(detected_symbols or None)
         risk = self._aggregate_risk(account, positions, performance)
+        
+        # NEW: Enhanced context
+        recent_trades = self._aggregate_recent_trades(limit=10)
+        position_details = self._aggregate_position_details(positions, account)
+        sector_exposure = self._calculate_sector_exposure(positions, account)
+        risk_metrics = self._calculate_risk_metrics(positions, account)
+        recent_signals = self._aggregate_recent_signals(limit=10)
 
         context = {
             "query": normalized_query,
@@ -93,6 +100,12 @@ class CopilotContextBuilder:
             "market": market,
             "news": news_items,
             "risk": risk,
+            # NEW: Enhanced context
+            "recent_trades": recent_trades,
+            "position_details": position_details,
+            "sector_exposure": sector_exposure,
+            "risk_metrics": risk_metrics,
+            "recent_signals": recent_signals,
         }
 
         highlights = self._build_highlights(context)
@@ -459,6 +472,154 @@ class CopilotContextBuilder:
     def _cache_set(self, key: str, value: Any):
         with self._cache_lock:
             self._cache[key] = (datetime.utcnow(), value)
+
+    def _aggregate_recent_trades(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent trades from last 24 hours."""
+        try:
+            trades = self._supabase.get_trades(limit=limit)
+            recent = []
+            from datetime import timezone
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            
+            for trade in trades:
+                exit_time = trade.get("exit_time")
+                if exit_time and isinstance(exit_time, str):
+                    exit_dt = datetime.fromisoformat(exit_time.replace('Z', '+00:00'))
+                    # Ensure exit_dt is timezone-aware
+                    if exit_dt.tzinfo is None:
+                        exit_dt = exit_dt.replace(tzinfo=timezone.utc)
+                    if exit_dt < cutoff:
+                        continue
+                
+                recent.append({
+                    "symbol": trade.get("symbol"),
+                    "side": trade.get("side"),
+                    "qty": trade.get("qty"),
+                    "entry_price": float(trade.get("entry_price", 0) or 0),
+                    "exit_price": float(trade.get("exit_price", 0) or 0),
+                    "pnl": float(trade.get("pnl", 0) or 0),
+                    "pnl_pct": float(trade.get("pnl_pct", 0) or 0),
+                    "exit_reason": trade.get("reason", "unknown"),
+                    "timestamp": exit_time,
+                })
+            
+            return recent[:limit]
+        except Exception as e:
+            logger.error(f"Failed to aggregate recent trades: {e}")
+            return []
+    
+    def _aggregate_position_details(self, positions: List[Dict], account: Dict) -> List[Dict[str, Any]]:
+        """Enrich positions with additional details and recommendations."""
+        enriched = []
+        equity = account.get("equity", 0)
+        
+        for pos in positions:
+            symbol = pos["symbol"]
+            unrealized_pl = pos.get("unrealized_pl", 0)
+            unrealized_pl_pct = pos.get("unrealized_pl_pct", 0)
+            current_price = pos.get("current_price", 0)
+            entry_price = pos.get("avg_entry_price", 0)
+            
+            # Calculate days held
+            entry_time = pos.get("entry_time")
+            days_held = 0
+            if entry_time:
+                try:
+                    entry_dt = datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
+                    days_held = (datetime.utcnow() - entry_dt).days
+                except:
+                    pass
+            
+            # Determine technical status
+            technical_status = "neutral"
+            recommendation = "hold"
+            
+            if unrealized_pl_pct > 2.0:
+                technical_status = "approaching_target"
+                recommendation = "consider_profit_taking"
+            elif unrealized_pl_pct < -1.5:
+                technical_status = "approaching_stop"
+                recommendation = "consider_cutting_loss"
+            elif unrealized_pl_pct > 1.0:
+                technical_status = "profitable"
+                recommendation = "set_trailing_stop"
+            
+            enriched.append({
+                **pos,
+                "days_held": days_held,
+                "technical_status": technical_status,
+                "recommendation": recommendation,
+                "pct_of_portfolio": (pos.get("market_value", 0) / equity * 100) if equity else 0,
+            })
+        
+        return enriched
+    
+    def _calculate_sector_exposure(self, positions: List[Dict], account: Dict) -> Dict[str, float]:
+        """Calculate sector exposure percentages."""
+        # Simple sector mapping (can be enhanced with real sector data)
+        sector_map = {
+            "AAPL": "technology", "MSFT": "technology", "NVDA": "technology",
+            "GOOGL": "technology", "META": "technology", "AMZN": "technology",
+            "TSLA": "automotive", "AMD": "technology",
+            "SPY": "index", "QQQ": "index", "DIA": "index",
+            "XLF": "finance", "XLE": "energy", "XLV": "healthcare",
+        }
+        
+        equity = account.get("equity", 0)
+        if not equity:
+            return {}
+        
+        sector_totals = {}
+        for pos in positions:
+            symbol = pos.get("symbol", "")
+            sector = sector_map.get(symbol, "other")
+            market_value = abs(pos.get("market_value", 0))
+            sector_totals[sector] = sector_totals.get(sector, 0) + market_value
+        
+        # Convert to percentages
+        return {sector: (value / equity) for sector, value in sector_totals.items()}
+    
+    def _calculate_risk_metrics(self, positions: List[Dict], account: Dict) -> Dict[str, Any]:
+        """Calculate detailed risk metrics."""
+        equity = account.get("equity", 0)
+        if not equity or not positions:
+            return {
+                "concentration_risk": "none",
+                "largest_position_pct": 0,
+                "avg_position_size": 0,
+                "correlation_risk": "unknown",
+                "cash_buffer_pct": 100,
+            }
+        
+        market_values = [abs(p.get("market_value", 0)) for p in positions]
+        largest = max(market_values) if market_values else 0
+        avg_size = sum(market_values) / len(market_values) if market_values else 0
+        
+        largest_pct = (largest / equity * 100) if equity else 0
+        cash = account.get("cash", 0)
+        cash_pct = (cash / equity * 100) if equity else 0
+        
+        # Determine concentration risk
+        if largest_pct > 15:
+            concentration = "high"
+        elif largest_pct > 10:
+            concentration = "medium"
+        else:
+            concentration = "low"
+        
+        return {
+            "concentration_risk": concentration,
+            "largest_position_pct": largest_pct,
+            "avg_position_size": avg_size,
+            "correlation_risk": "medium",  # TODO: Calculate actual correlation
+            "cash_buffer_pct": cash_pct,
+        }
+    
+    def _aggregate_recent_signals(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent trading signals (taken and rejected)."""
+        # TODO: Implement signal logging in strategy.py
+        # For now, return empty list
+        return []
 
     @staticmethod
     def _minimal_context(query: str) -> Dict[str, Any]:

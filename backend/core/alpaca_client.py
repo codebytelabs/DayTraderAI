@@ -9,6 +9,7 @@ from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
 from alpaca.data.timeframe import TimeFrame
+from alpaca.data.enums import DataFeed
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from config import settings
@@ -149,7 +150,7 @@ class AlpacaClient:
         end: Optional[datetime] = None,
         limit: Optional[int] = None
     ):
-        """Get historical bars."""
+        """Get historical bars using IEX feed (free for paper trading)."""
         try:
             if start is None:
                 start = datetime.now() - timedelta(days=30)
@@ -161,7 +162,8 @@ class AlpacaClient:
                 timeframe=timeframe,
                 start=start,
                 end=end,
-                limit=limit
+                limit=limit,
+                feed=DataFeed.IEX  # Use IEX feed for paper trading (free)
             )
             
             bars = self.data_client.get_stock_bars(request)
@@ -172,9 +174,12 @@ class AlpacaClient:
             return None
     
     def get_latest_bars(self, symbols: List[str]):
-        """Get latest bar for symbols."""
+        """Get latest bar for symbols using IEX feed (free)."""
         try:
-            request = StockLatestBarRequest(symbol_or_symbols=symbols)
+            request = StockLatestBarRequest(
+                symbol_or_symbols=symbols,
+                feed=DataFeed.IEX  # Use IEX feed for paper trading (free)
+            )
             bars = self.data_client.get_stock_latest_bar(request)
             return bars
         except Exception as e:
@@ -189,6 +194,14 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to check market status: {e}")
             return False
+    
+    def get_clock(self):
+        """Get market clock information."""
+        try:
+            return self.trading_client.get_clock()
+        except Exception as e:
+            logger.error(f"Failed to get clock: {e}")
+            raise
     
     def get_portfolio_history(
         self,

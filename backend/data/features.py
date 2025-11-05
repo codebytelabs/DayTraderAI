@@ -70,7 +70,7 @@ class FeatureEngine:
                 'prev_ema_short': float(prev['ema_short']),
                 'prev_ema_long': float(prev['ema_long']),
                 'atr': float(latest['atr']),
-                'volume': float(latest['volume']),
+                'volume': int(latest['volume']),  # Convert to int for BIGINT column
                 'volume_zscore': FeatureEngine.calculate_volume_zscore(df['volume']),
                 'ema_diff': float(latest['ema_short'] - latest['ema_long']),
                 'ema_diff_pct': float((latest['ema_short'] / latest['ema_long'] - 1) * 100),

@@ -78,10 +78,46 @@ class QueryRouter:
                 symbols=list(symbols),
                 notes=["Empty query routed to system summary."],
             )
+        
+        # Check for commands
+        if cleaned.startswith('/') or cleaned.startswith('#'):
+            # Check for /analyze command
+            if cleaned.startswith('/analyze'):
+                # Extract symbols from command
+                analyze_symbols = self._extract_analyze_symbols(cleaned)
+                return QueryRoute(
+                    category="deep_analysis",
+                    targets=["perplexity", "openrouter"],
+                    confidence=1.0,
+                    symbols=analyze_symbols,
+                    notes=[f"Deep analysis requested for {len(analyze_symbols)} symbol(s)"],
+                )
+            
+            # Check for /opportunities command
+            if cleaned.startswith('/opportunities') or cleaned.startswith('/opportunity'):
+                return QueryRoute(
+                    category="opportunities",
+                    targets=["perplexity", "openrouter"] if self._config.hybrid_routing else ["openrouter"],
+                    confidence=0.95,
+                    symbols=list(symbols),
+                    notes=["Opportunities research requested - using market research + analysis."],
+                )
+            
+            return QueryRoute(
+                category="command",
+                targets=["command_handler"],
+                confidence=1.0,
+                symbols=list(symbols),
+                notes=["Command detected."],
+            )
 
         news_score = self._keyword_score(cleaned, NEWS_KEYWORDS)
         analysis_score = self._keyword_score(cleaned, ANALYSIS_KEYWORDS)
         status_score = self._keyword_score(cleaned, STATUS_KEYWORDS)
+
+        # Check for opportunities/research queries
+        opportunities_keywords = {"opportunities", "opportunity", "ideas", "signals", "setups", "trades"}
+        is_opportunities_query = any(kw in cleaned for kw in opportunities_keywords)
 
         # increase analysis weight if user references open positions
         if symbols and any(sym in (s.lower() for s in symbols) for sym in cleaned.split()):
@@ -91,7 +127,13 @@ class QueryRouter:
         targets = ["openrouter"]
         confidence = 0.6 + 0.1 * max(analysis_score, news_score, status_score)
 
-        if news_score > analysis_score and news_score > status_score:
+        # Special handling for opportunities queries - use BOTH Perplexity and OpenRouter
+        if is_opportunities_query:
+            top_category = "opportunities"
+            targets = ["perplexity", "openrouter"] if self._config.hybrid_routing else ["openrouter"]
+            confidence = 0.85
+            notes.append("Detected opportunities query - using market research + analysis.")
+        elif news_score > analysis_score and news_score > status_score:
             top_category = "news"
             targets = ["perplexity"]
             notes.append("Detected news-focused intent.")
@@ -130,3 +172,16 @@ class QueryRouter:
                 occurrences = len(re.findall(rf"\b{re.escape(keyword)}\b", text))
                 score += occurrences * 0.5
         return score
+    
+    @staticmethod
+    def _extract_analyze_symbols(query: str) -> List[str]:
+        """Extract symbols from /analyze command."""
+        # Remove /analyze command
+        query = query.replace('/analyze', '').strip()
+        # Split by spaces and filter valid symbols (1-6 uppercase letters)
+        symbols = []
+        for word in query.split():
+            word = word.upper().strip()
+            if word.isalpha() and 1 <= len(word) <= 6:
+                symbols.append(word)
+        return symbols[:3]  # Max 3 symbols

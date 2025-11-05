@@ -1,649 +1,604 @@
-<div align="center">
+# DayTraderAI - Autonomous AI-Powered Day Trading System
 
-# 🚀 DayTraderAI
+> **⚠️ IMPORTANT**: This system is currently in **PAPER TRADING** mode. Do not use with real money until completing the full validation process outlined in TODO.md.
 
-### AI-Powered Autonomous Day Trading System
+## 🎯 Vision
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.0+-61DAFB.svg)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-16%2F16%20Passing-success.svg)](backend/test_all_integrations.py)
+A fully autonomous AI-powered day trading system that learns and improves continuously with minimal user intervention. The system trades automatically, learns from every trade, and optimizes itself over time.
 
-*A production-ready, AI-powered day trading bot with real-time market analysis, risk management, and beautiful web interface.*
+## 📊 Current Status
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Documentation](#-documentation) • [Demo](#-demo)
-
-![Dashboard Preview](https://via.placeholder.com/800x400/1a1a2e/16c79a?text=DayTraderAI+Dashboard)
-
-</div>
-
----
-
-## 📋 Table of Contents
-
-- [Overview](#-overview)
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Usage](#-usage)
-- [API Documentation](#-api-documentation)
-- [Testing](#-testing)
-- [Deployment](#-deployment)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
-## 🎯 Overview
-
-**DayTraderAI** is a sophisticated, production-ready autonomous trading system that combines cutting-edge AI technology with robust risk management to execute profitable day trades. Built with modern technologies and best practices, it provides real-time market analysis, automated trade execution, and comprehensive monitoring through an intuitive web interface.
-
-### 💎 What Makes This Special
-
-**Every Trade is Protected:**
-- ✅ **Entry Price** - Calculated by strategy or AI
-- ✅ **Take Profit** - Automatic (2% default or ATR-based)
-- ✅ **Stop Loss** - Automatic (1% default or ATR-based)  
-- ✅ **Trailing Stop** - Optional (follows price to protect profits)
-
-**Trade Both Directions:**
-- 📈 **Long** - Buy stocks or call options (profit from rises)
-- 📉 **Short** - Buy put options (profit from drops)
-- 🎯 **Result** - Opportunities whether market goes UP or DOWN!
-
-**Intelligent Automation:**
-- 🤖 Continuously scans for opportunities
-- 🛡️ Automatically manages risk on every trade
-- 💰 Maximizes profits with trailing stops
-- 🚨 Minimizes losses with automatic stops
-- 🧠 AI-powered analysis and recommendations
-
-### Why DayTraderAI?
-
-- **🤖 AI-Powered**: Hybrid LLM system (Perplexity + OpenRouter) with full portfolio context
-- **📊 Real-Time**: WebSocket streaming for sub-second updates
-- **🛡️ Risk Management**: Multi-layer protection with circuit breakers and automatic stops
-- **📈 Complete Trades**: Every order includes entry, TP, SL, and optional trailing stop
-- **🎯 Both Directions**: Long stocks/calls (bullish) and puts (bearish)
-- **🎨 Beautiful UI**: Modern, responsive dashboard built with React and TypeScript
-- **🔒 Production-Ready**: Comprehensive testing, error handling, and monitoring
-
-**📖 For complete system details, see [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**
-
----
-
-## ✨ Features
-
-### 🎯 Complete Trade Management (Active)
-- ✅ **Bracket Orders** - Every trade includes entry, TP, SL automatically
-- ✅ **Automated Trading** - EMA crossover strategy with ATR-based stops
-- ✅ **Real-Time Execution** - Sub-second order placement via Alpaca API
-- ✅ **Position Monitoring** - Continuous tracking with automatic exits
-- ✅ **Trailing Stops** - Protect profits as price moves in your favor
-- ✅ **Multi-Symbol Support** - Trade up to 20 positions simultaneously
-
-### 🚀 Advanced Features (Built, Integration Pending)
-- 🌊 **WebSocket Streaming** - Real-time market data (sub-second latency)
-- � **Ohptions Trading** - Calls (bullish) and puts (bearish) for leverage
-- 📰 **News Integration** - Real-time market news with AI sentiment analysis
-- 🎯 **Both Directions** - Profit from rising AND falling markets
-
-### 🤖 AI Intelligence
-- 🧠 **Hybrid LLM System** - Perplexity (news) + OpenRouter (analysis)
-- � ***Context-Aware Copilot** - Knows your portfolio, positions, history, metrics
-- � **Technircal Analysis** - Full TA context (EMA, RSI, ATR, trends)
-- 📰 **News Analysis** - Real-time sentiment and market research
-- 🎯 **Trade Recommendations** - Specific, actionable advice with complete parameters
-
-### 🛡️ Risk Management (Multi-Layer Protection)
-- 🚨 **Circuit Breaker** - Auto-halt at 5% daily loss
-- 💰 **Position Sizing** - Max 2% risk per trade
-- 🎯 **Position Limits** - Max 20 concurrent positions
-- ⚖️ **Buying Power Checks** - Prevent over-leveraging
-- 🛡️ **Automatic Stops** - Every trade has stop loss
-- 📊 **Risk Monitoring** - Continuous exposure tracking
-
-### 📊 Monitoring & Analytics
-- 📈 **Real-Time Dashboard** - Live positions, orders, and performance
-- 📉 **Equity Curve** - Portfolio value over time with multiple timeframes
-- 📝 **Trade Log** - Complete history with analysis
-- 🔔 **AI Advisories** - Real-time recommendations and alerts
-- 📊 **Performance Metrics** - Win rate, profit factor, Sharpe ratio
-
----
-
-## � How Iit Works
-
-### Automated Trading Flow
-
-```
-1. SIGNAL DETECTION
-   ├─ EMA Crossover (bullish/bearish)
-   ├─ News Analysis (positive/negative)
-   └─ AI Recommendations
-
-2. OPPORTUNITY EVALUATION
-   ├─ Stock Trade (direct long/short)
-   ├─ Call Option (bullish + leverage)
-   └─ Put Option (bearish + leverage)
-
-3. RISK VALIDATION
-   ├─ Check position limits (20 max)
-   ├─ Calculate position size (2% risk)
-   ├─ Verify buying power
-   └─ Check circuit breaker
-
-4. ORDER CREATION (Bracket Order)
-   ├─ Entry: Market or Limit
-   ├─ Take Profit: +2% (automatic)
-   ├─ Stop Loss: -1% (automatic)
-   └─ Trailing Stop: Optional
-
-5. EXECUTION
-   ├─ Submit to Alpaca
-   ├─ Confirm fill
-   └─ Start monitoring
-
-6. POSITION MANAGEMENT
-   ├─ Track P/L in real-time
-   ├─ Update trailing stops
-   ├─ Close at TP or SL
-   └─ Log results
-```
-
-### Example Trade
-
-```
-Signal: AAPL shows bullish EMA crossover
-Action: System automatically:
-
-1. Calculates position size: 100 shares (2% risk)
-2. Sets entry: $177.50
-3. Sets take profit: $180.00 (+2.5% = $250 profit)
-4. Sets stop loss: $175.00 (-1.4% = $250 loss)
-5. Places bracket order (all automatic)
-6. Monitors position continuously
-7. If price hits $180 → Closes with $250 profit ✅
-8. If price hits $175 → Closes with $250 loss (protected) ✅
-9. If price goes to $185 → Trailing stop protects $500+ profit ✅
-
-Result: Defined risk, automatic management, protected profits!
-```
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (React + TS)                    │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │Dashboard │  │Positions │  │  Orders  │  │   Chat   │   │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
-│       └─────────────┴─────────────┴─────────────┘           │
-│                         │                                    │
-│                    REST API (5s polling)                     │
-└─────────────────────────┼───────────────────────────────────┘
-                          │
-┌─────────────────────────┼───────────────────────────────────┐
-│                  Backend (FastAPI + Python)                  │
-│  ┌──────────────────────┴────────────────────────────────┐  │
-│  │              Trading Engine (Async)                    │  │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐           │  │
-│  │  │ Strategy │→ │   Risk   │→ │  Order   │           │  │
-│  │  │  Engine  │  │ Manager  │  │ Manager  │           │  │
-│  │  └──────────┘  └──────────┘  └──────────┘           │  │
-│  └────────────────────────────────────────────────────────┘  │
-│         │              │              │              │        │
-└─────────┼──────────────┼──────────────┼──────────────┼────────┘
-          │              │              │              │
-    ┌─────▼─────┐  ┌────▼────┐  ┌─────▼─────┐  ┌─────▼─────┐
-    │  Alpaca   │  │Supabase │  │OpenRouter │  │Perplexity │
-    │  Trading  │  │Database │  │    AI     │  │    AI     │
-    └───────────┘  └─────────┘  └───────────┘  └───────────┘
-```
-
-### Component Overview
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Frontend** | React + TypeScript | User interface and visualization |
-| **Backend** | FastAPI + Python | Trading logic and API server |
-| **Trading Engine** | Python Async | Core trading automation |
-| **Market Data** | Alpaca API | Real-time quotes and execution |
-| **Database** | Supabase | Trade history and analytics |
-| **AI Analysis** | OpenRouter | Trade evaluation and insights |
-| **Market Research** | Perplexity | News and sentiment analysis |
-
----
-
-## 🛠️ Tech Stack
-
-### Backend
-- **Python 3.11+** - Core language
-- **FastAPI** - High-performance API framework
-- **Alpaca Trade API** - Market data and order execution
-- **Supabase** - PostgreSQL database
-- **OpenRouter** - AI model aggregation
-- **Perplexity** - Real-time search and analysis
-- **Pandas** - Data manipulation
-- **NumPy** - Numerical computations
-
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type-safe JavaScript
-- **Vite** - Build tool and dev server
-- **Recharts** - Data visualization
-- **Tailwind CSS** - Utility-first styling
-- **Redux** - State management
-
-### DevOps
-- **pytest** - Testing framework
-- **Black** - Code formatting
-- **ESLint** - JavaScript linting
-- **Git** - Version control
-
----
+- **Paper Trading**: ✅ 85% Ready (can start now)
+- **ML Learning System**: ❌ 0% Complete (to be built)
+- **Live Trading**: ❌ 60% Ready (needs validation)
 
 ## 🚀 Quick Start
 
-Get up and running in under 5 minutes!
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- Alpaca Paper Trading Account
+- Supabase Account
+
+### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/DayTraderAI.git
+# Clone repository
+git clone <repository-url>
 cd DayTraderAI
 
-# Run the automated setup
+# Backend setup
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your API keys
+
+# Frontend setup
+cd ..
+npm install
+
+# Start system
 ./start_app.sh
 ```
 
-That's it! Open http://localhost:5173 in your browser.
+### Access
+- **Dashboard**: http://localhost:5173
+- **API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
----
+## 🏗️ Architecture
 
-## 📦 Installation
+### System Overview
 
-### Prerequisites
-
-- Python 3.11 or higher
-- Node.js 18 or higher
-- Git
-
-### Step 1: Clone Repository
-
-```bash
-git clone https://github.com/yourusername/DayTraderAI.git
-cd DayTraderAI
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     User Interface                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Dashboard   │  │    Charts    │  │  AI Copilot  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   Trading Engine                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Market Data  │  │  Strategy    │  │  Position    │     │
+│  │    Loop      │  │    Loop      │  │   Monitor    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                  ML Learning System                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │    Data      │  │   Models     │  │   Online     │     │
+│  │  Collector   │  │  Training    │  │  Learning    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│              External Services                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │   Alpaca     │  │  Supabase    │  │  OpenRouter  │     │
+│  │   Markets    │  │   Database   │  │  Perplexity  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Step 2: Backend Setup
+For detailed architecture diagrams and explanations, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-```bash
-cd backend
+## 🤖 How It Works
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+### Autonomous Trading Flow
 
-# Install dependencies
-pip install -r requirements.txt
+1. **Market Opens** (9:30 AM ET)
+   - System automatically activates
+   - Begins monitoring watchlist symbols
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your API keys
+2. **Signal Detection** (Every 60 seconds)
+   - Checks for EMA crossovers
+   - ML validates signal quality (when trained)
+   - Filters low-confidence signals
+
+3. **Order Execution** (Automatic)
+   - Calculates position size (1% risk)
+   - ML optimizes stop/target (when trained)
+   - Submits bracket order to Alpaca
+
+4. **Position Monitoring** (Every 10 seconds)
+   - Updates prices in real-time
+   - Checks stop loss / take profit
+   - Auto-closes when triggered
+
+5. **Learning** (Continuous)
+   - Collects trade data
+   - Extracts features
+   - Retrains models every 100 trades
+   - Deploys improvements automatically
+
+6. **Market Closes** (4:00 PM ET)
+   - Saves daily metrics
+   - Generates performance report
+   - Prepares for next day
+
+### User Interaction Levels
+
+**Level 0: Zero Intervention (Default)**
+- System runs fully automatically
+- User only monitors dashboard
+- No action required
+
+**Level 1: Chat Commands**
+```
+User: "What's the market doing?"
+Copilot: "SPY trending up, VIX low, 8 positions open..."
+
+User: "close NVDA"
+Copilot: "Closing NVDA position... Done. P/L: +$450"
 ```
 
-### Step 3: Frontend Setup
-
-```bash
-cd ..  # Back to root directory
-
-# Install dependencies
-npm install
-
-# Configure frontend environment
-cp .env.example .env.local
-# Edit .env.local with your configuration (see Configuration section)
-
-# Build frontend
-npm run build
+**Level 2: Manual Override**
+```
+User: "buy 50 AAPL"
+Copilot: "Submitting order... Filled at $175.50"
 ```
 
-### Step 4: Database Setup
+**Level 3: Emergency Stop**
+- Red button closes all positions
+- Trading halted until re-enabled
 
-```bash
-cd backend
+## 🧠 ML Learning System
 
-# Run database migrations
-psql -U postgres -d your_database -f supabase_schema.sql
+### Learning Phases
+
+**Phase 1: Bootstrap (Trades 1-100)**
+- Collect data with rule-based strategy
+- Build initial training set
+- No ML filtering yet
+
+**Phase 2: Initial Training (Trades 100-200)**
+- Train first models
+- Start filtering signals (70% confidence)
+- Validate improvements
+
+**Phase 3: Active Learning (Trades 200-500)**
+- Lower threshold to 65%
+- Retrain every 100 trades
+- Optimize parameters
+
+**Phase 4: Continuous Improvement (Trades 500+)**
+- Full ML integration
+- Adaptive thresholds
+- Strategy optimization
+- Auto-parameter tuning
+
+### ML Models
+
+1. **Signal Quality Predictor**
+   - Predicts win probability
+   - Filters low-quality signals
+   - Target: 75% win rate (vs 60% baseline)
+
+2. **Exit Optimizer**
+   - Optimizes stop/target placement
+   - Adapts to volatility
+   - Target: 30% profit factor improvement
+
+3. **Regime Classifier**
+   - Detects market regime
+   - Selects best strategy
+   - Target: Works in all conditions
+
+4. **Risk Predictor**
+   - Predicts trade risk
+   - Adjusts position size
+   - Target: 20% drawdown reduction
+
+### Data Collected Per Trade
+
+- **Technical**: 20 indicators (EMA, RSI, ATR, MACD, etc.)
+- **Market Context**: 15 features (SPY, VIX, sector, etc.)
+- **Sentiment**: 5 features (news, social, analysts)
+- **Temporal**: 5 features (time, day, earnings)
+- **Position**: 5 features (exposure, correlation)
+- **Outcome**: P/L, hold time, exit reason
+
+**Total**: 50+ features per trade
+
+## 📈 Strategies
+
+### Current (Implemented)
+
+**EMA Crossover**
+- Entry: EMA(9) crosses EMA(21)
+- Stop: 2× ATR below entry
+- Target: 4× ATR above entry
+- Best for: Trending markets
+
+### Planned (To Be Implemented)
+
+**Mean Reversion**
+- Entry: RSI < 30 or > 70
+- Exit: Return to mean
+- Best for: Ranging markets
+
+**Breakout**
+- Entry: Price breaks resistance + volume
+- Exit: Trailing stop
+- Best for: Volatile markets
+
+**Options**
+- Covered calls (income)
+- Protective puts (hedging)
+- Best for: Risk management
+
+## 🛡️ Risk Management
+
+### Position Sizing
+- Base: 1% risk per trade
+- ML-adjusted: 0.5% - 2% based on confidence
+- Max: 5% per position
+
+### Exposure Limits
+- Max 20 positions simultaneously
+- Max 40% in single sector
+- Max 60% total capital deployed
+
+### Circuit Breaker
+- Triggers at -5% daily drawdown
+- Halts new trades
+- Existing positions remain (with stops)
+- Auto-resets next day
+
+### Stop Loss
+- ATR-based (2× ATR)
+- Trailing stops (when implemented)
+- Never moves against position
+
+## 💬 Chat Commands
+
+### Status & Information
+```
+status              - Overall system status
+positions           - Show open positions
+orders              - Show pending orders
+performance         - Show today's performance
+help                - List available commands
 ```
 
----
+### Trading Actions
+```
+close all           - Close all positions
+close AAPL          - Close specific position
+cancel order <id>   - Cancel order
+buy 50 NVDA         - Manual buy order
+sell 25 MSFT        - Manual sell order
+```
 
-## ⚙️ Configuration
+### Configuration
+```
+set risk 0.5%       - Adjust risk per trade
+set max positions 15 - Adjust max positions
+add TSLA            - Add to watchlist
+remove QQQ          - Remove from watchlist
+enable trading      - Enable trading
+disable trading     - Disable trading
+```
 
-### Backend Environment Variables
+### Analysis
+```
+why did you buy AAPL?        - Explain trade reasoning
+what's the market sentiment? - Market analysis
+show me NVDA analysis        - Symbol-specific analysis
+what's the ML confidence?    - ML model status
+```
 
-Create `backend/.env` with the following:
+## 📊 Performance Metrics
 
-```env
-# Alpaca Trading (Paper Trading)
-ALPACA_API_KEY=your_alpaca_key
-ALPACA_SECRET_KEY=your_alpaca_secret
+### Target Metrics (Paper Trading)
+- **Win Rate**: ≥ 60%
+- **Profit Factor**: ≥ 1.5
+- **Max Drawdown**: ≤ 15%
+- **Sharpe Ratio**: ≥ 1.0
+- **Total Trades**: ≥ 300
+
+### Current Metrics (Live Dashboard)
+- Daily P/L
+- Win rate
+- Profit factor
+- Open positions
+- Circuit breaker status
+
+## 🔧 Configuration
+
+### Environment Variables (.env)
+
+```bash
+# Alpaca
+ALPACA_API_KEY=your_key
+ALPACA_SECRET_KEY=your_secret
 ALPACA_BASE_URL=https://paper-api.alpaca.markets
 
-# Supabase Database
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_KEY=your_supabase_key
+# Supabase
+SUPABASE_URL=your_url
+SUPABASE_KEY=your_key
+SUPABASE_SERVICE_KEY=your_service_key
 
-# OpenRouter AI
-OPENROUTER_API_KEY=your_openrouter_key
-OPENROUTER_PRIMARY_MODEL=openai/gpt-oss-safeguard-20b
-OPENROUTER_SECONDARY_MODEL=google/gemini-2.5-flash-preview-09-2025
-OPENROUTER_TERTIARY_MODEL=openai/gpt-oss-120b
+# OpenRouter (AI)
+OPENROUTER_API_KEY=your_key
 
-# Perplexity AI
-PERPLEXITY_API_KEY=your_perplexity_key
-PERPLEXITY_DEFAULT_MODEL=sonar-pro
+# Perplexity (News)
+PERPLEXITY_API_KEY=your_key
 
-# Trading Configuration
-WATCHLIST_SYMBOLS=SPY,QQQ,AAPL,NVDA,TSLA,AMD,GOOG,MSFT,AMZN,META
-MAX_POSITIONS=5
+# Strategy
+WATCHLIST=SPY,QQQ,AAPL,MSFT,NVDA
+MAX_POSITIONS=20
 RISK_PER_TRADE_PCT=0.01
 CIRCUIT_BREAKER_PCT=0.05
 
-# Server Configuration
-BACKEND_PORT=8006
-FRONTEND_URL=http://localhost:5173
-LOG_LEVEL=INFO
+# ML
+ML_ENABLED=true
+ML_CONFIDENCE_THRESHOLD=0.65
+ML_RETRAIN_INTERVAL=100
 ```
 
-### Frontend Environment Variables
+### Adjustable Parameters
 
-Create `.env.local` in the project root with the following:
+**Risk Settings**:
+- `risk_per_trade_pct`: 0.5% - 2% (default: 1%)
+- `max_positions`: 10 - 30 (default: 20)
+- `circuit_breaker_pct`: 3% - 10% (default: 5%)
 
-```env
-# Backend Configuration
-VITE_BACKEND_URL=http://localhost:8006
+**Strategy Settings**:
+- `ema_short`: 5 - 15 (default: 9)
+- `ema_long`: 15 - 30 (default: 21)
+- `stop_loss_atr_mult`: 1.5 - 3.0 (default: 2.0)
+- `take_profit_atr_mult`: 3.0 - 6.0 (default: 4.0)
 
-# Default API URLs (pre-populated in settings)
-VITE_ALPACA_BASE_URL=https://paper-api.alpaca.markets
-VITE_SUPABASE_URL=https://your-project.supabase.co
+**ML Settings**:
+- `ml_confidence_threshold`: 0.6 - 0.8 (default: 0.65)
+- `ml_retrain_interval`: 50 - 200 (default: 100)
 
-# Default LLM Models
-VITE_OPENROUTER_MODEL=openai/gpt-4-turbo
-VITE_OPENROUTER_FALLBACK_MODEL=openai/gpt-4o-mini
-VITE_PERPLEXITY_MODEL=sonar-pro
-
-# Strategy Defaults
-VITE_MAX_POSITIONS=5
-VITE_RISK_PER_TRADE_PCT=0.01
-VITE_CHAT_PROVIDER=openrouter
-VITE_CHAT_TEMPERATURE=0.2
-```
-
-**Important Notes:**
-- All frontend environment variables must be prefixed with `VITE_`
-- Never store API keys or secrets in frontend environment variables (they're bundled into the build)
-- API keys should only be configured in `backend/.env`
-- For production, set `VITE_BACKEND_URL` to your deployed backend URL
-
-### Trading Parameters
-
-Customize your trading strategy in `backend/config.py`:
-
-```python
-# Strategy Parameters
-EMA_SHORT = 9          # Fast EMA period
-EMA_LONG = 21          # Slow EMA period
-STOP_LOSS_ATR_MULT = 2.0   # Stop loss distance
-TAKE_PROFIT_ATR_MULT = 4.0 # Take profit distance
-
-# Risk Management
-MAX_POSITIONS = 5      # Maximum concurrent positions
-RISK_PER_TRADE_PCT = 0.01  # 1% risk per trade
-CIRCUIT_BREAKER_PCT = 0.05 # 5% daily loss limit
-```
-
----
-
-## 💻 Usage
-
-### Starting the Application
-
-#### Automated (Recommended)
-```bash
-./start_app.sh
-```
-
-#### Manual
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-source venv/bin/activate
-python main.py
-```
-
-**Terminal 2 - Frontend:**
-```bash
-npm run dev
-```
-
-### Accessing the Dashboard
-
-Open your browser to:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8006
-- **API Docs**: http://localhost:8006/docs
-
-### Basic Operations
-
-#### View Account Status
-```bash
-curl http://localhost:8006/account
-```
-
-#### Get Current Positions
-```bash
-curl http://localhost:8006/positions
-```
-
-#### Place an Order
-```bash
-curl -X POST "http://localhost:8006/orders/submit?symbol=AAPL&side=buy&qty=1&reason=manual"
-```
-
-#### Close a Position
-```bash
-curl -X POST http://localhost:8006/positions/AAPL/close
-```
-
-#### Enable/Disable Trading
-```bash
-# Disable
-curl -X POST http://localhost:8006/trading/disable
-
-# Enable
-curl -X POST http://localhost:8006/trading/enable
-```
-
----
-
-## 📚 API Documentation
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | System health check |
-| GET | `/account` | Account information |
-| GET | `/positions` | Current positions |
-| GET | `/orders` | Order history |
-| GET | `/metrics` | Performance metrics |
-| GET | `/logs` | System logs |
-| GET | `/advisories` | AI advisories |
-| GET | `/analyses` | Trade analyses |
-| POST | `/orders/submit` | Submit new order |
-| POST | `/orders/{id}/cancel` | Cancel order |
-| POST | `/positions/{symbol}/close` | Close position |
-| POST | `/chat` | Chat with AI copilot |
-| POST | `/trading/enable` | Enable trading |
-| POST | `/trading/disable` | Disable trading |
-
-### Interactive API Documentation
-
-Visit http://localhost:8006/docs for full interactive API documentation powered by Swagger UI.
-
----
-
-## 🧪 Testing
-
-### Run All Tests
-
-```bash
-cd backend
-source venv/bin/activate
-python test_all_integrations.py
-```
-
-### Test Results
+## 📁 Project Structure
 
 ```
-✅ ALPACA:          5/5  (100%)
-✅ SUPABASE:        3/3  (100%)
-✅ OPENROUTER:      3/3  (100%)
-✅ PERPLEXITY:      2/2  (100%)
-✅ WORKFLOWS:       2/2  (100%)
-✅ ERROR_HANDLING:  1/1  (100%)
-
-TOTAL: 16 passed, 0 failed ✅
+DayTraderAI/
+├── backend/
+│   ├── advisory/          # AI analysis (OpenRouter, Perplexity)
+│   ├── copilot/           # Chat interface logic
+│   ├── core/              # Core clients (Alpaca, Supabase)
+│   ├── data/              # Market data management
+│   ├── ml/                # ML learning system (TO BE BUILT)
+│   │   ├── data_collector.py
+│   │   ├── feature_engineer.py
+│   │   ├── models/
+│   │   │   ├── signal_predictor.py
+│   │   │   ├── exit_optimizer.py
+│   │   │   ├── regime_classifier.py
+│   │   │   └── risk_predictor.py
+│   │   └── learning/
+│   │       ├── online_learner.py
+│   │       ├── performance_tracker.py
+│   │       └── strategy_optimizer.py
+│   ├── news/              # News fetching and sentiment
+│   ├── options/           # Options trading (disabled)
+│   ├── screening/         # Stock screener (TO BE BUILT)
+│   ├── trading/           # Trading strategies and execution
+│   │   ├── trading_engine.py
+│   │   ├── strategy.py
+│   │   ├── risk_manager.py
+│   │   ├── order_manager.py
+│   │   └── position_manager.py
+│   ├── config.py          # Configuration
+│   └── main.py            # FastAPI application
+├── components/            # React UI components
+│   ├── Dashboard.tsx
+│   ├── ChatPanel.tsx
+│   ├── PositionsTable.tsx
+│   ├── PerformanceChart.tsx
+│   └── ...
+├── ARCHITECTURE.md        # Detailed architecture documentation
+├── TODO.md                # Implementation roadmap
+└── README.md              # This file
 ```
 
-### Test Categories
+## 🚦 Getting Started
 
-- **Integration Tests** - All API integrations
-- **Unit Tests** - Individual components
-- **Workflow Tests** - End-to-end scenarios
-- **Error Handling** - Edge cases and failures
+### Step 1: Paper Trading Setup (Week 1)
 
----
+1. **Install and configure**
+   ```bash
+   ./setup.sh
+   # Edit .env with your API keys
+   ```
 
-## 🚢 Deployment
+2. **Start system**
+   ```bash
+   ./start_app.sh
+   ```
 
-### Production Checklist
+3. **Monitor dashboard**
+   - Open http://localhost:5173
+   - Watch for signals and trades
+   - Review AI analysis
 
-- [ ] Update `ALPACA_BASE_URL` to live trading
-- [ ] Configure production database
-- [ ] Set up monitoring and alerts
-- [ ] Enable HTTPS
-- [ ] Configure firewall rules
-- [ ] Set up backup strategy
-- [ ] Review and adjust risk parameters
-- [ ] Test with small capital first
+4. **Let it run**
+   - System trades automatically
+   - Collects data for ML training
+   - No intervention needed
 
-### Docker Deployment (Coming Soon)
+### Step 2: Fill Critical Gaps (Week 2-3)
 
-```bash
-docker-compose up -d
-```
+Implement in order:
+1. Trailing stops
+2. Dynamic watchlist screener
+3. News sentiment filter
+4. Auto-recovery system
 
-### Cloud Deployment
+See [TODO.md](TODO.md) for detailed tasks.
 
-Supports deployment to:
-- AWS (EC2, ECS, Lambda)
-- Google Cloud Platform
-- Azure
-- DigitalOcean
-- Heroku
+### Step 3: Build ML System (Week 4-6)
 
----
+1. Data collection infrastructure
+2. Feature engineering
+3. Model training
+4. Online learning
 
-## 📊 Performance
+See [TODO.md](TODO.md) for detailed tasks.
 
-### Metrics
+### Step 4: Extended Paper Trading (Month 2-3)
 
-- **Latency**: < 100ms order execution
-- **Uptime**: 99.9% availability
-- **Throughput**: 1000+ requests/second
-- **Test Coverage**: 100% (16/16 tests passing)
+- Run system continuously
+- Collect 300+ trades
+- Validate performance
+- Let ML models improve
 
-### Benchmarks
+### Step 5: Live Trading (Month 4+)
 
-| Operation | Time |
-|-----------|------|
-| Order Placement | 50-100ms |
-| Market Data Fetch | 20-50ms |
-| AI Analysis | 1-3s |
-| Dashboard Load | < 2s |
+- Complete readiness checklist
+- Start with small capital ($1,000)
+- Gradually increase if successful
+- Monitor closely
 
----
+## 📚 Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Complete system architecture with diagrams
+- **[TODO.md](TODO.md)**: Detailed implementation roadmap
+- **API Docs**: http://localhost:8000/docs (when running)
+
+## 🔒 Safety Features
+
+### Multiple Safety Layers
+
+1. **Position Limits**: Max 20 positions, 5% per position
+2. **Exposure Limits**: Max 40% per sector, 60% total
+3. **Stop Losses**: Every position has automatic stop
+4. **Circuit Breaker**: Halts trading at -5% daily loss
+5. **Risk Manager**: Validates every trade
+6. **ML Filtering**: Rejects low-confidence signals
+7. **Emergency Stop**: Manual override button
+8. **Auto-Recovery**: Reconciles positions on restart
+
+### What Can Go Wrong?
+
+**System Crashes**
+- ✅ Auto-restarts via systemd
+- ✅ Positions reconciled on startup
+- ✅ No orphaned positions
+
+**Bad Trades**
+- ✅ Stop losses limit losses
+- ✅ Circuit breaker prevents cascading losses
+- ✅ Position limits prevent overexposure
+
+**ML Model Fails**
+- ✅ Falls back to rule-based strategy
+- ✅ Model validation before deployment
+- ✅ Automatic rollback on degradation
+
+**API Failures**
+- ✅ Retry logic with exponential backoff
+- ✅ Fallback to polling if streaming fails
+- ✅ Graceful degradation
+
+## 🎓 Learning Resources
+
+### Understanding the System
+
+1. **Start Here**: Read this README
+2. **Architecture**: Review ARCHITECTURE.md
+3. **Implementation**: Check TODO.md
+4. **Code**: Explore backend/trading/
+
+### Trading Concepts
+
+- **EMA Crossover**: Moving average strategy
+- **ATR**: Average True Range (volatility measure)
+- **Risk Management**: Position sizing and stops
+- **Bracket Orders**: Entry + stop + target in one
+
+### ML Concepts
+
+- **Supervised Learning**: Learning from labeled examples
+- **Online Learning**: Continuous model updates
+- **Feature Engineering**: Extracting predictive features
+- **Model Validation**: Preventing overfitting
+
+## ⚠️ Disclaimers
+
+### Risk Warning
+
+**Trading involves substantial risk of loss.**
+
+- This system is provided for educational purposes
+- Past performance does not guarantee future results
+- You can lose more than your initial investment
+- Only trade with money you can afford to lose
+- Paper trading results may not reflect live trading
+- Consult a financial advisor before live trading
+
+### No Guarantees
+
+- No guarantee of profits
+- No guarantee of specific performance
+- No guarantee of system uptime
+- No guarantee of ML improvements
+- Use at your own risk
+
+### Regulatory Compliance
+
+- Ensure compliance with local regulations
+- Pattern day trading rules may apply (US)
+- Tax implications vary by jurisdiction
+- Consult legal and tax professionals
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+This is a personal project, but suggestions are welcome:
 
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Code Style
-
-- **Python**: Follow PEP 8, use Black formatter
-- **TypeScript**: Follow Airbnb style guide, use ESLint
-- **Commits**: Use conventional commits format
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [Alpaca](https://alpaca.markets/) - Trading API
-- [Supabase](https://supabase.com/) - Database platform
-- [OpenRouter](https://openrouter.ai/) - AI model aggregation
-- [Perplexity](https://www.perplexity.ai/) - AI search
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-- [React](https://reactjs.org/) - UI library
-
----
+1. Open an issue for bugs or feature requests
+2. Submit pull requests for improvements
+3. Share your paper trading results
+4. Contribute to documentation
 
 ## 📞 Support
 
-- **Documentation**: [Full Docs](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/DayTraderAI/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/DayTraderAI/discussions)
+For issues or questions:
+
+1. Check [ARCHITECTURE.md](ARCHITECTURE.md) for design details
+2. Check [TODO.md](TODO.md) for implementation status
+3. Review logs in `backend/backend.log`
+4. Check Supabase for historical data
+5. Open a GitHub issue
+
+## 📝 License
+
+[Your License Here]
+
+## 🙏 Acknowledgments
+
+- **Alpaca Markets**: Paper trading API
+- **Supabase**: Database and logging
+- **OpenRouter**: AI analysis
+- **Perplexity**: News and research
+- **React**: UI framework
+- **FastAPI**: Backend framework
 
 ---
 
-## ⚠️ Disclaimer
+## 🎯 Next Steps
 
-**This software is for educational purposes only. Trading involves substantial risk of loss. Past performance is not indicative of future results. Always do your own research and never invest more than you can afford to lose.**
+1. **Read** [ARCHITECTURE.md](ARCHITECTURE.md) for system design
+2. **Review** [TODO.md](TODO.md) for implementation plan
+3. **Start** paper trading to collect data
+4. **Build** ML system while trading
+5. **Validate** with 300+ trades
+6. **Go Live** gradually with small capital
+
+**Remember**: This is a marathon, not a sprint. Take time to validate, learn, and improve before risking real capital.
 
 ---
 
-<div align="center">
-
-### 🌟 Star us on GitHub!
-
-If you find this project useful, please consider giving it a star ⭐
-
-Made with ❤️ by the DayTraderAI Team
-
-[⬆ Back to Top](#-daytraderai)
-
-</div>
+**Current Version**: 0.8.5 (Paper Trading Ready)  
+**Last Updated**: January 2025  
+**Status**: 🟡 Paper Trading Active, 🔴 Live Trading Not Ready

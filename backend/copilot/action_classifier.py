@@ -39,12 +39,16 @@ INFO_PHRASES = {
 
 ADVISE_KEYWORDS = {
     "should", "would", "could", "recommend", "think", "suggest",
-    "advice", "opinion", "analysis", "evaluate", "assess"
+    "advice", "opinion", "analysis", "evaluate", "assess", "opportunities",
+    "opportunity", "ideas", "signals", "trades", "setups"
 }
 
 ADVISE_PHRASES = {
     "should i", "what do you think", "do you recommend", "is it good",
-    "what about", "how about", "your opinion", "your thoughts"
+    "what about", "how about", "your opinion", "your thoughts",
+    "trading opportunities", "new opportunities", "trade ideas",
+    "trading ideas", "show me opportunities", "find opportunities",
+    "what can", "what should", "what to do"
 }
 
 # Action type keywords
@@ -169,6 +173,14 @@ class ActionClassifier:
     def _score_info_intent(self, query: str) -> float:
         """Score how likely the query is an info intent."""
         score = 0.0
+        
+        # Reduce score if query contains advise keywords
+        has_advise_keywords = any(kw in query for kw in ADVISE_KEYWORDS)
+        has_advise_phrases = any(phrase in query for phrase in ADVISE_PHRASES)
+        
+        if has_advise_keywords or has_advise_phrases:
+            # This is likely an advise query, not info
+            return 0.0
         
         # Check for info phrases
         for phrase in INFO_PHRASES:

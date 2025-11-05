@@ -61,10 +61,11 @@ class RiskManager:
         if existing_position and existing_position.side != side.lower():
             return False, f"Cannot open {side} position while holding {existing_position.side} position"
         
-        # 6. Check buying power
+        # 6. Check buying power and max position size
         try:
             account = self.alpaca.get_account()
             buying_power = float(account.buying_power)
+            equity = float(account.equity)
             
             if price:
                 order_value = price * qty
@@ -73,10 +74,16 @@ class RiskManager:
                 latest_bars = self.alpaca.get_latest_bars([symbol])
                 if not latest_bars or symbol not in latest_bars:
                     return False, f"Cannot get price for {symbol}"
-                order_value = float(latest_bars[symbol].close) * qty
+                price = float(latest_bars[symbol].close)
+                order_value = price * qty
             
             if order_value > buying_power:
                 return False, f"Insufficient buying power: need ${order_value:.2f}, have ${buying_power:.2f}"
+            
+            # Check max position size as % of equity
+            max_position_value = equity * settings.max_position_pct
+            if order_value > max_position_value:
+                return False, f"Position too large: ${order_value:.2f} exceeds max ${max_position_value:.2f} ({settings.max_position_pct*100}% of equity)"
         
         except Exception as e:
             logger.error(f"Failed to check buying power: {e}")

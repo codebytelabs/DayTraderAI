@@ -175,11 +175,17 @@ class TradingEngine:
                     continue
                 
                 # Evaluate strategy for each symbol
+                logger.info(f"🔍 Evaluating {len(self.watchlist)} symbols: {', '.join(self.watchlist)}")
+                
                 for symbol in self.watchlist:
                     try:
                         features = self.market_data.get_latest_features(symbol)
                         if not features:
+                            logger.warning(f"⚠️  No features available for {symbol}")
                             continue
+                        
+                        # Log feature values for debugging
+                        logger.debug(f"📊 {symbol}: price=${features.get('price', 0):.2f}, EMA9=${features.get('ema_short', 0):.2f}, EMA21=${features.get('ema_long', 0):.2f}")
                         
                         # Check for signal
                         signal = self.strategy.evaluate(symbol, features)
@@ -241,6 +247,8 @@ class TradingEngine:
                                         
                                 except Exception as e:
                                     logger.error(f"Error generating options signal for {symbol}: {e}")
+                        else:
+                            logger.debug(f"➖ No signal for {symbol}")
                         
                     except Exception as e:
                         logger.error(f"Error evaluating {symbol}: {e}")
