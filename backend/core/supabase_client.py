@@ -145,15 +145,23 @@ class SupabaseClient:
     
     # Features
     def upsert_features(self, features_data: Dict[str, Any]):
-        """Insert or update computed features."""
-        try:
-            result = self.client.table("features")\
-                .upsert(features_data, on_conflict="symbol")\
-                .execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Failed to upsert features: {e}")
-            return None
+        """Insert or update computed features with retry logic."""
+        import time
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                result = self.client.table("features")\
+                    .upsert(features_data, on_conflict="symbol")\
+                    .execute()
+                return result.data[0] if result.data else None
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Features upsert attempt {attempt + 1} failed, retrying in {2**attempt}s: {e}")
+                    time.sleep(2**attempt)  # Exponential backoff
+                else:
+                    logger.error(f"Failed to upsert features after {max_retries} attempts: {e}")
+                    return None
     
     def get_features(self, symbol: str):
         """Get features for symbol."""
@@ -235,3 +243,15 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Failed to get logs: {e}")
             return []
+
+
+# Global instance
+_supabase_client = None
+
+
+def get_client():
+    """Get the global Supabase client instance."""
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = SupabaseClient()
+    return _supabase_client.client

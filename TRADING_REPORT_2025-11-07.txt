@@ -1,0 +1,193 @@
+================================================================================
+📊 TRADING PERFORMANCE REPORT - 2025-11-07
+================================================================================
+
+💰 ACCOUNT SUMMARY
+--------------------------------------------------------------------------------
+Portfolio Value:  $137,819.37
+Cash Available:   $28,516.58
+Buying Power:     $209,612.72
+Day P&L:          $1,111.30 (+0.81%)
+
+📈 CURRENT POSITIONS
+--------------------------------------------------------------------------------
+🟢 LMT    |     29 shares @ $  461.59 | Current: $  462.27 | P&L: $  +19.72 ( +0.15%)
+🟢 AMD    |     59 shares @ $  231.21 | Current: $  231.53 | P&L: $  +18.88 ( +0.14%)
+🟢 TSLA   |     31 shares @ $  436.26 | Current: $  436.77 | P&L: $  +15.89 ( +0.12%)
+🟢 AMZN   |     56 shares @ $  243.06 | Current: $  243.25 | P&L: $  +10.92 ( +0.08%)
+🟢 U      |    348 shares @ $   39.44 | Current: $   39.45 | P&L: $   +5.22 ( +0.04%)
+🟢 SPY    |     20 shares @ $  669.12 | Current: $  669.25 | P&L: $   +2.60 ( +0.02%)
+🔴 NVDA   |     73 shares @ $  186.69 | Current: $  186.68 | P&L: $   -0.40 ( -0.00%)
+🔴 CRWD   |     25 shares @ $  540.76 | Current: $  540.50 | P&L: $   -6.38 ( -0.05%)
+🔴 GOOGL  |     49 shares @ $  278.93 | Current: $  278.75 | P&L: $   -8.82 ( -0.06%)
+🔴 CRM    |     57 shares @ $  240.47 | Current: $  240.26 | P&L: $  -12.11 ( -0.09%)
+🔴 META   |     22 shares @ $  617.32 | Current: $  616.74 | P&L: $  -12.78 ( -0.09%)
+🔴 SOFI   |    495 shares @ $   27.75 | Current: $   27.70 | P&L: $  -22.27 ( -0.16%)
+🔴 MSFT   |    -27 shares @ $  494.82 | Current: $  496.81 | P&L: $  -53.73 ( -0.40%)
+🔴 NFLX   |    -12 shares @ $ 1091.02 | Current: $ 1098.28 | P&L: $  -87.06 ( -0.66%)
+🔴 QQQ    |    -22 shares @ $  602.67 | Current: $  607.84 | P&L: $ -113.52 ( -0.86%)
+🔴 GLBE   |   -386 shares @ $   35.53 | Current: $   35.88 | P&L: $ -135.10 ( -0.99%)
+
+Total Unrealized P&L: $-378.94
+Number of Positions: 16
+
+📋 TODAY'S ORDERS
+--------------------------------------------------------------------------------
+
+✅ FILLED ORDERS:
+🟢 BUY      49 GOOGL  @ $  278.93 | Class: bracket  | 19:45:11
+🟢 BUY      73 NVDA   @ $  186.69 | Class: bracket  | 19:44:02
+🟢 BUY      25 CRWD   @ $  540.76 | Class: bracket  | 19:43:59
+🟢 BUY      57 CRM    @ $  240.47 | Class: bracket  | 19:43:56
+🟢 BUY     348 U      @ $   39.44 | Class: bracket  | 19:42:53
+🟢 BUY      20 SPY    @ $  669.12 | Class: bracket  | 19:42:50
+🟢 BUY      59 AMD    @ $  231.21 | Class: bracket  | 19:42:47
+🟢 BUY      22 META   @ $  617.32 | Class: bracket  | 19:42:42
+🟢 BUY      56 AMZN   @ $  243.06 | Class: bracket  | 19:42:39
+🟢 BUY     495 SOFI   @ $   27.75 | Class: bracket  | 19:41:31
+🟢 BUY      31 TSLA   @ $  436.26 | Class: bracket  | 19:41:24
+🟢 BUY      52 SNOW   @ $  263.42 | Class: bracket  | 19:39:08
+🟢 BUY     917 RIVN   @ $   14.98 | Class: bracket  | 19:36:54
+🟢 BUY     351 U      @ $   39.11 | Class: bracket  | 19:33:36
+🔴 SELL    386 GLBE   @ $   35.53 | Class: bracket  | 19:32:28
+🟢 BUY     501 SOFI   @ $   27.39 | Class: bracket  | 19:31:16
+🟢 BUY     468 DKNG   @ $   29.37 | Class: bracket  | 19:30:11
+🟢 BUY      52 SNOW   @ $  262.85 | Class: bracket  | 19:24:32
+🟢 BUY      57 CRM    @ $  238.91 | Class: bracket  | 19:18:52
+🟢 BUY      25 CRWD   @ $  537.37 | Class: bracket  | 19:14:49
+🟢 BUY     816 RIOT   @ $   16.69 | Class: bracket  | 19:12:04
+🟢 BUY     882 MARA   @ $   15.47 | Class: bracket  | 19:10:56
+🟢 BUY     500 SOFI   @ $   27.23 | Class: bracket  | 19:01:54
+🟢 BUY      31 TSLA   @ $  432.38 | Class: bracket  | 19:00:43
+🟢 BUY    6308 BFLY   @ $    2.17 | Class: bracket  | 18:55:10
+🔴 SELL    824 RIOT   @ $   16.46 | Class: bracket  | 18:51:42
+🔴 SELL     22 QQQ    @ $  602.67 | Class: bracket  | 18:50:33
+🟢 BUY      44 COIN   @ $  305.78 | Class: bracket  | 18:47:07
+🟢 BUY     631 GME    @ $   21.57 | Class: bracket  | 18:43:40
+🟢 BUY      60 NET    @ $  225.38 | Class: bracket  | 18:42:08
+🟢 BUY      22 META   @ $  614.31 | Class: bracket  | 18:41:01
+🟢 BUY      31 TSLA   @ $  429.66 | Class: bracket  | 18:36:34
+🟢 BUY      44 COIN   @ $  304.48 | Class: bracket  | 18:36:31
+🟢 BUY      73 NVDA   @ $  184.35 | Class: bracket  | 18:36:28
+🟢 BUY     470 DKNG   @ $   28.90 | Class: bracket  | 18:31:57
+🟢 BUY      52 SNOW   @ $  261.55 | Class: bracket  | 18:30:48
+🟢 BUY      59 AMD    @ $  229.80 | Class: bracket  | 18:28:41
+🟢 BUY      73 DDOG   @ $  186.62 | Class: bracket  | 18:28:38
+🟢 BUY      22 META   @ $  612.38 | Class: bracket  | 18:27:33
+🟢 BUY     936 RIVN   @ $   14.54 | Class: bracket  | 18:26:21
+🟢 BUY      25 CRWD   @ $  533.05 | Class: bracket  | 18:26:18
+🟢 BUY      73 DDOG   @ $  185.33 | Class: bracket  | 18:19:37
+🟢 BUY      25 CRWD   @ $  531.46 | Class: bracket  | 18:19:34
+🟢 BUY      78 PLTR   @ $  174.01 | Class: bracket  | 18:17:19
+🟢 BUY     502 SOFI   @ $   27.06 | Class: bracket  | 18:16:16
+🟢 BUY      38 MDB    @ $  353.89 | Class: bracket  | 18:12:52
+🟢 BUY     108 TWLO   @ $  126.22 | Class: bracket  | 18:12:47
+🟢 BUY     507 SOFI   @ $   26.93 | Class: bracket  | 18:10:36
+🟢 BUY     890 MARA   @ $   15.31 | Class: bracket  | 18:09:33
+🟢 BUY     366 UPST   @ $   37.32 | Class: bracket  | 18:09:30
+🟢 BUY     474 DKNG   @ $   28.80 | Class: bracket  | 18:09:27
+🟢 BUY      45 COIN   @ $  302.60 | Class: bracket  | 18:09:22
+🟢 BUY      74 NVDA   @ $  183.22 | Class: bracket  | 18:08:11
+🔴 SELL     20 SPY    @ $  663.02 | Class: bracket  | 17:42:27
+🟢 BUY     820 RIOT   @ $   16.53 | Class: bracket  | 17:39:05
+🟢 BUY      58 MSTR   @ $  233.98 | Class: bracket  | 17:35:43
+🔴 SELL    115 ABNB   @ $  118.18 | Class: bracket  | 17:32:35
+🟢 BUY      45 COIN   @ $  298.90 | Class: bracket  | 17:31:32
+🟢 BUY      31 TSLA   @ $  428.65 | Class: bracket  | 17:30:26
+🟢 BUY      25 CRWD   @ $  528.34 | Class: bracket  | 17:28:06
+🟢 BUY      92 ARM    @ $  148.25 | Class: bracket  | 17:25:41
+🟢 BUY     899 MARA   @ $   15.14 | Class: bracket  | 17:24:36
+🟢 BUY     925 RIVN   @ $   14.75 | Class: bracket  | 17:24:31
+🟢 BUY      22 META   @ $  608.60 | Class: bracket  | 17:22:14
+🟢 BUY      52 SNOW   @ $  260.27 | Class: bracket  | 17:21:11
+🟢 BUY      39 CEG    @ $  341.59 | Class: bracket  | 17:19:00
+🟢 BUY     906 MARA   @ $   15.05 | Class: bracket  | 17:16:47
+🟢 BUY     836 RIOT   @ $   16.31 | Class: bracket  | 17:16:44
+🟢 BUY      58 MSTR   @ $  232.44 | Class: bracket  | 17:16:41
+🟢 BUY      46 COIN   @ $  294.62 | Class: bracket  | 17:15:34
+🟢 BUY     114 ABNB   @ $  118.92 | Class: bracket  | 17:15:31
+🟢 BUY     932 RIVN   @ $   14.60 | Class: bracket  | 17:14:24
+🟢 BUY      40 CEG    @ $  338.31 | Class: bracket  | 17:13:08
+🔴 SELL     57 AMZN   @ $  238.71 | Class: bracket  | 17:09:44
+🔴 SELL     93 ARM    @ $  146.47 | Class: bracket  | 17:06:23
+🟢 BUY     480 DKNG   @ $   28.46 | Class: bracket  | 17:04:07
+🔴 SELL    528 SOFI   @ $   25.89 | Class: bracket  | 16:59:35
+🔴 SELL     32 TSLA   @ $  423.41 | Class: bracket  | 16:55:06
+🟢 BUY      46 COIN   @ $  293.04 | Class: bracket  | 16:45:06
+🟢 BUY     558 PFE    @ $   24.44 | Class: bracket  | 16:45:03
+🔴 SELL     40 AVGO   @ $  339.23 | Class: bracket  | 16:45:00
+🔴 SELL     53 FSLR   @ $  257.00 | Class: bracket  | 16:42:47
+🟢 BUY      74 DDOG   @ $  184.11 | Class: bracket  | 16:25:38
+🔴 SELL    227 IREN   @ $   60.17 | Class: bracket  | 16:22:25
+🔴 SELL     12 NFLX   @ $ 1091.02 | Class: bracket  | 16:22:22
+🔴 SELL    937 RIVN   @ $   14.56 | Class: bracket  | 16:20:08
+🔴 SELL     31 TSLA   @ $  428.85 | Class: bracket  | 16:20:05
+🟢 BUY      33 HUBS   @ $  403.00 | Class: bracket  | 16:18:56
+🔴 SELL     93 COHR   @ $  146.13 | Class: bracket  | 16:17:50
+🔴 SELL     57 AMZN   @ $  239.28 | Class: bracket  | 16:16:40
+🔴 SELL     57 CRM    @ $  237.40 | Class: bracket  | 16:15:30
+🟢 BUY      29 LMT    @ $  461.59 | Class: bracket  | 16:15:27
+🔴 SELL    231 IREN   @ $   58.62 | Class: bracket  | 16:13:06
+🔴 SELL     22 META   @ $  601.95 | Class: bracket  | 16:11:47
+🔴 SELL     76 NVDA   @ $  179.06 | Class: bracket  | 16:11:44
+🔴 SELL     80 PLTR   @ $  169.80 | Class: bracket  | 16:09:14
+🔴 SELL     12 NFLX   @ $ 1095.73 | Class: bracket  | 16:02:35
+🔴 SELL    515 SOFI   @ $   26.56 | Class: bracket  | 15:51:05
+🔴 SELL     68 DASH   @ $  199.82 | Class: bracket  | 15:47:55
+🔴 SELL     22 META   @ $  604.81 | Class: bracket  | 15:44:37
+🟢 BUY     983 PATH   @ $   13.88 | Class: bracket  | 15:44:34
+🔴 SELL     75 NVDA   @ $  181.20 | Class: bracket  | 15:44:30
+🔴 SELL     60 AMD    @ $  226.68 | Class: bracket  | 15:43:22
+🔴 SELL     47 COIN   @ $  288.81 | Class: bracket  | 15:42:14
+🔴 SELL    111 HOOD   @ $  122.60 | Class: bracket  | 15:42:11
+🔴 SELL    475 DKNG   @ $   28.61 | Class: bracket  | 15:32:59
+🔴 SELL     79 PLTR   @ $  172.83 | Class: bracket  | 15:31:54
+🔴 SELL     49 GOOGL  @ $  277.85 | Class: bracket  | 15:30:51
+🔴 SELL     59 AMD    @ $  230.39 | Class: bracket  | 15:26:42
+🟢 BUY      25 CRWD   @ $  526.21 | Class: bracket  | 15:23:28
+🟢 BUY      58 AMD    @ $  231.84 | Class: bracket  | 15:19:05
+🟢 BUY      46 COIN   @ $  291.74 | Class: bracket  | 15:13:32
+🟢 BUY     110 HOOD   @ $  124.61 | Class: bracket  | 15:13:28
+🔴 SELL    998 PATH   @ $   13.70 | Class: bracket  | 15:13:21
+🟢 BUY     471 DKNG   @ $   29.07 | Class: bracket  | 15:13:18
+🟢 BUY     923 RIVN   @ $   14.85 | Class: bracket  | 15:12:07
+🔴 SELL     79 PLTR   @ $  172.37 | Class: bracket  | 15:11:00
+🔴 SELL     27 MSFT   @ $  494.82 | Class: bracket  | 15:10:56
+🔴 SELL     26 CRWD   @ $  521.05 | Class: bracket  | 15:09:33
+🔴 SELL     22 QQQ    @ $  604.33 | Class: bracket  | 15:09:23
+🔴 SELL     50 AAPL   @ $  270.05 | Class: bracket  | 15:08:02
+🟢 BUY      31 TSLA   @ $  430.78 | Class: bracket  | 15:02:23
+🔴 SELL     32 TSLA   @ $  429.27 | Class: bracket  | 14:53:11
+🔴 SELL     32 TSLA   @ $  425.10 | Class: bracket  | 14:37:27
+🟢 BUY      40 AAPL   @ $  267.34 | Class: simple   | 14:33:06
+🔴 SELL     31 TSLA   @ $  433.23 | Class: bracket  | 14:31:52
+🟢 BUY      20 SPY    @ $  666.56 | Class: simple   | 14:30:57
+🟢 BUY      72 NVDA   @ $  184.51 | Class: simple   | 14:30:55
+🟢 BUY      27 MSFT   @ $  497.68 | Class: simple   | 14:30:53
+🟢 BUY      56 IWM    @ $  238.45 | Class: simple   | 14:30:51
+🔴 SELL     47 GOOGL  @ $  280.93 | Class: simple   | 14:30:49
+🟢 BUY      57 AMD    @ $  233.99 | Class: simple   | 14:30:47
+🔴 SELL     78 PLTR   @ $  175.29 | Class: bracket  | 14:30:42
+🔴 SELL     22 META   @ $  614.35 | Class: bracket  | 14:30:37
+🔴 SELL     50 AAPL   @ $  268.86 | Class: bracket  | 14:30:33
+
+Total Orders Today: 135 (Filled: 135, Pending: 0)
+
+💵 TODAY'S TRADE ACTIVITY
+--------------------------------------------------------------------------------
+Error fetching trades: 'TradingClient' object has no attribute 'get_activities'
+No trades executed today
+
+📊 MARKET INDICES COMPARISON
+--------------------------------------------------------------------------------
+Error fetching SPY: {"message":"subscription does not permit querying recent SIP data"}
+
+Error fetching QQQ: {"message":"subscription does not permit querying recent SIP data"}
+
+Error fetching DIA: {"message":"subscription does not permit querying recent SIP data"}
+
+Error fetching IWM: {"message":"subscription does not permit querying recent SIP data"}
+
+Unable to fetch market data
+
+================================================================================

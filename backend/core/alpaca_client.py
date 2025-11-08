@@ -5,7 +5,7 @@ from alpaca.trading.requests import (
     GetOrdersRequest,
     GetPortfolioHistoryRequest,
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus, QueryOrderStatus
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
 from alpaca.data.timeframe import TimeFrame
@@ -58,9 +58,21 @@ class AlpacaClient:
     def get_orders(self, status: Optional[str] = None):
         """Get orders, optionally filtered by status."""
         try:
-            request = GetOrdersRequest(
-                status=OrderStatus[status.upper()] if status else None
-            )
+            if status:
+                # Map string status to QueryOrderStatus enum (used for filtering)
+                status_map = {
+                    'open': QueryOrderStatus.OPEN,
+                    'closed': QueryOrderStatus.CLOSED,
+                    'all': QueryOrderStatus.ALL,
+                }
+                status_enum = status_map.get(status.lower())
+                if not status_enum:
+                    logger.warning(f"Unknown order status: {status}, fetching all orders")
+                    status_enum = QueryOrderStatus.ALL
+            else:
+                status_enum = QueryOrderStatus.ALL
+            
+            request = GetOrdersRequest(status=status_enum)
             return self.trading_client.get_orders(filter=request)
         except Exception as e:
             logger.error(f"Failed to get orders: {e}")
@@ -129,6 +141,11 @@ class AlpacaClient:
             logger.info(f"Position closed: {symbol}")
             return True
         except Exception as e:
+            error_msg = str(e)
+            # If position not found, it's already closed - return True to clean up state
+            if "position not found" in error_msg.lower() or "40410000" in error_msg:
+                logger.info(f"Position {symbol} already closed (not found in Alpaca)")
+                return True
             logger.error(f"Failed to close position {symbol}: {e}")
             return False
     

@@ -121,7 +121,7 @@ class OrderManager:
             trading_state.update_order(order)
             
             self.supabase.insert_order({
-                'order_id': order.order_id,
+                'order_id': str(order.order_id),  # Convert UUID to string
                 'client_order_id': order.client_order_id,
                 'symbol': order.symbol,
                 'qty': order.qty,

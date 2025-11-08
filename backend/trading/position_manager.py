@@ -146,13 +146,37 @@ class PositionManager:
         """
         Check if any positions hit stop loss or take profit.
         Returns list of symbols that need to be closed.
+        
+        NOTE: If bracket orders are active, they will handle exits automatically.
+        This method only triggers manual closes for positions without bracket orders.
         """
         symbols_to_close = []
         
         try:
             positions = trading_state.get_all_positions()
             
+            # Get all open orders to check for bracket orders
+            open_orders = self.alpaca.get_orders(status='open')
+            symbols_with_brackets = set()
+            
+            for order in open_orders:
+                # Check if this is a bracket order (has order_class='bracket' or has legs)
+                is_bracket = (
+                    (hasattr(order, 'order_class') and order.order_class == 'bracket') or
+                    (hasattr(order, 'legs') and order.legs)
+                )
+                if is_bracket:
+                    symbols_with_brackets.add(order.symbol)
+            
+            if symbols_with_brackets:
+                logger.debug(f"Symbols with bracket orders: {symbols_with_brackets}")
+            
             for position in positions:
+                # Skip positions with active bracket orders - they'll exit automatically
+                if position.symbol in symbols_with_brackets:
+                    logger.debug(f"Skipping {position.symbol} - has active bracket orders")
+                    continue
+                
                 current_price = position.current_price
                 
                 # Check stop loss
@@ -177,15 +201,39 @@ class PositionManager:
             logger.error(f"Failed to check stops/targets: {e}")
             return []
     
+    def has_bracket_orders(self, symbol: str) -> bool:
+        """
+        Check if a position has active bracket orders.
+        """
+        try:
+            open_orders = self.alpaca.get_orders(status='open')
+            for order in open_orders:
+                if order.symbol == symbol and hasattr(order, 'legs') and order.legs:
+                    return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to check bracket orders for {symbol}: {e}")
+            return False
+    
     def close_position(self, symbol: str, reason: str = "Manual close"):
         """
         Close a position and record the trade.
+        If bracket orders exist, cancels them first.
+        If position not found in Alpaca, cleans up local state.
         """
         try:
             position = trading_state.get_position(symbol)
             if not position:
-                logger.warning(f"No position found for {symbol}")
+                logger.warning(f"No position found in local state for {symbol}")
                 return False
+            
+            # Check for bracket orders and cancel them first
+            if self.has_bracket_orders(symbol):
+                logger.info(f"Canceling bracket orders for {symbol} before closing")
+                open_orders = self.alpaca.get_orders(status='open')
+                for order in open_orders:
+                    if order.symbol == symbol:
+                        self.alpaca.cancel_order(order.id)
             
             # Close via Alpaca
             success = self.alpaca.close_position(symbol)
@@ -219,15 +267,24 @@ class PositionManager:
                         total_trades=metrics.total_trades + 1
                     )
                 
-                # Remove from state
+                # Remove from state (whether closed manually or already closed by bracket)
                 trading_state.remove_position(symbol)
                 self.supabase.delete_position(symbol)
                 
-                logger.info(f"Position closed: {symbol} - P/L: ${position.unrealized_pl:.2f}")
+                logger.info(f"✓ Position closed: {symbol} - P/L: ${position.unrealized_pl:.2f} ({reason})")
                 return True
-            
-            return False
+            else:
+                # If close failed but position not found, clean up state anyway
+                logger.warning(f"Close failed for {symbol}, cleaning up local state")
+                trading_state.remove_position(symbol)
+                self.supabase.delete_position(symbol)
+                return False
             
         except Exception as e:
             logger.error(f"Failed to close position {symbol}: {e}")
+            # Clean up state if position doesn't exist
+            if "position not found" in str(e).lower():
+                logger.info(f"Cleaning up orphaned position {symbol} from local state")
+                trading_state.remove_position(symbol)
+                self.supabase.delete_position(symbol)
             return False

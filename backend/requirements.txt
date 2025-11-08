@@ -10,3 +10,12 @@ httpx>=0.26.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dateutil>=2.8.0
+
+# Machine Learning packages (Sprint 1)
+xgboost>=2.0.0
+lightgbm>=4.1.0
+# river>=0.21.0  # Temporarily disabled - requires Python <3.14
+# shap>=0.44.0  # Temporarily disabled - requires Python <3.14
+optuna>=3.5.0
+scikit-learn>=1.4.0
+scipy>=1.11.0

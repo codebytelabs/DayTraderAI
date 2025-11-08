@@ -89,6 +89,8 @@ class PerplexityClient:
                     
         except Exception as e:
             logger.error(f"Perplexity request failed: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return None
     
     async def get_news(self, symbol: str) -> Optional[Dict]:

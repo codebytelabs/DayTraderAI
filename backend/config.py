@@ -50,6 +50,17 @@ class Settings(BaseSettings):
     # Streaming
     streaming_enabled: bool = True
     stream_reconnect_delay: int = 5
+    
+    # Phase 2: Opportunity Scanner
+    use_dynamic_watchlist: bool = False  # Enable dynamic watchlist
+    scanner_interval_hours: int = 1  # Scan every hour
+    scanner_min_score: float = 80.0  # Minimum A- grade (was 60.0 - too permissive)
+    scanner_watchlist_size: int = 20  # Number of stocks in dynamic watchlist
+    
+    # Trade Frequency Limits (Quality over Quantity)
+    max_trades_per_day: int = 30  # Cap daily trades to prevent over-trading
+    max_trades_per_symbol_per_day: int = 2  # Max 2 entries per symbol per day
+    trade_cooldown_minutes: int = 15  # Minimum 15 minutes between trades in same symbol
 
     # Copilot configuration
     copilot_context_enabled: bool = True

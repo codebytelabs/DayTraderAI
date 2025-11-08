@@ -32,6 +32,7 @@ from news.news_client import NewsClient
 from options.options_client import OptionsClient
 from streaming import stream_manager, StreamingBroadcaster
 from utils.logger import setup_logger
+from ml.shadow_mode import MLShadowMode
 
 logger = setup_logger(__name__)
 
@@ -54,6 +55,7 @@ openrouter_client: Optional[OpenRouterClient] = None
 perplexity_client: Optional[PerplexityClient] = None
 streaming_broadcaster: Optional[StreamingBroadcaster] = None
 command_handler: Optional[CommandHandler] = None
+ml_shadow_mode: Optional[Any] = None  # ML shadow mode for learning
 
 
 def _serialize_positions() -> List[Dict[str, Any]]:
@@ -161,7 +163,7 @@ def build_streaming_snapshot() -> Dict[str, Any]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize clients and start trading engine on startup."""
-    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager, news_client, copilot_config, copilot_context_builder, copilot_router, action_classifier, action_executor, response_formatter, openrouter_client, perplexity_client, streaming_broadcaster, command_handler
+    global alpaca_client, supabase_client, risk_manager, order_manager, position_manager, strategy, market_data_manager, news_client, copilot_config, copilot_context_builder, copilot_router, action_classifier, action_executor, response_formatter, openrouter_client, perplexity_client, streaming_broadcaster, command_handler, ml_shadow_mode
     
     logger.info("🚀 Starting DayTraderAI Backend...")
     
@@ -177,11 +179,26 @@ async def lifespan(app: FastAPI):
         logging.getLogger().addHandler(supabase_handler)
         logger.info("✓ Supabase log handler initialized")
         
-        risk_manager = RiskManager(alpaca_client)
+        # Initialize AI opportunity finder and sentiment aggregator first
+        from scanner.ai_opportunity_finder import get_ai_opportunity_finder
+        from indicators.sentiment_aggregator import get_sentiment_aggregator
+        
+        ai_finder = get_ai_opportunity_finder()
+        sentiment_aggregator = get_sentiment_aggregator(alpaca_client, ai_finder)
+        logger.info("✓ Sentiment aggregator initialized with dual-source validation")
+        
+        # Initialize risk manager with sentiment aggregator
+        risk_manager = RiskManager(alpaca_client, sentiment_aggregator=sentiment_aggregator)
         order_manager = OrderManager(alpaca_client, supabase_client, risk_manager)
         position_manager = PositionManager(alpaca_client, supabase_client)
-        strategy = EMAStrategy(order_manager)
         market_data_manager = MarketDataManager(alpaca_client, supabase_client)
+        
+        # Initialize ML shadow mode first (before strategy)
+        ml_shadow_mode = MLShadowMode(supabase_client, ml_weight=0.0)
+        logger.info("🤖 ML Shadow Mode initialized (weight: 0.0 - learning only)")
+        
+        # Initialize strategy with ML shadow mode
+        strategy = EMAStrategy(order_manager, ml_shadow_mode=ml_shadow_mode)
         
         # Try to initialize news client, but don't fail if not configured
         try:
@@ -218,6 +235,10 @@ async def lifespan(app: FastAPI):
         streaming_broadcaster = StreamingBroadcaster()
         await streaming_broadcaster.start(snapshot_builder=build_streaming_snapshot)
         
+        # Set global ML shadow mode for API routes
+        from api.ml_routes import set_ml_shadow_mode
+        set_ml_shadow_mode(ml_shadow_mode)
+        
         # Initialize trading engine
         engine = TradingEngine(
             alpaca_client=alpaca_client,
@@ -231,6 +252,7 @@ async def lifespan(app: FastAPI):
             stream_manager=stream_manager,
             streaming_broadcaster=streaming_broadcaster,
             snapshot_builder=build_streaming_snapshot,
+            ml_shadow_mode=ml_shadow_mode,
         )
         set_trading_engine(engine)
         
@@ -280,6 +302,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+from api.report_routes import router as report_router
+from api.adaptive_routes import router as adaptive_router
+from api.ml_routes import router as ml_router
+app.include_router(report_router)
+app.include_router(adaptive_router)
+app.include_router(ml_router)
 
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
@@ -1414,6 +1443,49 @@ async def reset_watchlist():
         engine.watchlist = command_handler.get_watchlist()
     
     return result
+
+
+# Phase 2: Scanner Routes
+@app.get("/scanner/opportunities")
+async def get_scanner_opportunities(min_score: float = 60.0, limit: int = 20):
+    """Get current opportunities from scanner."""
+    from api.scanner_routes import get_opportunities
+    return await get_opportunities(min_score=min_score, limit=limit)
+
+
+@app.get("/scanner/watchlist")
+async def get_scanner_watchlist():
+    """Get dynamic watchlist."""
+    from api.scanner_routes import get_dynamic_watchlist
+    return await get_dynamic_watchlist()
+
+
+@app.get("/scanner/summary")
+async def get_scanner_summary_endpoint():
+    """Get scanner summary."""
+    from api.scanner_routes import get_scanner_summary
+    return await get_scanner_summary()
+
+
+@app.post("/scanner/scan")
+async def trigger_scanner_scan(symbols: List[str] = None, min_score: float = 60.0):
+    """Trigger manual scan."""
+    from api.scanner_routes import trigger_scan
+    return await trigger_scan(symbols=symbols, min_score=min_score)
+
+
+@app.get("/scanner/universe")
+async def get_scanner_universe():
+    """Get stock universe."""
+    from api.scanner_routes import get_stock_universe
+    return await get_stock_universe()
+
+
+@app.get("/scanner/universe/{sector}")
+async def get_scanner_sector(sector: str):
+    """Get stocks by sector."""
+    from api.scanner_routes import get_sector_stocks
+    return await get_sector_stocks(sector=sector)
 
 
 @app.get("/health/services")

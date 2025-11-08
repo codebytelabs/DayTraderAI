@@ -1,0 +1,16 @@
+{
+  "overall_score": 50.0,
+  "sentiment": "neutral",
+  "vix_score": 50.0,
+  "breadth_score": 50.0,
+  "sector_score": 50.0,
+  "volume_score": 50.0,
+  "components": {
+    "vix": {},
+    "breadth": {},
+    "sectors": {},
+    "volume": {}
+  },
+  "recommendation": "Mixed sentiment. Trade both directions based on technical setups.",
+  "timestamp": "2025-11-08T02:11:08.270416"
+}

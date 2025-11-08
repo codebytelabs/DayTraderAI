@@ -12,6 +12,7 @@ from trading.options_strategy import OptionsStrategy
 from data.market_data import MarketDataManager
 from streaming import StreamManager, StreamingBroadcaster
 from options.options_client import OptionsClient
+from scanner.opportunity_scanner import OpportunityScanner
 from config import settings
 from utils.logger import setup_logger
 
@@ -37,6 +38,7 @@ class TradingEngine:
         stream_manager: Optional[StreamManager] = None,
         streaming_broadcaster: Optional[StreamingBroadcaster] = None,
         snapshot_builder: Optional[Callable[[], Dict]] = None,
+        ml_shadow_mode: Optional[Any] = None,
     ):
         self.alpaca = alpaca_client
         self.supabase = supabase_client
@@ -51,6 +53,7 @@ class TradingEngine:
         self.streaming_enabled = settings.streaming_enabled
         self.stream_reconnect_delay = settings.stream_reconnect_delay
         self._streaming_active = False
+        self.ml_shadow_mode = ml_shadow_mode
         
         # Initialize options strategy if enabled
         self.options_strategy = None
@@ -58,8 +61,28 @@ class TradingEngine:
             self.options_strategy = OptionsStrategy(options_client)
             logger.info("Options strategy initialized and enabled")
         
+        # Initialize AI opportunity finder first
+        from scanner.ai_opportunity_finder import get_ai_opportunity_finder
+        self.ai_finder = get_ai_opportunity_finder()
+        
+        # Initialize sentiment aggregator with dual-source validation
+        from indicators.sentiment_aggregator import get_sentiment_aggregator
+        self.sentiment_aggregator = get_sentiment_aggregator(alpaca_client, self.ai_finder)
+        
+        # Initialize opportunity scanner (Phase 2) with sentiment
+        self.scanner = OpportunityScanner(market_data_manager, sentiment_analyzer=self.sentiment_aggregator)
+        self.use_dynamic_watchlist = getattr(settings, 'use_dynamic_watchlist', False)
+        self.scanner_interval_hours = getattr(settings, 'scanner_interval_hours', 1)
+        logger.info(f"Opportunity scanner initialized (dynamic watchlist: {self.use_dynamic_watchlist})")
+        
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
+        
+        # Trade frequency tracking (Quality over Quantity)
+        self.daily_trade_count = 0
+        self.symbol_trade_counts = {}  # {symbol: count}
+        self.last_reset_date = None
+        logger.info(f"📊 Trade limits: {settings.max_trades_per_day}/day, {settings.max_trades_per_symbol_per_day}/symbol/day")
     
     async def start(self):
         """Start all trading loops."""
@@ -71,6 +94,16 @@ class TradingEngine:
         logger.info("🚀 Starting Trading Engine...")
         logger.info(f"Watchlist: {', '.join(self.watchlist)}")
         logger.info(f"Max Positions: {settings.max_positions}")
+        
+        # Log ML shadow mode status
+        if self.ml_shadow_mode:
+            logger.info(f"🤖 ML Shadow Mode: ACTIVE (weight: {self.ml_shadow_mode.ml_weight:.1%})")
+            logger.info("   • Making predictions for all trade signals")
+            logger.info("   • Logging predictions to database")
+            logger.info("   • Tracking accuracy vs actual outcomes")
+            logger.info("   • Zero impact on trading decisions (learning only)")
+        else:
+            logger.info("🤖 ML Shadow Mode: DISABLED")
         logger.info(f"Risk Per Trade: {settings.risk_per_trade_pct * 100}%")
         
         # Initial sync
@@ -80,13 +113,19 @@ class TradingEngine:
             await self._start_streaming()
 
         # Start all loops concurrently
-        await asyncio.gather(
+        loops = [
             self.market_data_loop(),
             self.strategy_loop(),
             self.position_monitor_loop(),
             self.metrics_loop(),
-            return_exceptions=True
-        )
+        ]
+        
+        # Add scanner loop if dynamic watchlist enabled
+        if self.use_dynamic_watchlist:
+            loops.append(self.scanner_loop())
+            logger.info("🔍 Dynamic watchlist enabled - scanner loop started")
+        
+        await asyncio.gather(*loops, return_exceptions=True)
     
     async def stop(self):
         """Stop all trading loops."""
@@ -193,10 +232,17 @@ class TradingEngine:
                         if signal:
                             logger.info(f"📈 Signal detected: {signal.upper()} {symbol}")
                             
+                            # Check trade frequency limits BEFORE executing
+                            if not self._check_trade_limits(symbol):
+                                logger.warning(f"⛔ Trade limit reached for {symbol}, skipping")
+                                continue
+                            
                             # Execute stock signal
                             success = self.strategy.execute_signal(symbol, signal, features)
                             
                             if success:
+                                # Increment trade counters after successful order
+                                self._increment_trade_count(symbol)
                                 logger.info(f"✅ Stock order submitted for {symbol}")
                             else:
                                 logger.warning(f"❌ Stock order rejected for {symbol}")
@@ -263,8 +309,11 @@ class TradingEngine:
         """
         Position monitoring loop.
         Checks stops/targets and closes positions every 10 seconds.
+        Syncs positions every 60 seconds to catch bracket order closes.
         """
         logger.info("👁️  Position monitor loop started")
+        
+        sync_counter = 0
         
         while self.is_running:
             try:
@@ -272,10 +321,16 @@ class TradingEngine:
                     await asyncio.sleep(30)
                     continue
                 
+                # Sync positions every 60 seconds (6 iterations) to catch bracket order closes
+                sync_counter += 1
+                if sync_counter >= 6:
+                    self.position_manager.sync_positions()
+                    sync_counter = 0
+                
                 # Update position prices
                 self.position_manager.update_position_prices()
                 
-                # Check stops and targets
+                # Check stops and targets (only for positions without bracket orders)
                 symbols_to_close = self.position_manager.check_stops_and_targets()
                 
                 for symbol, reason in symbols_to_close:
@@ -479,6 +534,271 @@ class TradingEngine:
             except Exception as e:
                 logger.error(f"Error in metrics loop: {e}")
                 await asyncio.sleep(300)
+    
+    async def scanner_loop(self):
+        """
+        Market-aware opportunity scanner loop.
+        - Scans every 15 minutes during market hours (9:30 AM - 4:00 PM ET)
+        - Scans 15 minutes before market open (9:15 AM ET)
+        - Pauses after market close until next trading day
+        """
+        logger.info("🔍 Market-aware scanner loop started")
+        
+        # Initial scan
+        await self._run_scanner_with_ai()
+        
+        while self.is_running:
+            try:
+                # Check if market is open or about to open
+                clock = self.alpaca.get_clock()
+                is_open = clock.is_open
+                
+                if is_open:
+                    # Market is open - scan every 30 minutes to avoid repetitive analysis
+                    scan_interval = 30 * 60  # 30 minutes in seconds
+                    logger.debug("📊 Market open - scanning every 30 minutes")
+                else:
+                    # Market closed - check when it opens next
+                    next_open = clock.next_open
+                    next_close = clock.next_close
+                    now = clock.timestamp
+                    
+                    # Calculate time until 15 minutes before market open
+                    time_until_premarket = (next_open - now).total_seconds() - (15 * 60)
+                    
+                    if time_until_premarket > 0:
+                        # Wait until 15 min before market open
+                        logger.info(f"💤 Market closed - next scan in {time_until_premarket/3600:.1f} hours (15 min before open)")
+                        await asyncio.sleep(time_until_premarket)
+                        continue
+                    else:
+                        # We're in the 15-min pre-market window or market is about to open
+                        scan_interval = 10 * 60  # Check every 10 minutes until open
+                        logger.info("🌅 Pre-market window - scanning every 10 minutes")
+                
+                # Wait for next scan
+                await asyncio.sleep(scan_interval)
+                
+                # Run scan
+                logger.info("🔍 Running scheduled opportunity scan...")
+                await self._run_scanner_with_ai()
+                
+            except Exception as e:
+                logger.error(f"Error in scanner loop: {e}")
+                await asyncio.sleep(300)  # Wait 5 min on error
+    
+    async def _run_scanner_async(self):
+        """Run AI-powered opportunity scan and update watchlist."""
+        try:
+            logger.info("🔍 Running AI-powered opportunity scan...")
+            
+            # Scan universe with AI discovery
+            opportunities = await self.scanner.scan_universe_async(
+                symbols=None,  # Let AI discover opportunities
+                min_score=60.0  # Minimum B- grade
+            )
+            
+            return opportunities
+            
+        except Exception as e:
+            logger.error(f"Error in async scanner: {e}")
+            return []
+    
+    def _run_scanner(self):
+        """Run opportunity scan and update watchlist (sync wrapper)."""
+        try:
+            logger.info("🔍 Running opportunity scan...")
+            
+            # Try async AI scan first
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Schedule async scan
+                    asyncio.create_task(self._run_scanner_with_ai())
+                    return
+                else:
+                    opportunities = loop.run_until_complete(self._run_scanner_async())
+            except Exception as e:
+                logger.warning(f"AI scan failed, using fallback: {e}")
+                # Fallback to sync scan
+                opportunities = self.scanner.scan_universe(
+                    symbols=None,
+                    min_score=60.0
+                )
+            
+            self._process_scan_results(opportunities)
+            
+        except Exception as e:
+            logger.error(f"Error in scanner: {e}")
+    
+    async def _run_scanner_with_ai(self):
+        """Run scanner with AI and process results."""
+        try:
+            opportunities = await self._run_scanner_async()
+            self._process_scan_results(opportunities)
+        except Exception as e:
+            logger.error(f"Error in AI scanner: {e}")
+    
+    def _process_scan_results(self, opportunities: List[Dict]):
+        """Process scan results and update watchlist."""
+        try:
+            if not opportunities:
+                logger.warning("No opportunities found in scan")
+                return
+            
+            # Log top opportunities
+            top_5 = opportunities[:5]
+            logger.info(f"📊 Top 5 AI-Discovered Opportunities:")
+            for i, opp in enumerate(top_5, 1):
+                ai_tag = "🤖 " if opp.get('ai_discovered') else ""
+                logger.info(
+                    f"  {ai_tag}{i}. {opp['symbol']}: {opp['score']:.1f} ({opp['grade']}) - "
+                    f"${opp['price']:.2f} | RSI: {opp['rsi']:.1f} | "
+                    f"ADX: {opp['adx']:.1f} | Vol: {opp['volume_ratio']:.2f}x"
+                )
+            
+            # Update watchlist if dynamic mode enabled
+            if self.use_dynamic_watchlist:
+                new_watchlist = self.scanner.get_watchlist_symbols(
+                    n=settings.max_positions,  # Match max positions
+                    min_score=60.0
+                )
+                
+                if new_watchlist and new_watchlist != self.watchlist:
+                    old_watchlist = self.watchlist.copy()
+                    self.watchlist = new_watchlist
+                    
+                    # Update streaming if enabled
+                    # Note: Streaming update would need to be async, skip for now
+                    # if self.streaming_enabled and self.stream_manager:
+                    #     await self.stream_manager.update_subscriptions(new_watchlist)
+                    
+                    avg_score = sum(o['score'] for o in opportunities[:len(new_watchlist)]) / len(new_watchlist)
+                    logger.info(f"✓ Watchlist updated: {len(new_watchlist)} AI-discovered symbols (avg score: {avg_score:.1f})")
+                    
+                    # Log market cap breakdown of new watchlist
+                    self._log_watchlist_breakdown(new_watchlist, opportunities[:len(new_watchlist)])
+                    
+                    # Log changes
+                    added = set(new_watchlist) - set(old_watchlist)
+                    removed = set(old_watchlist) - set(new_watchlist)
+                    if added:
+                        logger.info(f"  ➕ Added: {', '.join(sorted(added))}")
+                    if removed:
+                        logger.info(f"  ➖ Removed: {', '.join(sorted(removed))}")
+            
+            # Save opportunities to database
+            self.scanner.save_opportunities_to_db(opportunities, self.supabase)
+            
+            # Get summary
+            summary = self.scanner.get_opportunity_summary()
+            logger.info(
+                f"✓ Scan complete: {summary['total_opportunities']} opportunities | "
+                f"Avg score: {summary['avg_score']} | "
+                f"Top: {summary['top_symbol']} ({summary['top_score']:.1f})"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error running scanner: {e}", exc_info=True)
+    
+    def _log_watchlist_breakdown(self, watchlist: List[str], opportunities: List[Dict]) -> None:
+        """Log detailed breakdown of watchlist by market cap and scores."""
+        
+        # Market cap classifications
+        large_cap = {
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 
+            'BAC', 'XOM', 'ORCL', 'CRM', 'AMD', 'NFLX', 'ADBE', 'DIS', 'TMO',
+            'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'PFE', 'JNJ', 'WMT', 'HD'
+        }
+        
+        mid_cap = {
+            'PLTR', 'COIN', 'SOFI', 'RIVN', 'SNOW', 'DKNG', 'CRWD', 'ZS', 'RBLX',
+            'MDB', 'TEAM', 'WDAY', 'VEEV', 'TTD', 'TRADE', 'OPEN', 'RKT', 'HOOD'
+        }
+        
+        small_cap = {
+            'MARA', 'RIOT', 'AMC', 'GME', 'ENPH', 'SEDG', 'RUN', 'FSLY',
+            'BRTX', 'SOUN', 'IONQ', 'RGTI', 'QUBT', 'AIMD', 'SMCI'
+        }
+        
+        # Classify watchlist symbols
+        large_found = [s for s in watchlist if s in large_cap]
+        mid_found = [s for s in watchlist if s in mid_cap]
+        small_found = [s for s in watchlist if s in small_cap]
+        unknown = [s for s in watchlist if s not in large_cap and s not in mid_cap and s not in small_cap]
+        
+        logger.info("📊 Watchlist Market Cap Breakdown:")
+        logger.info(f"  🏢 Large-Cap ({len(large_found)}): {', '.join(large_found) if large_found else 'None'}")
+        logger.info(f"  🏭 Mid-Cap ({len(mid_found)}): {', '.join(mid_found) if mid_found else 'None'}")
+        logger.info(f"  🏪 Small-Cap ({len(small_found)}): {', '.join(small_found) if small_found else 'None'}")
+        if unknown:
+            logger.info(f"  ❓ Other ({len(unknown)}): {', '.join(unknown)}")
+        
+        # Show top opportunities with scores
+        logger.info("🎯 Top Opportunities:")
+        for i, opp in enumerate(opportunities[:5], 1):
+            symbol = opp['symbol']
+            score = opp['score']
+            grade = self._score_to_grade(score)
+            logger.info(f"  {i}. {symbol:6} | Score: {score:5.1f} ({grade})")
+    
+    def _score_to_grade(self, score: float) -> str:
+        """Convert numeric score to letter grade."""
+        if score >= 90:
+            return "A+"
+        elif score >= 80:
+            return "A"
+        elif score >= 70:
+            return "B+"
+        elif score >= 60:
+            return "B"
+        elif score >= 50:
+            return "C"
+        else:
+            return "D"
+    
+    def _check_trade_limits(self, symbol: str) -> bool:
+        """
+        Check if we can place another trade based on frequency limits.
+        Returns True if trade is allowed, False if limit reached.
+        """
+        from datetime import date
+        
+        # Reset counters at start of new trading day
+        today = date.today()
+        if self.last_reset_date != today:
+            self.daily_trade_count = 0
+            self.symbol_trade_counts = {}
+            self.last_reset_date = today
+            logger.info(f"📅 New trading day: {today} - Trade counters reset")
+        
+        # Check daily trade limit
+        if self.daily_trade_count >= settings.max_trades_per_day:
+            logger.warning(
+                f"⛔ Daily trade limit reached: {self.daily_trade_count}/{settings.max_trades_per_day}"
+            )
+            return False
+        
+        # Check per-symbol trade limit
+        symbol_count = self.symbol_trade_counts.get(symbol, 0)
+        if symbol_count >= settings.max_trades_per_symbol_per_day:
+            logger.warning(
+                f"⛔ Symbol trade limit reached for {symbol}: "
+                f"{symbol_count}/{settings.max_trades_per_symbol_per_day}"
+            )
+            return False
+        
+        return True
+    
+    def _increment_trade_count(self, symbol: str):
+        """Increment trade counters after successful order submission."""
+        self.daily_trade_count += 1
+        self.symbol_trade_counts[symbol] = self.symbol_trade_counts.get(symbol, 0) + 1
+        
+        logger.info(
+            f"📊 Trade count updated: {self.daily_trade_count}/{settings.max_trades_per_day} daily, "
+            f"{self.symbol_trade_counts[symbol]}/{settings.max_trades_per_symbol_per_day} for {symbol}"
+        )
 
 
 # Global engine instance
