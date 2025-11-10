@@ -75,6 +75,11 @@ class TradingEngine:
         self.scanner_interval_hours = getattr(settings, 'scanner_interval_hours', 1)
         logger.info(f"Opportunity scanner initialized (dynamic watchlist: {self.use_dynamic_watchlist})")
         
+        # Initialize symbol cooldown manager (Sprint 6 - prevents overtrading)
+        from trading.symbol_cooldown import SymbolCooldownManager
+        self.cooldown_manager = SymbolCooldownManager(supabase_client)
+        logger.info("✓ Symbol cooldown manager initialized")
+        
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
         
@@ -231,6 +236,12 @@ class TradingEngine:
                         
                         if signal:
                             logger.info(f"📈 Signal detected: {signal.upper()} {symbol}")
+                            
+                            # Check symbol cooldown FIRST (prevents overtrading after losses)
+                            is_allowed, cooldown_reason = self.cooldown_manager.is_symbol_allowed(symbol)
+                            if not is_allowed:
+                                logger.warning(f"🚫 {symbol} blocked: {cooldown_reason}")
+                                continue
                             
                             # Check trade frequency limits BEFORE executing
                             if not self._check_trade_limits(symbol):

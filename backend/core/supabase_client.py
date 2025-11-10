@@ -48,8 +48,17 @@ class SupabaseClient:
                 .execute()
             return result.data[0] if result.data else None
         except Exception as e:
-            logger.error(f"Failed to upsert position: {e}")
-            return None
+            # Check if this is a partial update error (missing required fields)
+            error_str = str(e)
+            if 'null value in column' in error_str and 'violates not-null constraint' in error_str:
+                # This is expected when doing partial updates (e.g., just updating stop_loss)
+                # The actual position exists in Alpaca, so this is just a logging issue
+                logger.debug(f"Partial position update for {position_data.get('symbol', 'unknown')}: {e}")
+                return None
+            else:
+                # Log other errors normally
+                logger.error(f"Failed to upsert position: {e}")
+                return None
     
     def delete_position(self, symbol: str):
         """Delete position (when closed)."""

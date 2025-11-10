@@ -256,6 +256,9 @@ async def lifespan(app: FastAPI):
         )
         set_trading_engine(engine)
         
+        # Inject cooldown manager into position manager (Sprint 6)
+        position_manager.cooldown_manager = engine.cooldown_manager
+        
         # Set trading engine reference in action executor
         if action_executor:
             action_executor._engine = engine
@@ -1620,6 +1623,101 @@ def transform_portfolio_to_ohlc(
         })
     
     return result
+
+
+# API v1 Routes (for frontend compatibility)
+@app.get("/api/v1/portfolio")
+async def get_portfolio_v1():
+    """Get portfolio/account information (v1 API)."""
+    try:
+        account = alpaca_client.get_account()
+        positions = trading_state.get_all_positions()
+        metrics = trading_state.get_metrics()
+        
+        return {
+            "account": {
+                "equity": float(account.equity),
+                "cash": float(account.cash),
+                "buying_power": float(account.buying_power),
+                "portfolio_value": float(account.portfolio_value),
+                "last_equity": float(account.last_equity),
+                "currency": account.currency
+            },
+            "metrics": {
+                "equity": metrics.equity,
+                "cash": metrics.cash,
+                "buying_power": metrics.buying_power,
+                "daily_pl": metrics.daily_pl,
+                "daily_pl_pct": metrics.daily_pl_pct,
+                "total_pl": metrics.total_pl,
+                "win_rate": metrics.win_rate,
+                "profit_factor": metrics.profit_factor,
+                "wins": metrics.wins,
+                "losses": metrics.losses,
+                "total_trades": metrics.total_trades,
+                "open_positions": metrics.open_positions,
+                "max_positions": metrics.max_positions
+            },
+            "positions": [
+                {
+                    "symbol": p.symbol,
+                    "qty": p.qty,
+                    "side": p.side,
+                    "avg_entry_price": p.avg_entry_price,
+                    "current_price": p.current_price,
+                    "unrealized_pl": p.unrealized_pl,
+                    "unrealized_pl_pct": p.unrealized_pl_pct,
+                    "market_value": p.market_value,
+                    "stop_loss": p.stop_loss,
+                    "take_profit": p.take_profit
+                }
+                for p in positions
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get portfolio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/positions")
+async def get_positions_v1():
+    """Get all positions (v1 API)."""
+    positions = trading_state.get_all_positions()
+    return [
+        {
+            "symbol": p.symbol,
+            "qty": p.qty,
+            "side": p.side,
+            "avg_entry_price": p.avg_entry_price,
+            "current_price": p.current_price,
+            "unrealized_pl": p.unrealized_pl,
+            "unrealized_pl_pct": p.unrealized_pl_pct,
+            "market_value": p.market_value,
+            "stop_loss": p.stop_loss,
+            "take_profit": p.take_profit
+        }
+        for p in positions
+    ]
+
+
+@app.get("/api/v1/orders")
+async def get_orders_v1():
+    """Get all orders (v1 API)."""
+    orders = trading_state.get_all_orders()
+    return [
+        {
+            "order_id": o.order_id,
+            "symbol": o.symbol,
+            "qty": o.qty,
+            "side": o.side,
+            "type": o.type,
+            "status": o.status,
+            "filled_qty": o.filled_qty,
+            "filled_avg_price": o.filled_avg_price,
+            "submitted_at": o.submitted_at.isoformat() if o.submitted_at else None
+        }
+        for o in orders
+    ]
 
 
 if __name__ == "__main__":

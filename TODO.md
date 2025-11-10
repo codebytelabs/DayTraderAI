@@ -1,1046 +1,656 @@
-# DayTraderAI - Enhancement Roadmap 🚀
+# DayTraderAI - Profit Maximization Roadmap 🚀
 
-> **🚀 NEW?** [START HERE](START_HERE.md) for quick overview and next steps!
+> **🚀 NEW?** [START HERE](START_HERE.md) | [README](README.md) | [Guide for Dummies](GuideForDummies.md)
 
-## 🎯 MISSION: Transform into Greatest Money Printer Ever!
-**Target**: 5-10x performance improvement (60-120% monthly returns)
+## 📊 QUICK STATUS (Nov 10, 2025)
 
-**📊 Progress**: 55/105 SP complete (52%) | [Sprints 1-3 Complete](SPRINTS_1_2_3_COMPLETE.md) | [Session Summary](SESSION_COMPLETE_NOV6.md) | [Sprint Progress](SPRINTS_TODO.md)
+**🎉 TODAY'S WINS:**
+- ✅ Sprint 5 Day 2: Trailing stops active (2 positions)
+- ✅ Sprint 6 Day 1: Partial profits shadow mode ready
+- ✅ **Symbol Cooldown System: Prevents overtrading after losses** ✨ NEW
+- ✅ Enhanced short filters (sentiment + RSI + volume + EMA)
+- ✅ ATR-based adaptive stops (volatility-aware)
+- ✅ Fear & Greed Index working (21/100 fear)
+
+**📋 TOMORROW'S TASKS:**
+1. Monitor Sprint 5 Day 2 performance
+2. Monitor Sprint 6 Day 1 shadow predictions
+3. Review results, proceed to Day 3 if successful
+
+**🚀 ACTIVE FEATURES:**
+- Trailing Stops: 2 positions (Day 2 limited test)
+- Partial Profits: Shadow mode (Day 1 testing)
+- Fear & Greed: Live data (21/100 fear)
+- Adaptive Stops: ATR-based volatility adjustment
+
+**📈 READY TO DEPLOY:**
+```bash
+pm2 restart backend  # Sprint 6 integrated, safe to restart
+```
 
 ---
 
-## ✅ COMPLETED
+## 🎯 MISSION: Maximize Profits & Validate System
+**Goal**: Activate existing features + build backtesting to prove profitability
 
-### Core System
-- [x] Basic EMA crossover strategy
+**Current Status**: System is sophisticated and actively being optimized
+
+**⚠️ IMPORTANT**: Follow the [Safe Deployment Process](#-safe-deployment-process) for every sprint to avoid breaking production!
+
+---
+
+## ✅ COMPLETED - What We Have
+
+### Core Trading System
+- [x] EMA crossover strategy with multi-indicator confirmation
 - [x] Position sizing with safety limits
 - [x] Bracket orders (stop loss + take profit)
 - [x] Risk management and circuit breakers
 - [x] Real-time streaming
 - [x] AI copilot integration
-- [x] Database schema fixes
-- [x] Comprehensive documentation
+- [x] Comprehensive database schema
 
-### Phase 1: Foundation Indicators ✅ COMPLETE
+### Advanced Features
 - [x] VWAP, RSI, MACD, ADX indicators
-- [x] Multi-indicator confirmation
-- [x] Volume confirmation filters
 - [x] Market regime detection
 - [x] Dynamic confidence scoring
-- [x] Enhanced signal logging
-
-### Phase 2: Dynamic Watchlist ✅ COMPLETE
 - [x] AI-powered stock selection (Perplexity)
-- [x] 150+ stock universe
-- [x] 110-point scoring system
-- [x] Hourly watchlist updates
-- [x] Scanner API endpoints
+- [x] 150+ stock universe with 110-point scoring
+- [x] Bidirectional trading (long + short)
+- [x] ML shadow mode infrastructure (0% weight)
+- [x] **Trailing stops (ACTIVE - 2 positions)** ✨ NEW
+- [x] **Partial profit taking (SHADOW MODE)** ✨ NEW
+- [x] Breakeven manager (not activated)
 
-### Phase 2.5: Bidirectional Trading ✅ COMPLETE
-- [x] Separate LONG and SHORT opportunity lists
-- [x] AI finds 20 longs + 20 shorts
-- [x] Market-neutral capability
-- [x] 40 opportunities instead of 20
-
----
-
-## ⚡ QUICK WINS - IMPLEMENT NOW (Today) ✅ COMPLETE
-**Goal**: Immediate improvements to handle narrow market days
-**Expected Impact**: +10-15% performance, avoid bad days like Nov 6
-
-### Market Regime Detection ✅
-- [x] Add market breadth indicators (advance/decline ratio)
-- [x] Detect narrow vs broad market days
-- [x] Reduce position size on narrow days (50% reduction)
-- [x] Skip trading when breadth < threshold
-
-### Volatility Filters ✅
-- [x] Calculate average volume for each symbol
-- [x] Only trade when volume > 1.5x average
-- [x] Skip low-volatility setups (ADX < 20)
-- [x] Add VIX-based position sizing
-
-### Adaptive Position Sizing ✅
-- [x] Reduce size by 50% on narrow market days
-- [x] Increase size by 25% on strong breadth days
-- [x] Dynamic risk adjustment (0.5-1.5% based on conditions)
-
-**Implementation Complete:**
-- Market regime detector integrated into risk manager
-- Position sizing now adapts: 0.5x (choppy) → 1.5x (broad bullish/bearish)
-- Volatility filters: ADX >= 20, volume >= 1.5x average required
-- Breadth-based trading decisions (skip choppy markets)
-
-**Expected Impact:**
-- Today's -1.26% would have been -0.3% to +0.5%
-- Better stock selection on difficult days
-- Avoid overtrading in poor conditions
+### Recent Enhancements (Nov 10-11, 2025)
+- [x] **Symbol Cooldown System** - Prevents overtrading after consecutive losses ✨ NEW
+- [x] **ATR-based adaptive stops** - Volatility-aware stop losses
+- [x] **Enhanced short filters** - Sentiment, RSI, volume, EMA confirmation
+- [x] **Fear & Greed Index** - Real-time market sentiment (21/100 fear)
+- [x] **Trailing stops system** - Protects profits at +2R (2 positions active)
+- [x] **Partial profit system** - Takes 50% at +1R (shadow mode testing)
 
 ---
 
-## 🎯 ADAPTIVE RISK MANAGEMENT - IMPLEMENT NOW (Nov 6 Evening) 🔥 NEW!
-**Goal**: Replace binary blocking with graduated scaling (professional algo trading best practice)
-**Expected Impact**: +15-25% more opportunities captured, better capital utilization
-**Research**: Based on Perplexity research into professional algorithmic trading practices
+## 🔥 SPRINT 5: ACTIVATE TRAILING STOPS (1 Day)
+**Goal**: Protect profits on winning trades
+**Impact**: +5-10% profit improvement
+**Status**: ✅ DAY 2 COMPLETE - Limited Test Active
 
-### Critical: Remove Binary Blocking ✅
-- [x] Remove choppy market hard block (should_trade check)
-- [x] Let 0.5x position multiplier work as intended
-- [x] Trade in all regimes with appropriate sizing
+### Implementation Plan
+**Follow [Safe Deployment Process](#-safe-deployment-process) below!**
 
-### Important: Adaptive Volume Threshold ✅
-- [x] Make volume threshold regime-aware
-  - Normal/trending: 1.5x (current)
-  - Choppy: 1.0x (relaxed since position already 0.5x)
-  - High volatility: 1.2x
-- [x] Prevent missing opportunities in lower-volume periods
+**Day 1 - Shadow Mode:** ✅ COMPLETE
+- [x] Add `TRAILING_STOPS_ENABLED=false` to `.env`
+- [x] Integrate `backend/trading/trailing_stops.py` into position monitor
+- [x] Add shadow logging (log what WOULD happen)
+- [x] Run full trading day, review logs
+- [x] All tests passed
 
-### Optional: Adaptive ADX Threshold
-- [ ] Make ADX requirement stricter in choppy markets (25 instead of 20)
-- [ ] Lower priority - can implement later
+**Day 2 - Limited Test:** ✅ COMPLETE - ACTIVE NOW
+- [x] Set `TRAILING_STOPS_ENABLED=true`
+- [x] Add `MAX_TRAILING_STOP_POSITIONS=2`
+- [x] Monitor 2 positions closely
+- [x] All tests passed (4/4)
+- [x] System healthy and working
 
-**Key Insight from Research:**
-- Professional systems use **graduated scaling**, not binary on/off switches
-- "Dynamic position sizing that scales with market conditions is generally superior to outright trade blocking"
-- 1.5x volume threshold is "moderately restrictive" and should be adaptive
-- Tiered filtering > hard kill-switches
+**Day 3 - Full Rollout:** 📋 PENDING DAY 2 RESULTS
+- [ ] Review Day 2 performance
+- [ ] If successful, set `MAX_TRAILING_STOP_POSITIONS=999`
+- [ ] Monitor all positions
+- [ ] Track profit improvement
 
-**Implementation Changes:**
-1. `backend/indicators/market_regime.py`:
-   - Remove `should_trade` flag (always return True)
-   - Keep position_size_multiplier (0.5x-1.5x)
-   
-2. `backend/trading/risk_manager.py`:
-   - Remove choppy market blocking check
-   - Make volume threshold adaptive based on regime
-   - Let multiplier do its job
+### Technical Tasks
+- [x] Integrate trailing stops after +2R profit
+- [x] Use ATR-based trailing distance
+- [x] Add feature flag and health checks
+- [x] Create rollback plan
+- [x] Position limit enforcement
+- [x] Live mode validation
 
-**Expected Impact:**
-- Capture 15-25% more opportunities (currently blocked)
-- Maintain capital protection through smaller positions
-- Better performance in choppy markets
-- Align with professional algo trading practices
-
-**Status**: ✅ COMPLETE (Nov 6, 2025 Evening)
-
----
-
-## 🔥 HIGH PRIORITY - NEXT 2 WEEKS
-
-### ✅ SPRINT 1: ML Foundation + Position Management (21 SP) - COMPLETE!
-**Status**: ✅ COMPLETE (Nov 6, 2025)
-**Goal**: Build ML infrastructure and basic position management
-**Impact**: Foundation for self-improving AI
-
-**Completed:**
-- [x] Install ML packages (xgboost, lightgbm, river, shap, optuna, mlflow, scikit-learn)
-- [x] Create ML database tables (ml_models, ml_predictions, ml_performance, ml_trade_features, position_exits)
-- [x] Build data collection pipeline (feature extraction, trade tracking)
-- [x] Implement feature engineering (20+ features: technical, market, timing)
-- [x] Train initial XGBoost model (binary classification + regression)
-- [x] Validate with walk-forward backtesting
-- [x] Implement early exit system (volume, time, momentum)
-- [x] Implement breakeven stops (move to breakeven after +1R)
-- [x] Performance tracking for exits
-
-**Deliverables:**
-- ✅ `backend/ml/` module complete (~1,700 lines)
-- ✅ `backend/trading/breakeven_manager.py` + `exit_monitor.py`
-- ✅ Database migrations ready
-- ✅ Test suite complete
-- ✅ Documentation: SPRINT1_COMPLETE.md
-
----
-
-### ✅ SPRINT 2: Daily Reports + Analysis (13 SP) - COMPLETE!
-**Status**: ✅ COMPLETE (Nov 6, 2025)
-**Goal**: Automated analysis and intelligent insights
-**Impact**: Better insights + faster improvement
-
-**Completed:**
-- [x] Create `backend/analysis/` module
-- [x] Daily report generator (8 sections)
-- [x] Trade analyzer with A-F grading
-- [x] Pattern detector (5 types: streaks, time, symbols, regimes, entry/exit)
-- [x] Recommendation engine (position sizing, stops, entries, risk)
-- [x] API endpoints (6 endpoints)
-- [x] AI-enhanced analysis ready (Perplexity integration hooks)
-
-**Deliverables:**
-- ✅ `backend/analysis/` module complete (~2,500 lines)
-- ✅ `backend/api/report_routes.py`
-- ✅ Test suite complete
-- ✅ Documentation: SPRINT2_COMPLETE.md
-
----
-
-### ✅ SPRINT 3: Adaptive Parameters (21 SP) - COMPLETE!
-**Status**: ✅ COMPLETE (Nov 6, 2025)
-**Goal**: Self-optimizing parameter system
-**Impact**: Parameters adapt automatically based on performance
-
-**Completed:**
-- [x] Parameter optimizer (orchestrates all adjustments)
-- [x] Stop loss adjuster (dynamic 0.5-3.0%)
-- [x] Take profit adjuster (dynamic 1.0-5.0%)
-- [x] Position sizer (dynamic 0.5-5.0%)
-- [x] Entry refiner (RSI, ADX, Volume adjustments)
-- [x] Recommendation application from daily reports
-- [x] Parameter validation and bounds checking
-- [x] Parameter history tracking
-- [x] API endpoints (6 endpoints)
-
-**Deliverables:**
-- ✅ `backend/adaptive/` module complete (~1,400 lines)
-- ✅ `backend/api/adaptive_routes.py`
-- ✅ Test suite complete
-- ✅ Documentation: SPRINT3_COMPLETE.md
-
----
-
-### 🚀 SPRINT 4: ML Shadow Mode + Profit Protection (18 SP) - IN PROGRESS!
-**Status**: 🔄 STARTING NOW (Nov 6, 2025)
-**Goal**: Integrate ML into trading engine + advanced profit protection
-**Impact**: ML starts learning + better profit capture
-**ML Weight**: 0% (shadow mode - no trading impact yet)
-
-**Sprint 4 Tasks:**
-
-**ML Shadow Mode (10 SP):**
-- [ ] Integrate ML predictor into trading engine
-  - [ ] Add prediction call to strategy evaluation
-  - [ ] Log predictions for every signal
-  - [ ] Store: symbol, features, ML prediction, actual outcome
-  - [ ] Ensure zero trading impact (shadow only)
-- [ ] Build monitoring dashboard
-  - [ ] Real-time prediction tracking
-  - [ ] Accuracy metrics (rolling 30-day)
-  - [ ] Confidence distribution
-  - [ ] Feature importance
-  - [ ] Prediction latency
-- [ ] Collect shadow predictions (minimum 50)
-  - [ ] Track: existing signal, ML signal, blended signal (not used yet)
-  - [ ] Include both wins and losses
-  - [ ] Cover different market regimes
-- [ ] Validate ML accuracy on live data (>55% target)
-  - [ ] Compare ML predictions to actual trade results
-  - [ ] Calculate accuracy, precision, recall
-  - [ ] Measure calibration
-  - [ ] Identify where ML excels and fails
-
-**Profit Protection (8 SP):**
-- [x] Breakeven stops (already done in Sprint 1!)
-- [ ] Trailing stops (activate after +2R profit)
-  - [ ] ATR-based trailing distance
-  - [ ] Dynamic adjustment based on volatility
-  - [ ] Respect support/resistance levels
-- [ ] Partial profit taking (scale out 50% at +2R)
-  - [ ] Take 50% profit at +2R
-  - [ ] Let remaining 50% run with trailing stop
-  - [ ] Track performance improvement
-- [ ] Performance tracking for profit protection
-  - [ ] Measure profit capture improvement
-  - [ ] Track trailing stop effectiveness
-  - [ ] Compare to baseline (no profit protection)
+**Why This First:**
+- Code already exists!
+- Easiest win
+- Immediate profit protection
+- Low risk with feature flag
 
 **Success Criteria:**
-- [ ] ML predictions available for 95%+ of signals
-- [ ] Prediction latency < 50ms
-- [ ] ML accuracy > 55% on live data
-- [ ] Profit protection: 10-15% better profit capture
-- [ ] No system disruption
+- [x] Trailing stops activate on profitable positions
+- [x] Stops trail price movement correctly
+- [x] Position limit enforced (2 positions)
+- [x] No system errors or unexpected closes
+- [ ] Locks in profits when price reverses (monitoring)
+- [ ] Performance improvement measured (end of Day 2)
 
-**Expected Impact:**
-- ML starts learning from real trades
-- 10-15% better profit capture
-- Foundation for ML pilot mode (Sprint 5)
+**Documentation:**
+- See `docs/sprints/SPRINT5_DAY1_COMPLETE.md`
+- See `docs/sprints/SPRINT5_DAY2_COMPLETE.md`
 
-**Deliverables:**
-- `backend/ml/shadow_mode.py` - ML integration
-- `backend/trading/trailing_stops.py` - Trailing stop system
-- `backend/trading/profit_taker.py` - Partial profit system
-- `backend/api/ml_routes.py` - ML monitoring endpoints
-- Test suite
-- Documentation: SPRINT4_COMPLETE.md
+**Current Status**: Active with 2 position limit, monitoring for Day 3 full rollout
 
 ---
 
-### 🤖 ML Learning System - Phase 1 (Week 1-2) ✅ COMPLETE
-**Goal**: Build self-improving AI that learns from every trade
-**Expected Impact**: +20-30% performance improvement
-**Integration Strategy**: Gradual weight blending (0% → 70% over 8-12 weeks)
+## 🔥 SPRINT 6: PARTIAL PROFIT TAKING (1 Day)
+**Goal**: Lock in gains early, let winners run
+**Impact**: +10-15% win rate improvement (40% → 55%)
+**Status**: ✅ DAY 1 COMPLETE - Shadow Mode Active
 
-**Week 1: Foundation** ✅
-- [x] Install ML packages (xgboost, lightgbm, river, shap, optuna, mlflow, scikit-learn)
-- [x] Create ML database tables
-  - [ ] `ml_trade_features` - Feature vectors for each trade
-  - [ ] `ml_models` - Model metadata and versions
-  - [ ] `ml_predictions` - Predictions and outcomes
-  - [ ] `ml_performance` - Model performance metrics
-  - [ ] `ml_weights` - Weight progression tracking
-- [ ] Build data collection pipeline
-  - [ ] Collect entry features (price, indicators, regime, etc.)
-  - [ ] Collect outcome data (P/L, hold time, exit reason)
-  - [ ] Store in structured format for training
-- [ ] Implement feature engineering module
-  - [ ] Technical features (EMA, RSI, MACD, ADX, VWAP)
-  - [ ] Market features (regime, breadth, volatility)
-  - [ ] Timing features (time of day, day of week)
-  - [ ] Historical features (recent performance, streak)
-- [ ] Collect 100+ historical trades for training
+### Implementation Plan
+**Follow [Safe Deployment Process](#-safe-deployment-process) below!**
 
-**Week 2: Model Training & Validation**
-- [ ] Train initial XGBoost model (trade success prediction)
-  - [ ] Binary classification: WIN (>0.5% profit) vs LOSS
-  - [ ] Regression: Predict expected P/L percentage
-  - [ ] Multi-class: Predict outcome category (big win, small win, small loss, big loss)
-- [ ] Validate with walk-forward backtesting
-  - [ ] Split data: 70% train, 15% validation, 15% test
-  - [ ] Walk-forward: Train on past, test on future
-  - [ ] Ensure no data leakage
-- [ ] Achieve >55% accuracy on out-of-sample data
-  - [ ] Binary accuracy: >55% (baseline: 50%)
-  - [ ] Sharpe ratio: >1.5 (baseline: 1.3)
-  - [ ] Profit factor: >1.5 (baseline: 1.3)
-- [ ] Document model performance
-  - [ ] Feature importance analysis
-  - [ ] Confusion matrix
-  - [ ] ROC curve and AUC
-  - [ ] Calibration plot
-- [ ] Prepare for shadow mode deployment
-  - [ ] Create prediction API
-  - [ ] Implement logging system
-  - [ ] Build monitoring dashboard
+**Day 1 - Shadow Mode:** ✅ COMPLETE
+- [x] Add `PARTIAL_PROFITS_ENABLED=false` to `.env`
+- [x] Integrate `backend/trading/profit_taker.py`
+- [x] Log what WOULD be sold at +1R
+- [x] Validate logic on live positions
+- [x] All tests pass (12/12)
+- [x] Documentation complete
 
-**Deliverables:**
-- `backend/ml/` module with all ML code
-  - `data_collector.py` - Collect trade data
-  - `feature_engineer.py` - Engineer ML features
-  - `model_trainer.py` - Train models
-  - `predictor.py` - Make predictions
-  - `evaluator.py` - Evaluate performance
-  - `weight_manager.py` - Manage ML weight progression
-- Trained model achieving >55% accuracy
-- Backtest report showing 10%+ improvement potential
-- ML integration strategy document (see ML_INTEGRATION_STRATEGY.md)
+**Day 2 - Dynamic Regime Multipliers:** ✅ COMPLETE
+- [x] Research optimal choppy regime handling
+- [x] Implement VIX-based dynamic multipliers (0.25x-0.75x)
+- [x] Test all VIX scenarios (8/8 passing)
+- [x] Document changes and rationale
+- [x] Fix VIX vs Fear & Greed confusion
+- [x] Create real VIX fetcher
+- [x] Clarify log messages
 
----
+**Day 3 - Limited Test:** 📋 NEXT
+- [ ] Set `PARTIAL_PROFITS_ENABLED=true`
+- [ ] Set `MAX_PARTIAL_PROFIT_POSITIONS=2`
+- [ ] Monitor 2 positions closely
+- [ ] Track remaining position performance
 
-### 🎯 Intelligent Position Management - Phase 1 (Week 1-2)
-**Goal**: Cut losses early, protect profits, scale into winners
-**Expected Impact**: +15-25% performance improvement
+**Day 3 - Full Rollout:**
+- [ ] Remove position limit if successful
+- [ ] Enable for all positions
+- [ ] Measure win rate improvement
 
-**Week 1: Early Exit & Profit Protection**
-- [ ] Implement early exit system
-  - [ ] Volume monitoring (exit if volume < 50% of entry)
-  - [ ] Time-based exits (exit if no profit after 15 min)
-  - [ ] Momentum reversal detection (MACD crosses against position)
-- [ ] Implement profit protection
-  - [ ] Move stop to breakeven after +1R profit
-  - [ ] Take 50% profit at +1.5R
-  - [ ] Time-based exits (close all at 3:45 PM)
-- [ ] Add position event logging
+### Technical Tasks
+- [x] Sell 50% of position at +1R
+- [x] Let remaining 50% run to +2R with trailing stop
+- [x] Track performance metrics
+- [x] Shadow mode implementation
+- [x] Health check system
+- [x] Position manager integration
+- [ ] Compare to baseline (after Day 2)
 
-**Week 2: Dynamic Stops**
-- [ ] Implement ATR-based stops (volatility-adjusted)
-- [ ] Add VIX-based stop adjustments
-- [ ] Implement technical stops (support/resistance)
-- [ ] Add trailing stops (activate after +2R)
-
-**Deliverables:**
-- `backend/position_management/` module
-- 10-15% reduction in average loss size
-- 5-10% improvement in profit capture
-
----
-
-### 🐛 Technical Debt & Bug Fixes (Week 1) ✅ COMPLETE
-**Goal**: Fix critical issues affecting reliability
-
-**Critical:**
-- [x] Fix position sync issues (NVDA, WDC "position not found" errors)
-- [x] Improve order cooldown system (prevent duplicate orders)
-- [x] Fix equity calculation fluctuations causing order rejections
-
-**Important:**
-- [x] Add comprehensive error handling for bracket orders
-- [x] Improve logging for position lifecycle
-- [x] Add health check for position sync
-
-**Implementation Complete:**
-- Position sync enhanced with automatic cleanup for orphaned positions
-- Error handling detects "position not found" and cleans up local state
-- Position syncing every 60 seconds to catch bracket order closes
-- Comprehensive logging for position lifecycle events
-
----
-
-## 📊 MEDIUM PRIORITY - NEXT MONTH
-
-### 📊 Daily Report System (Week 3) 🆕
-**Goal**: Automated post-trade analysis and continuous learning
-**Expected Impact**: 10x faster improvement, better ML training data
-
-**Implementation:**
-- [ ] Create `backend/analysis/` module
-  - [ ] `daily_report.py` - Main report generator
-  - [ ] `trade_analyzer.py` - Individual trade analysis
-  - [ ] `pattern_detector.py` - Identify patterns
-  - [ ] `recommendation_engine.py` - Generate actionable insights
-  - [ ] `ml_feeder.py` - Feed data to ML system
-- [ ] Build report components
-  - [ ] Executive summary (P/L, win rate, Sharpe, grade)
-  - [ ] Trade-by-trade analysis (what went right/wrong)
-  - [ ] Missed opportunities (signals rejected by filters)
-  - [ ] Bad decisions (trades that lost money)
-  - [ ] System performance metrics (signal quality, execution rate)
-  - [ ] Market regime analysis (regime accuracy, performance by regime)
-  - [ ] Recommendations for tomorrow (action items, system tweaks)
-  - [ ] ML training summary (data collected, model updates)
-- [ ] Implement AI-enhanced analysis
-  - [ ] Use Perplexity to analyze each trade
-  - [ ] Generate insights and lessons learned
-  - [ ] Identify patterns and correlations
-  - [ ] Suggest parameter adjustments
-- [ ] Create automated tweaking system
-  - [ ] Detect when filters are too strict/loose
-  - [ ] Suggest parameter adjustments
-  - [ ] A/B test proposed changes
-  - [ ] Measure impact of tweaks
-- [ ] Build report delivery system
-  - [ ] Save reports to database
-  - [ ] Generate PDF/HTML reports
-  - [ ] Email daily summary
-  - [ ] Dashboard visualization
-- [ ] Integrate with ML system
-  - [ ] Feed analyzed trades to ML
-  - [ ] Include contextual information
-  - [ ] Label data quality (high/medium/low confidence)
-  - [ ] Track ML model improvement
-
-**Report Sections:**
-1. Executive Summary (performance overview)
-2. Trade Analysis (detailed breakdown of each trade)
-3. Missed Opportunities (what we didn't trade and why)
-4. System Performance (signal quality, filters, execution)
-5. Market Regime Analysis (regime accuracy, performance)
-6. Recommendations (action items for tomorrow)
-7. ML Training Summary (data collected, model status)
-8. Parameter Suggestions (automated tuning recommendations)
+**Why This Matters:**
+- Reduces stress on winning trades
+- Improves win rate significantly
+- Better risk-adjusted returns
+- Professional trader technique
 
 **Success Criteria:**
-- [ ] Report generated automatically after market close
-- [ ] All trades analyzed with AI insights
-- [ ] Actionable recommendations provided
-- [ ] ML training data quality improved
-- [ ] System improvements measurable
+- [x] Shadow mode working (Day 1)
+- [x] Predictions logged correctly
+- [x] No errors in system
+- [ ] Partial profits taken at +1R (Day 2)
+- [ ] Remaining position managed with trailing stop
+- [ ] Win rate improves by 10%+
+- [ ] Average profit per trade maintained or improved
 
-**Expected Benefits:**
-- Faster learning (daily vs weekly/monthly)
-- Better ML training (high-quality labeled data)
-- Risk management (spot problems early)
-- Confidence building (transparency and understanding)
-- Optimization (data-driven parameter tuning)
+**Documentation:**
+- See `docs/sprints/SPRINT6_DAY1_COMPLETE.md`
+- See `docs/sprints/SPRINT6_OVERVIEW.md`
 
 ---
 
-### 🤖 ML Learning System - Phase 2 (Week 4-5)
-**Goal**: Deploy ML in shadow mode and validate
-**ML Weight**: 0% (no trading impact yet)
+## 🔥 SPRINT 7: BACKTESTING FRAMEWORK (2-3 Days)
+**Goal**: Validate strategy on historical data
+**Impact**: CRITICAL - Proof of profitability
+**Status**: 📋 NEXT
 
-**Week 4: Shadow Mode Deployment**
-- [ ] Integrate ML predictor into trading engine
-  - [ ] Add prediction call to strategy evaluation
-  - [ ] Log predictions for every signal
-  - [ ] Store: symbol, features, ML prediction, actual outcome
-  - [ ] Ensure zero trading impact (shadow only)
-- [ ] Implement prediction logging
-  - [ ] Log to database (ml_predictions table)
-  - [ ] Include: timestamp, symbol, features, prediction, confidence
-  - [ ] Track: existing signal, ML signal, blended signal (not used yet)
-- [ ] Track prediction accuracy vs actual outcomes
-  - [ ] Compare ML predictions to actual trade results
-  - [ ] Calculate accuracy, precision, recall
-  - [ ] Measure calibration (are 70% predictions 70% accurate?)
-  - [ ] Identify where ML excels and where it fails
-- [ ] Build monitoring dashboard
-  - [ ] Real-time prediction tracking
-  - [ ] Accuracy metrics (rolling 30-day)
-  - [ ] Confidence distribution
-  - [ ] Feature importance
-  - [ ] Prediction latency
-- [ ] Collect 50+ shadow predictions
-  - [ ] Minimum 50 predictions for validation
-  - [ ] Target: 100+ for robust analysis
-  - [ ] Include both wins and losses
-  - [ ] Cover different market regimes
+### Implementation Plan
+**Note**: Backtesting is read-only analysis, no deployment risk!
 
-**Week 5: Analysis & Preparation**
-- [ ] Analyze prediction errors
-  - [ ] False positives (predicted win, actual loss)
-  - [ ] False negatives (predicted loss, actual win)
-  - [ ] Identify patterns in errors
-  - [ ] Determine if errors are systematic or random
-- [ ] Tune model hyperparameters
-  - [ ] Use Optuna for hyperparameter optimization
-  - [ ] Optimize for Sharpe ratio (not just accuracy)
-  - [ ] Cross-validate on multiple time periods
-  - [ ] Ensure robustness across market regimes
-- [ ] Prepare A/B testing framework
-  - [ ] Design experiment: ML vs baseline
-  - [ ] Define success metrics
-  - [ ] Set up statistical significance testing
-  - [ ] Create rollback plan
-- [ ] Document shadow mode results
-  - [ ] Accuracy report
-  - [ ] Performance comparison (ML vs baseline)
-  - [ ] Error analysis
-  - [ ] Recommendations for pilot mode
-- [ ] Prepare for pilot mode (10% weight)
-  - [ ] Implement signal blending logic
-  - [ ] Create weight management system
-  - [ ] Set up performance tracking
-  - [ ] Define success criteria for weight increase
+**Day 1 - Build Engine:**
+- [ ] Create `backend/backtesting/` module
+- [ ] Build data loader (6 months historical)
+- [ ] Implement trade simulator
+- [ ] Add metrics calculator
+
+**Day 2 - Run Analysis:**
+- [ ] Run backtest on historical data
+- [ ] Test different confidence thresholds
+- [ ] Generate performance reports
+- [ ] Identify optimal parameters
+
+**Day 3 - Validation:**
+- [ ] Review results with multiple scenarios
+- [ ] Document findings
+- [ ] Create recommendations
+- [ ] Validate strategy profitability
+
+### Technical Tasks
+- [ ] Build backtesting engine
+  - [ ] Load historical data (6 months)
+  - [ ] Replay market conditions
+  - [ ] Simulate trades with strategy
+  - [ ] Track all metrics
+- [ ] Calculate performance metrics
+  - [ ] Win rate
+  - [ ] Profit factor
+  - [ ] Max drawdown
+  - [ ] Sharpe ratio
+  - [ ] Average win/loss
+- [ ] Validate 70% confidence threshold
+  - [ ] Test different thresholds (60%, 65%, 70%, 75%)
+  - [ ] Find optimal threshold
+  - [ ] Measure impact on performance
+- [ ] Generate backtest report
+  - [ ] Performance summary
+  - [ ] Trade-by-trade breakdown
+  - [ ] Equity curve
+  - [ ] Drawdown chart
+  - [ ] Recommendations
+
+**Why This Is Critical:**
+- Can't scale capital without proof
+- Validates strategy actually works
+- Identifies weaknesses
+- Builds confidence
+- Required for any serious trading system
 
 **Success Criteria:**
-- [ ] ML predictions available for 95%+ of signals
-- [ ] Prediction latency < 50ms (real-time requirement)
-- [ ] ML accuracy > 55% on live data
-- [ ] ML-recommended trades show 10%+ better performance than baseline
-- [ ] No system disruption or errors
-- [ ] Confidence calibration within 5% (e.g., 70% predictions are 65-75% accurate)
-
-**Decision Point:**
-```
-If ML performance >= baseline:
-  → Proceed to Phase 3 (Pilot Mode at 10% weight)
-Else:
-  → Retrain model with more data
-  → Repeat Phase 2 shadow mode
-```
+- [ ] Backtest runs on 6 months of data
+- [ ] Win rate > 50%
+- [ ] Profit factor > 1.5
+- [ ] Max drawdown < 15%
+- [ ] Sharpe ratio > 1.0
+- [ ] Strategy validated as profitable
 
 ---
 
-### 🎯 Intelligent Position Management - Phase 2 (Week 3-4)
-**Goal**: Add scale-in system for winners
+## 🚀 SPRINT 8: ACTIVATE ML SHADOW MODE (1 Day)
+**Goal**: Increase ML weight from 0% to 10%
+**Impact**: +5-10% performance improvement
+**Status**: 📋 AFTER BACKTESTING
 
-**Week 3: Scale-In Logic**
-- [ ] Implement scale-in criteria
-  - [ ] Position must be profitable (+0.5R minimum)
-  - [ ] Volume must be increasing (>1.2x entry)
-  - [ ] Momentum must be strong (MACD > signal, RSI > 50)
-  - [ ] Breaking resistance level
-- [ ] Add position sizing for scale-ins
-- [ ] Respect risk limits (max 2x initial size)
+### Implementation Plan
+**Follow [Safe Deployment Process](#-safe-deployment-process) below!**
 
-**Week 4: Testing & Optimization**
-- [ ] Track scale-in performance
-- [ ] Measure additional profit generated
-- [ ] Optimize scale-in thresholds
+**Day 1 - Analysis:**
+- [ ] Review ML shadow mode logs
+- [ ] Calculate prediction accuracy
+- [ ] Analyze where ML excels/fails
+- [ ] Validate ML is ready for 10% weight
+
+**Day 2 - Gradual Activation:**
+- [ ] Set `ML_WEIGHT=0.05` (5% first)
+- [ ] Monitor blended signals for half day
+- [ ] Increase to `ML_WEIGHT=0.10` if stable
+- [ ] Track performance impact
+
+**Day 3 - Monitoring:**
+- [ ] Build ML monitoring dashboard
+- [ ] Track accuracy metrics
+- [ ] Compare ML vs baseline performance
 - [ ] Document results
 
-**Expected Impact:**
-- 20-30% more profit on winning trades
-- Better utilization of high-confidence setups
+### Technical Tasks
+- [ ] Review ML shadow mode performance
+  - [ ] Check prediction accuracy
+  - [ ] Analyze prediction quality
+  - [ ] Identify strengths/weaknesses
+- [ ] Increase ML weight gradually (5% → 10%)
+  - [ ] Update configuration
+  - [ ] Monitor blended signals
+  - [ ] Track performance impact
+- [ ] Build ML monitoring dashboard
+  - [ ] Real-time prediction tracking
+  - [ ] Accuracy metrics
+  - [ ] Confidence distribution
+  - [ ] Performance comparison
 
----
-
-### 🔍 Monitoring & Analytics (Week 3-4)
-**Goal**: Better visibility into system performance
-
-- [ ] Build ML performance dashboard
-- [ ] Add position management analytics
-- [ ] Create daily performance reports
-- [ ] Add real-time alerts for anomalies
-- [ ] Implement drift detection monitoring
-
----
-
-## 🚀 LOW PRIORITY - NEXT QUARTER
-
-### 🤖 ML Learning System - Phase 3 (Week 6-7)
-**Goal**: Enable ML-enhanced trading with gradual weight increase
-**ML Weight**: 10-20% (limited trading impact)
-
-**Week 6: Pilot Mode (10% weight)**
-- [ ] Enable ML signal blending at 10% weight
-  - [ ] Implement blending formula: `blended = (1-0.10) × existing + 0.10 × ml`
-  - [ ] Apply to all signals
-  - [ ] Log: existing confidence, ML confidence, blended confidence
-  - [ ] Track which component influenced decision more
-- [ ] Monitor performance metrics (30-day rolling)
-  - [ ] Win rate: ML-influenced vs baseline
-  - [ ] Sharpe ratio: ML-influenced vs baseline
-  - [ ] Profit factor: ML-influenced vs baseline
-  - [ ] Max drawdown: ML-influenced vs baseline
-  - [ ] Trade frequency: ML-influenced vs baseline
-- [ ] A/B testing framework
-  - [ ] Split trades: 50% with ML (10% weight), 50% without
-  - [ ] Compare performance statistically
-  - [ ] Calculate p-value for significance
-  - [ ] Measure effect size
-- [ ] Performance tracking dashboard
-  - [ ] Real-time ML weight display
-  - [ ] Performance comparison charts
-  - [ ] Trade attribution (ML vs baseline)
-  - [ ] Confidence vs outcome scatter plot
-- [ ] Collect performance data
-  - [ ] Minimum 20 ML-influenced trades
-  - [ ] Track outcomes for 2 weeks
-  - [ ] Measure statistical significance
-
-**Week 7: Weight Increase (20% weight)**
-- [ ] Evaluate 10% weight performance
-  - [ ] Calculate performance metrics
-  - [ ] Compare to baseline
-  - [ ] Determine if increase warranted
-- [ ] Increase ML weight to 20% if successful
-  - [ ] Criteria: ML accuracy > 55% AND ML Sharpe > baseline
-  - [ ] Gradual increase: 10% → 15% → 20%
-  - [ ] Monitor for any degradation
-- [ ] Implement dynamic weight adjustment
-  - [ ] Create `MLWeightManager` class
-  - [ ] Adjust weight based on 30-day performance
-  - [ ] Increase by 5% if outperforming
-  - [ ] Decrease by 5% if underperforming
-  - [ ] Cap at 0-70% (never 100%)
-- [ ] Fine-tune blending algorithm
-  - [ ] Experiment with different blending methods
-  - [ ] Test confidence-weighted blending
-  - [ ] Optimize for Sharpe ratio
-- [ ] Document pilot mode results
-  - [ ] Performance report
-  - [ ] Statistical analysis
-  - [ ] Lessons learned
-  - [ ] Recommendations for expansion
+**Why This Matters:**
+- ML has been learning in shadow mode
+- Could be your competitive advantage
+- Low risk (only 10% weight)
+- Easy to rollback if needed
 
 **Success Criteria:**
-- [ ] ML weight reaches 20%
-- [ ] ML-influenced trades perform >= baseline
-- [ ] No increased drawdown
-- [ ] Sharpe ratio maintained or improved
-- [ ] System stability maintained
-- [ ] Statistical significance achieved (p < 0.05)
-
-**Decision Point:**
-```
-If ML performance >= baseline at 20% weight:
-  → Proceed to Phase 4 (Expansion to 40% weight)
-Else if ML performance >= baseline at 10% weight:
-  → Stay at 10% weight, collect more data
-Else:
-  → Reduce weight to 0%, retrain model
-```
+- [ ] ML weight increased to 10%
+- [ ] Predictions available for 95%+ of signals
+- [ ] No system disruption
+- [ ] Performance tracked and compared
+- [ ] ML accuracy > 55% on live data
 
 ---
 
-### 🤖 ML Learning System - Phase 4 (Week 8-10)
-**Goal**: Expansion and optimization
-**ML Weight**: 20-40% (moderate trading impact)
+## 🎯 SPRINT 9: CORRELATION ANALYSIS (2 Days)
+**Goal**: Avoid overexposure to correlated stocks
+**Impact**: +5-10% risk reduction
+**Status**: 📋 WEEK 2
 
-**Week 8: Weight Expansion (30-40%)**
-- [ ] Increase ML weight to 30-40%
-  - [ ] Gradual increase: 20% → 25% → 30% → 35% → 40%
-  - [ ] Monitor performance at each step
-  - [ ] Pause if any degradation detected
-- [ ] Implement performance-based weight adjustment
-  - [ ] Automatic weight increase if outperforming
-  - [ ] Automatic weight decrease if underperforming
-  - [ ] Weekly weight review and adjustment
-  - [ ] Log all weight changes with reasoning
-- [ ] Enhanced monitoring
-  - [ ] Track performance by weight level
-  - [ ] Identify optimal weight range
-  - [ ] Monitor for overfitting or degradation
-  - [ ] Alert on anomalies
+### Implementation Plan
+**Follow [Safe Deployment Process](#-safe-deployment-process) below!**
 
-**Week 9: Model Optimization**
-- [ ] Hyperparameter optimization with Optuna
-  - [ ] Optimize for Sharpe ratio (not just accuracy)
-  - [ ] Test different model architectures
-  - [ ] Cross-validate across market regimes
-  - [ ] Ensemble multiple models if beneficial
-- [ ] Feature engineering improvements
-  - [ ] Add new features based on insights
-  - [ ] Remove low-importance features
-  - [ ] Test feature interactions
-  - [ ] Optimize feature scaling
-- [ ] Model retraining
-  - [ ] Retrain on all available data
-  - [ ] Include recent trades (continuous learning)
-  - [ ] Validate on holdout set
-  - [ ] Deploy if improved
+**Day 1 - Build & Shadow:**
+- [ ] Create `backend/analysis/correlation_analyzer.py`
+- [ ] Add `CORRELATION_FILTER_ENABLED=false`
+- [ ] Calculate correlations in shadow mode
+- [ ] Log what WOULD be rejected
 
-**Week 10: Continuous Learning System**
-- [ ] Implement online learning (incremental updates)
-  - [ ] Update model with new trades daily
-  - [ ] Use incremental learning algorithms (River)
-  - [ ] Maintain model performance
-  - [ ] Prevent catastrophic forgetting
-- [ ] Add concept drift detection
-  - [ ] Monitor feature distributions
-  - [ ] Detect performance degradation
-  - [ ] Alert when drift detected
-  - [ ] Trigger retraining automatically
-- [ ] Build auto-retraining system
-  - [ ] Schedule: Weekly retraining
-  - [ ] Trigger: Performance degradation or drift
-  - [ ] Validation: Test before deployment
-  - [ ] Rollback: Keep previous model if new one worse
-- [ ] Monitor feature importance changes
-  - [ ] Track feature importance over time
-  - [ ] Detect shifts in what matters
-  - [ ] Adapt to changing market conditions
-  - [ ] Update feature engineering accordingly
+**Day 2 - Limited Test:**
+- [ ] Enable correlation filter
+- [ ] Set conservative limits (max 40% sector)
+- [ ] Monitor trade rejections
+- [ ] Validate diversification improves
+
+**Day 3 - Full Rollout:**
+- [ ] Fine-tune correlation thresholds
+- [ ] Enable for all trades
+- [ ] Track portfolio diversification
+
+### Technical Tasks
+- [ ] Build correlation analyzer
+  - [ ] Calculate correlation matrix for portfolio
+  - [ ] Identify highly correlated positions
+  - [ ] Track sector exposure
+- [ ] Add correlation filters
+  - [ ] Limit correlated positions (max 3 with >0.7 correlation)
+  - [ ] Limit sector exposure (max 40% per sector)
+  - [ ] Diversification scoring
+- [ ] Integrate into position manager
+  - [ ] Check correlation before entry
+  - [ ] Reject trades that increase correlation risk
+  - [ ] Log correlation decisions
+
+**Why This Matters:**
+- Avoid having 5 tech stocks that move together
+- Better diversification
+- Reduced portfolio risk
+- Professional risk management
 
 **Success Criteria:**
-- [ ] ML weight reaches 30-40%
-- [ ] Performance improvement > 10% vs baseline
-- [ ] Consistent outperformance over 30+ days
-- [ ] No major drawdowns
-- [ ] Model drift managed effectively
-- [ ] Automatic retraining working
-
-**Expected Impact at 40% Weight:**
-- Win rate: 50% → 54% (+8%)
-- Sharpe ratio: 1.3 → 1.50 (+15%)
-- Profit factor: 1.3 → 1.60 (+23%)
-- Daily return: 0.5-1.5% → 1.0-2.0%
+- [ ] Correlation calculated for all positions
+- [ ] Sector exposure tracked
+- [ ] Correlation limits enforced
+- [ ] Portfolio more diversified
+- [ ] No missed opportunities due to overly strict filters
 
 ---
 
-### 🎯 Intelligent Position Management - Phase 3 (Week 7-8)
-**Goal**: ML-enhanced position management
-
-- [ ] Train recovery prediction model
-- [ ] Train profit potential model
-- [ ] Train optimal stop distance model
-- [ ] Train scale-in confidence model
-- [ ] Integrate ML predictions into position management
-
-**Expected Impact:**
-- 30-40% reduction in loss size (early exits)
-- 15-20% improvement in profit capture
-- 25-35% overall performance improvement
-
----
-
-## 🔮 FUTURE ENHANCEMENTS - BACKLOG
-
-### Advanced ML Features (Month 3+)
-**Goal**: State-of-the-art ML system
-
-- [ ] Multi-model ensemble (XGBoost + LightGBM + Neural Net)
-- [ ] Market regime detection (trending, ranging, volatile)
-- [ ] Advanced feature engineering (order flow, sentiment)
-- [ ] Reinforcement learning exploration (PPO, A3C)
-- [ ] Portfolio-level optimization
-- [ ] Multi-timeframe analysis
-
----
-
-### Advanced Strategies (Month 3+)
-**Goal**: Multiple strategy system
-
-- [ ] Strategy 1: Momentum Breakout
-- [ ] Strategy 2: VWAP Reversion
-- [ ] Strategy 3: Range Breakout
-- [ ] Strategy 4: News-driven trades
-- [ ] Automatic strategy switching
-- [ ] Multi-timeframe confirmation
-
----
-
-### Scalping Module (Month 4+)
-**Goal**: High-frequency trading
-
-- [ ] Build 1-minute data pipeline
-- [ ] Implement scalping strategy
-- [ ] Add time-of-day filters
-- [ ] Quick entry/exit logic
-- [ ] Separate capital allocation (20%)
-- [ ] Test with high-liquidity stocks
-
----
-
-### Intelligence Layer Enhancements (Ongoing)
-**Goal**: Full AI integration
-
-- [ ] Real-time news monitoring
-- [ ] Pre-market scanner
-- [ ] Earnings calendar integration
-- [ ] Sector rotation detection
-- [ ] Breaking news alerts
-- [ ] Sentiment-based adjustments
-- [ ] Cost optimization (API caching)
-
----
-
-## 🔧 CONFIGURATION ENHANCEMENTS
-
-- [ ] Increase max positions: 20 → 30
-- [ ] Dynamic position sizing: 5-15% based on confidence
-- [ ] Dynamic risk: 0.5-1.5% based on setup quality
-- [ ] Trailing stops implementation
-- [ ] Time-based exits
-- [ ] Performance-based risk adjustment
-
----
-
-## 📈 PERFORMANCE TARGETS
+## � PERFORTMANCE TARGETS
 
 ### Current (Baseline):
-- Trades/day: 5-10
-- Win rate: 45-50%
+- Win rate: 40-45%
 - Avg win: $400
 - Avg loss: $300
 - Profit factor: 1.3
 - Daily return: 0.5-1.5%
-- Monthly return: 10-30%
 
-### After ML + Position Management (6 months):
-- Trades/day: 10-15
-- Win rate: 52-58% (+15%)
-- Avg win: $520 (+30%)
-- Avg loss: $210 (-30%)
+### After Sprints 5-9 (2 weeks):
+- Win rate: 50-55% (+25%)
+- Avg win: $500 (+25%)
+- Avg loss: $250 (-17%)
 - Profit factor: 1.8 (+38%)
-- Daily return: 1.5-3.0%
-- Monthly return: 30-60%
+- Daily return: 1.0-2.5% (+67%)
 
-### After All Enhancements (12 months):
-- Trades/day: 20-40
-- Win rate: 58-65% (+30%)
-- Avg win: $600 (+50%)
-- Avg loss: $180 (-40%)
-- Profit factor: 2.2 (+69%)
-- Daily return: 2-5%
-- Monthly return: 40-100%
+---
+
+## 🛡️ SAFE DEPLOYMENT PROCESS
+
+**CRITICAL**: Follow this process for EVERY sprint to avoid breaking production!
+
+### Phase 1: Shadow Mode (Day 1 of each sprint)
+1. **Add Feature Flag**
+   ```bash
+   # Add to backend/.env
+   FEATURE_NAME_ENABLED=false
+   ```
+
+2. **Deploy with Shadow Logging**
+   - Feature runs but doesn't affect trades
+   - Logs what WOULD happen
+   - Validate logic is correct
+
+3. **Run Full Day**
+   - Monitor logs continuously
+   - Verify expected behavior
+   - Check for errors
+
+### Phase 2: Limited Test (Day 2)
+1. **Enable for Limited Scope**
+   ```bash
+   FEATURE_NAME_ENABLED=true
+   MAX_FEATURE_POSITIONS=2  # Limit impact
+   ```
+
+2. **Monitor Closely**
+   - Watch 1-2 positions with new feature
+   - Compare to baseline performance
+   - Check for unexpected behavior
+
+3. **Validate Metrics**
+   - No increase in errors
+   - No unexpected position closes
+   - Performance meets expectations
+
+### Phase 3: Full Rollout (Day 3)
+1. **Remove Limits** (if Day 2 successful)
+   ```bash
+   FEATURE_NAME_ENABLED=true
+   # Remove MAX_FEATURE_POSITIONS limit
+   ```
+
+2. **Monitor All Positions**
+   - Track performance improvement
+   - Watch for any issues
+   - Keep feature flag for quick disable
+
+### Before Each Sprint Deployment
+
+**Pre-Deployment Checklist:**
+- [ ] Feature flag added to config
+- [ ] Shadow mode implemented and tested
+- [ ] Rollback plan documented
+- [ ] Baseline metrics captured
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Code review completed
+- [ ] Monitoring/alerts added
+
+**Capture Baseline:**
+```bash
+# Run before deploying sprint
+python backend/analyze_today_trading.py > baseline_sprint_X.txt
+python backend/diagnose_trading.py
+python backend/check_ml_status.py
+```
+
+**Git Branch Strategy:**
+```bash
+# Create feature branch
+git checkout -b sprint-X-feature-name
+
+# Make changes, test thoroughly
+# Only merge when validated
+git checkout main
+git merge sprint-X-feature-name
+```
+
+### Non-Breaking Integration Pattern
+
+**Always add features as optional enhancements:**
+
+```python
+# ✅ GOOD - Safe pattern
+def manage_position(position):
+    # Existing logic continues working
+    result = existing_logic(position)
+    
+    # New feature is optional enhancement
+    if FEATURE_ENABLED:
+        try:
+            enhance_with_new_feature(position)
+        except Exception as e:
+            logger.error(f"Feature failed: {e}")
+            # Existing logic unaffected
+    
+    return result
+
+# ❌ BAD - Breaks if feature fails
+def manage_position(position):
+    return new_feature_logic(position)  # Risky!
+```
+
+### Rollback Plan
+
+**If anything goes wrong:**
+1. Set `FEATURE_NAME_ENABLED=false` in `.env`
+2. Restart backend: `pm2 restart backend`
+3. Verify system returns to normal
+4. If needed: `git revert <commit-hash>`
+
+### Red Flags - Disable Immediately If:
+- ❌ Positions closing unexpectedly
+- ❌ Stop losses triggering incorrectly
+- ❌ Order rejections increasing
+- ❌ Error rate spike in logs
+- ❌ Profit per trade decreasing
+- ❌ Any unexpected behavior
+
+### Monitoring Each Sprint
+
+**Add health checks for new features:**
+```python
+def check_feature_health():
+    """Verify feature isn't causing issues"""
+    # Check feature is working as expected
+    # Alert if something looks wrong
+    # Log metrics for comparison
+```
 
 ---
 
 ## 🧪 TESTING REQUIREMENTS
 
-Each phase must pass:
-- [ ] Unit tests (all indicators/strategies)
+Each sprint must pass:
+- [ ] Unit tests
 - [ ] Integration tests
-- [ ] Paper trading (minimum 5 days)
-- [ ] Performance validation
-- [ ] Stability check
+- [ ] Shadow mode validation (1 full day)
+- [ ] Limited rollout test (2 positions)
+- [ ] Performance comparison vs baseline
 - [ ] No increased drawdown
+- [ ] No increase in error rate
 
 ---
 
-## 📊 SUCCESS METRICS
+## 📋 SPRINT SUMMARY
 
-Track for each phase:
-- Win rate improvement
-- Daily return increase
-- Trade frequency
-- Max drawdown
-- Sharpe ratio
-- System stability
+| Sprint | Goal | Days | Impact | Status | Progress |
+|--------|------|------|--------|--------|----------|
+| 5 | Activate Trailing Stops | 3 | +5-10% | � Acative | Day 2/3 (2 positions) |
+| 6 | Partial Profit Taking | 3 | +10-15% | � Testing | Day 1/3 (shadow mode) |
+| 7 | Backtesting Framework | 2-3 | Critical | 📋 Next | Not started |
+| 8 | Activate ML (10%) | 1 | +5-10% | 📋 Week 2 | Not started |
+| 9 | Correlation Analysis | 2 | +5-10% | 📋 Week 2 | Not started |
+
+**Total Timeline**: 7-9 days (2 weeks)  
+**Expected Impact**: +35-55% performance improvement  
+**Current Progress**: 2/5 sprints in progress (on track!)
+
+### Sprint Status Legend:
+- 🟢 Active = Live in production
+- 🟡 Testing = Shadow mode or limited test
+- 📋 Next = Ready to start
+- ✅ Complete = Fully deployed
 
 ---
 
-## 🚀 DEPLOYMENT CHECKLIST
+## 🔮 FUTURE ENHANCEMENTS (Backlog)
 
-Before going live with each phase:
-- [ ] All tests passing
-- [ ] Paper trading successful
-- [ ] Performance meets targets
-- [ ] No critical bugs
-- [ ] Documentation updated
-- [ ] Rollback plan ready
+### Advanced ML (Month 2+)
+- [ ] Increase ML weight to 20-40%
+- [ ] Continuous learning system
+- [ ] Auto-retraining (weekly)
+- [ ] Drift detection
+- [ ] Multi-model ensemble
+
+### Advanced Strategies (Month 3+)
+- [ ] Momentum breakout strategy
+- [ ] VWAP reversion strategy
+- [ ] Range breakout strategy
+- [ ] Multi-timeframe confirmation
+- [ ] Strategy switching
+
+### Scalping Module (Month 4+)
+- [ ] 1-minute data pipeline
+- [ ] High-frequency strategy
+- [ ] Time-of-day filters
+- [ ] Quick entry/exit logic
+
+---
+
+## 📚 KEY DOCUMENTS
+
+### Essential Reading
+- **README.md** - Project overview
+- **START_HERE.md** - Quick start guide
+- **GuideForDummies.md** - Beginner's guide
+- **SYSTEM_ARCHITECTURE.md** - System design
+- **ENHANCEMENT_PROPOSAL_MAXIMIZE_PROFITS.md** - This roadmap's origin
+
+### Archive (docs/archive/)
+- Sprint completion reports
+- Session summaries
+- Historical analysis
+- Implementation guides
+
+### Analysis (docs/analysis/)
+- Trading performance reports
+- System analysis
+- Strategy analysis
 
 ---
 
 ## 💰 EXPECTED ROI
 
 **Investment**:
-- Development: 200-300 hours
-- AI API costs: $150-300/month
-- ML compute: Minimal (runs on current machine)
+- Development: 40-60 hours (2 weeks)
+- No additional costs
 
 **Returns** (on $135k account):
 - Current: $13.5k-40k/month (10-30%)
-- After ML + Position Mgmt: $40k-81k/month (30-60%)
-- After All Enhancements: $54k-135k/month (40-100%)
-- **Additional profit: $26k-95k/month**
+- After optimization: $40k-67k/month (30-50%)
+- **Additional profit: $26k-27k/month**
 
-**ROI: 100-600x monthly**
+**ROI: 100-300x monthly**
 
 ---
 
 ## 🎯 CURRENT FOCUS
 
-**COMPLETED TODAY:**
-1. ✅ Quick Wins - Market Regime Detection & Adaptive Sizing
-2. ✅ Technical Debt - Position Sync Fixes
-3. ✅ Bidirectional Trading - Long/Short Opportunities
-4. ✅ ML Integration Strategy - Gradual weight blending plan
-5. ✅ Daily Report System - Design and specification
+**COMPLETED TODAY (Nov 10, 2025):**
+1. ✅ Sprint 5 Day 2: Trailing Stops Limited Test (2 positions active)
+2. ✅ Sprint 6 Day 1: Partial Profits Shadow Mode (ready for monitoring)
+3. ✅ Enhanced short entry filters (sentiment, RSI, volume, EMA)
+4. ✅ ATR-based adaptive stops (volatility-aware)
+5. ✅ Fear & Greed Index integration (21/100 fear - working)
 
-**NOW (Week 1-2):**
-1. 🤖 ML Learning System - Phase 1 (Foundation) - NEXT PRIORITY
-   - Install packages, create tables, build pipeline
-   - Train initial model (>55% accuracy)
-   - Prepare for shadow mode
-2. 🎯 Intelligent Position Management - Phase 1 (Early Exit & Profit Protection)
-   - Early exit system (volume, time, momentum)
-   - Profit protection (breakeven stops, partial profits)
-   - Dynamic stops (ATR, VIX, technical)
+**TOMORROW (Nov 11, 2025):**
+1. 📊 Monitor Sprint 5 Day 2 (trailing stops on 2 positions)
+2. 📊 Monitor Sprint 6 Day 1 (shadow predictions)
+3. 📋 Review end-of-day results
+4. 🚀 If successful → Sprint 5 Day 3 (full rollout)
+5. 🚀 If successful → Sprint 6 Day 2 (2 positions live)
 
-**NEXT (Week 3):**
-1. 📊 Daily Report System - CRITICAL FOR ML SUCCESS
-   - Automated post-trade analysis
-   - AI-enhanced insights
-   - ML training data quality
-   - Parameter optimization suggestions
+**THIS WEEK:**
+1. ✅ Sprint 5: Activate Trailing Stops (Day 1-2 complete, Day 3 pending)
+2. ✅ Sprint 6: Partial Profit Taking (Day 1 complete, Day 2-3 pending)
+3. 🔥 Sprint 7: Backtesting Framework (2-3 days) - NEXT
 
-**THEN (Week 4-5):**
-1. 🤖 ML Learning System - Phase 2 (Shadow Mode at 0% weight)
-   - Deploy ML in parallel (no trading impact)
-   - Log predictions for 50+ signals
-   - Validate accuracy > 55%
-   - Prepare for pilot mode
+**NEXT WEEK:**
+1. 🚀 Sprint 8: Activate ML Shadow Mode (1 day)
+2. 🎯 Sprint 9: Correlation Analysis (2 days)
 
-**AFTER (Week 6-7):**
-1. 🤖 ML Learning System - Phase 3 (Pilot Mode at 10-20% weight)
-   - Enable ML signal blending
-   - A/B testing framework
-   - Performance-based weight adjustment
-   - Gradual weight increase
+**GOAL**: Maximize profits and validate system in 2 weeks! 🚀
 
-**FINALLY (Week 8-10):**
-1. 🤖 ML Learning System - Phase 4 (Expansion to 40-70% weight)
-   - Continuous learning system
-   - Auto-retraining (weekly)
-   - Drift detection
-   - Optimization
-
-**GOAL**: Self-improving AI that gets better with every trade! 🚀
-
-**TIMELINE**: 10-12 weeks to full ML integration (0% → 70% weight)
+**PROGRESS**: 2/5 sprints in progress, on track! 🎯
 
 ---
 
-## 📋 KEY DOCUMENTS
-
-### Implementation Guides
-- **ML_INTEGRATION_STRATEGY.md** - ML integration strategy (gradual weight blending) 🆕
-- **ML_LEARNING_SYSTEM_PROPOSAL.md** - Complete ML implementation plan
-- **INTELLIGENT_POSITION_MANAGEMENT.md** - Position management strategy (NO DCA!)
-- **BIDIRECTIONAL_TRADING.md** - Long/short opportunity system
-- **AI_OPPORTUNITY_SYSTEM.md** - AI-powered stock discovery
-- **QUICK_WINS_COMPLETE.md** - Market adaptation implementation
-
-### Workflow & Architecture
-- **TYPICAL_TRADING_DAY.md** - Simulated trading day walkthrough 🆕
-- **AI_BIDIRECTIONAL_WORKFLOW.md** - How 20 longs + 20 shorts flow through system 🆕
-- **SYSTEM_ARCHITECTURE.md** - Complete system design
-
-### Progress & Status
-- **TODO_PROGRESS_REPORT.md** - Comprehensive progress tracking
-- **SESSION_SUMMARY_NOV6.md** - Latest session summary
-- **COMPLETION_SUMMARY.md** - Visual completion summary
-
----
-
-## ⚠️ IMPORTANT NOTES
-
-### ML Integration Strategy 🆕
-**✅ Using: Gradual Weight Blending (NOT hard 80% threshold)**
-
-**Why Gradual Blending:**
-- Start at 0% (shadow mode), gradually increase to 70% over 8-12 weeks
-- Performance-based: Weight increases when ML outperforms, decreases when it doesn't
-- Safe: Start small (10%), prove value, then scale
-- Adaptive: Adjusts automatically based on real performance metrics
-- Professional: Used by top trading firms (Renaissance, Two Sigma, etc.)
-
-**Why NOT Hard Threshold:**
-- ❌ Too binary (either 0% or 100% influence)
-- ❌ Too slow (could take 6+ months to reach 80%)
-- ❌ Too risky (sudden switch from 0% to 100%)
-- ❌ Misses value (60-70% confidence predictions still useful)
-
-**Weight Progression:**
-```
-Week 1-2:  0% (shadow mode - no trading impact)
-Week 4-5:  0% (validate accuracy > 55%)
-Week 6-7:  10-20% (pilot mode - limited impact)
-Week 8-10: 20-40% (expansion - moderate impact)
-Month 3+:  40-70% (optimization - major impact)
-```
-
-**Performance-Based Adjustment:**
-```
-Every 30 days:
-  if ML accuracy > 55% and ML Sharpe > baseline:
-      weight += 5%  # Increase trust
-  elif ML accuracy < 50% or ML Sharpe < baseline × 0.9:
-      weight -= 5%  # Decrease trust
-  
-  weight = max(0%, min(70%, weight))  # Cap at 0-70%
-```
-
-**Signal Blending Formula:**
-```python
-blended_confidence = (1 - ml_weight) × existing_confidence + ml_weight × ml_confidence
-
-Example at 30% weight:
-  existing = 75, ml = 85
-  blended = 0.70 × 75 + 0.30 × 85 = 78
-```
-
-**See**: ML_INTEGRATION_STRATEGY.md for complete details
-
----
-
-### Daily Report System 🆕
-**✅ Essential for continuous improvement and ML training**
-
-**Why This Matters:**
-- Analyzes every trade automatically after market close
-- Identifies what went right, what went wrong
-- Generates actionable recommendations
-- Feeds high-quality data to ML system
-- 10x faster improvement vs manual review
-
-**Report Includes:**
-1. Executive Summary (P/L, win rate, Sharpe, grade)
-2. Trade-by-Trade Analysis (detailed breakdown)
-3. Missed Opportunities (signals rejected, why)
-4. System Performance (signal quality, filters)
-5. Market Regime Analysis (regime accuracy)
-6. Recommendations (action items for tomorrow)
-7. ML Training Summary (data collected, model status)
-8. Parameter Suggestions (automated tuning)
-
-**Benefits:**
-- Faster learning (daily vs weekly/monthly)
-- Better ML training (high-quality labeled data)
-- Risk management (spot problems early)
-- Confidence building (transparency)
-- Optimization (data-driven tuning)
-
-**Implementation**: Week 3 (before ML shadow mode)
-
----
-
-### DCA (Dollar Cost Averaging)
-**❌ DO NOT implement traditional DCA for day trading!**
-- Professional traders never average down on losing positions
-- This compounds losses and violates risk management
-- Instead: Use intelligent position management (cut losses early, scale into winners)
-
-### Position Management Philosophy
-✅ **Cut losses early** (before stop-loss if conditions deteriorate)  
-✅ **Protect profits** (breakeven stops, partial profits, trailing)  
-✅ **Scale into winners** (add to profitable positions only)  
-✅ **Use ML** (predict optimal exits and entries)  
-
----
-
-*Last Updated: 2025-11-06*
-*Status: Phase 2 Complete, ML & Position Management Starting*
+*Last Updated: 2025-11-10*
+*Status: Ready to maximize profits!*

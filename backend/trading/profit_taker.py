@@ -1,6 +1,13 @@
 """
-Partial Profit Taking System
+Partial Profit Taking System (Sprint 6)
 Scales out of winning positions to lock in gains
+
+Features:
+- Takes partial profits at +1R (configurable)
+- Lets remaining position run to +2R (configurable)
+- Shadow mode support for safe testing
+- Integrates with trailing stops
+- Tracks performance improvement
 """
 
 import logging
@@ -10,63 +17,101 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-class PartialProfitTaker:
+class ProfitTaker:
     """
-    Manages partial profit taking for open positions
+    Manages partial profit taking for positions
     
     Features:
-    - Takes 50% profit at +2R
-    - Lets remaining 50% run with trailing stop
+    - Takes partial profits at +1R (configurable)
+    - Lets remaining position run to +2R (configurable)
+    - Integrates with trailing stops
+    - Shadow mode support for safe testing
     - Tracks performance improvement
-    - Configurable profit targets
+    
+    Configuration via backend/.env:
+    - PARTIAL_PROFITS_ENABLED: Enable/disable feature
+    - PARTIAL_PROFITS_FIRST_TARGET_R: First profit target in R (default: 1.0R)
+    - PARTIAL_PROFITS_PERCENTAGE: Percentage to sell (default: 0.5 = 50%)
+    - PARTIAL_PROFITS_SECOND_TARGET_R: Second target in R (default: 2.0R)
+    - PARTIAL_PROFITS_USE_TRAILING: Use trailing stops on remaining (default: true)
+    - MAX_PARTIAL_PROFIT_POSITIONS: Limit for gradual rollout (default: 999)
     """
     
-    def __init__(self, supabase_client):
+    def __init__(self, supabase_client, config=None):
         """
-        Initialize partial profit taker
+        Initialize profit taker
         
         Args:
             supabase_client: Supabase database client
+            config: Optional config object (uses settings if None)
         """
         self.supabase = supabase_client
-        self.partial_exits = {}  # symbol -> partial exit data
+        self.partial_profits_taken = {}  # symbol -> partial profit data
         
-        # Configuration
-        self.profit_targets = [
-            {'r_multiple': 2.0, 'percentage': 50},  # Take 50% at +2R
-        ]
+        # Load configuration
+        if config is None:
+            from config import settings
+            config = settings
         
-        logger.info("Partial Profit Taker initialized")
+        self.enabled = config.partial_profits_enabled
+        self.first_target_r = config.partial_profits_first_target_r
+        self.profit_percentage = config.partial_profits_percentage
+        self.second_target_r = config.partial_profits_second_target_r
+        self.use_trailing = config.partial_profits_use_trailing
+        self.max_positions = config.max_partial_profit_positions
+        
+        # Shadow mode tracking
+        self.shadow_mode_active = not self.enabled
+        self.shadow_predictions = []  # Track what would happen in shadow mode
+        
+        status = "ENABLED" if self.enabled else "SHADOW MODE"
+        logger.info(f"🎯 Profit Taker initialized - Status: {status}")
+        logger.info(f"   First target: +{self.first_target_r}R | Percentage: {self.profit_percentage*100:.0f}%")
+        logger.info(f"   Second target: +{self.second_target_r}R | Use trailing: {self.use_trailing}")
+        logger.info(f"   Max positions: {self.max_positions}")
     
-    def should_take_partial_profit(
+    def should_take_partial_profits(
         self,
         symbol: str,
         entry_price: float,
         current_price: float,
         stop_loss: float,
-        side: str,
-        current_quantity: int
-    ) -> Optional[Dict[str, Any]]:
+        side: str
+    ) -> Dict[str, Any]:
         """
-        Check if should take partial profit
+        Check if should take partial profits
         
         Args:
             symbol: Stock symbol
             entry_price: Entry price
             current_price: Current price
             stop_loss: Stop loss price
-            side: Position side ('long' or 'short')
-            current_quantity: Current position quantity
+            side: Position side
             
         Returns:
-            dict: Partial profit action if should take, None otherwise
+            dict: Decision result with shadow mode info
         """
         try:
-            # Skip if already took partial profit
-            if symbol in self.partial_exits:
-                return None
+            # Check position limit (for gradual rollout)
+            if self.enabled and len(self.partial_profits_taken) >= self.max_positions:
+                # Already at max positions, only update existing ones
+                if symbol not in self.partial_profits_taken:
+                    return {
+                        'should_take': False,
+                        'reason': f'Max partial profit positions reached ({self.max_positions})',
+                        'shadow_mode': False,
+                        'at_limit': True
+                    }
             
-            # Calculate R (risk amount)
+            # Skip if already taken partial profits
+            if symbol in self.partial_profits_taken:
+                return {
+                    'should_take': False,
+                    'reason': 'Partial profits already taken',
+                    'shadow_mode': self.shadow_mode_active
+                }
+            
+            # Calculate R (risk per share)
             if side == 'long':
                 r = entry_price - stop_loss
                 profit_r = (current_price - entry_price) / r if r > 0 else 0
@@ -74,151 +119,248 @@ class PartialProfitTaker:
                 r = stop_loss - entry_price
                 profit_r = (entry_price - current_price) / r if r > 0 else 0
             
-            # Check each profit target
-            for target in self.profit_targets:
-                if profit_r >= target['r_multiple']:
-                    # Calculate quantity to sell
-                    quantity_to_sell = int(current_quantity * (target['percentage'] / 100))
+            # Check if target reached
+            if profit_r >= self.first_target_r:
+                profit_amount = abs(current_price - entry_price) * self.profit_percentage
+                
+                # SHADOW MODE: Log what WOULD happen but don't execute
+                if self.shadow_mode_active:
+                    logger.info(
+                        f"[SHADOW] Would take partial profits for {symbol}: +{profit_r:.2f}R "
+                        f"(target: +{self.first_target_r}R, would sell {self.profit_percentage*100:.0f}%)"
+                    )
                     
-                    if quantity_to_sell > 0:
-                        logger.info(
-                            f"Partial profit trigger for {symbol}: "
-                            f"+{profit_r:.2f}R (target: +{target['r_multiple']}R), "
-                            f"selling {target['percentage']}% ({quantity_to_sell} shares)"
-                        )
-                        
-                        return {
-                            'symbol': symbol,
-                            'quantity_to_sell': quantity_to_sell,
-                            'percentage': target['percentage'],
-                            'r_multiple': target['r_multiple'],
-                            'profit_r': profit_r,
-                            'current_price': current_price,
-                            'reason': f'Partial profit at +{target["r_multiple"]}R'
-                        }
+                    # Track shadow prediction
+                    self.shadow_predictions.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'symbol': symbol,
+                        'action': 'partial_profit_taking',
+                        'profit_r': profit_r,
+                        'target_r': self.first_target_r,
+                        'percentage': self.profit_percentage,
+                        'profit_amount': profit_amount,
+                        'side': side
+                    })
+                    
+                    return {
+                        'should_take': False,  # Not actually taking in shadow mode
+                        'shadow_mode': True,
+                        'would_take': True,
+                        'profit_r': profit_r,
+                        'target_r': self.first_target_r,
+                        'percentage': self.profit_percentage,
+                        'profit_amount': profit_amount
+                    }
+                
+                # LIVE MODE: Actually take partial profits
+                logger.info(
+                    f"✓ Partial profit target reached for {symbol}: +{profit_r:.2f}R "
+                    f"(target: +{self.first_target_r}R, selling {self.profit_percentage*100:.0f}%)"
+                )
+                
+                return {
+                    'should_take': True,
+                    'shadow_mode': False,
+                    'profit_r': profit_r,
+                    'target_r': self.first_target_r,
+                    'percentage': self.profit_percentage,
+                    'profit_amount': profit_amount
+                }
             
-            return None
+            return {
+                'should_take': False,
+                'reason': f'Target not reached (+{profit_r:.2f}R < +{self.first_target_r}R)',
+                'shadow_mode': self.shadow_mode_active,
+                'profit_r': profit_r,
+                'target_r': self.first_target_r
+            }
             
         except Exception as e:
-            logger.error(f"Error checking partial profit: {e}")
-            return None
+            logger.error(f"Error checking partial profits for {symbol}: {e}")
+            return {
+                'should_take': False,
+                'error': str(e),
+                'shadow_mode': self.shadow_mode_active
+            }
     
-    def record_partial_exit(
+    def record_partial_profit(
         self,
         symbol: str,
-        quantity_sold: int,
-        exit_price: float,
-        profit: float,
-        r_multiple: float
+        shares_sold: int,
+        price: float,
+        profit_r: float,
+        profit_amount: float
     ):
         """
-        Record partial profit exit
+        Record partial profit taking
         
         Args:
             symbol: Stock symbol
-            quantity_sold: Quantity sold
-            exit_price: Exit price
-            profit: Profit from partial exit
-            r_multiple: R multiple at exit
+            shares_sold: Number of shares sold
+            price: Sale price
+            profit_r: Profit in R
+            profit_amount: Profit amount in dollars
         """
         try:
-            self.partial_exits[symbol] = {
-                'quantity_sold': quantity_sold,
-                'exit_price': exit_price,
-                'profit': profit,
-                'r_multiple': r_multiple,
-                'timestamp': datetime.now().isoformat()
+            self.partial_profits_taken[symbol] = {
+                'timestamp': datetime.now().isoformat(),
+                'shares_sold': shares_sold,
+                'price': price,
+                'profit_r': profit_r,
+                'profit_amount': profit_amount
             }
             
-            # Log to database
-            self.supabase.table('position_exits').insert({
-                'symbol': symbol,
-                'exit_type': 'partial_profit',
-                'quantity': quantity_sold,
-                'exit_price': exit_price,
-                'exit_benefit': profit,
-                'exit_reason': f'Partial profit at +{r_multiple:.2f}R',
-                'created_at': datetime.now().isoformat()
-            }).execute()
-            
-            logger.info(
-                f"Recorded partial exit for {symbol}: "
-                f"{quantity_sold} shares @ ${exit_price:.2f}, "
-                f"profit: ${profit:.2f} (+{r_multiple:.2f}R)"
-            )
+            logger.info(f"📊 Recorded partial profit for {symbol}: {shares_sold} shares @ ${price:.2f} (+{profit_r:.2f}R)")
             
         except Exception as e:
-            logger.error(f"Error recording partial exit: {e}")
+            logger.error(f"Error recording partial profit for {symbol}: {e}")
     
-    def remove_partial_exit(self, symbol: str):
-        """Remove partial exit tracking for closed position"""
-        if symbol in self.partial_exits:
-            del self.partial_exits[symbol]
-            logger.info(f"Removed partial exit tracking for {symbol}")
+    def remove_partial_profit(self, symbol: str):
+        """
+        Remove partial profit tracking for a symbol (when position fully closed)
+        
+        Args:
+            symbol: Stock symbol
+        """
+        if symbol in self.partial_profits_taken:
+            del self.partial_profits_taken[symbol]
+            logger.debug(f"Removed partial profit tracking for {symbol}")
     
-    def get_partial_exit_data(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get partial exit data for symbol"""
-        return self.partial_exits.get(symbol)
+    def get_shadow_mode_report(self) -> Dict[str, Any]:
+        """
+        Get shadow mode predictions report
+        
+        Returns:
+            dict: Shadow mode analysis
+        """
+        if not self.shadow_predictions:
+            return {
+                'shadow_mode': self.shadow_mode_active,
+                'predictions': 0,
+                'message': 'No shadow predictions yet'
+            }
+        
+        total_predictions = len(self.shadow_predictions)
+        
+        # Calculate average profit captured
+        avg_profit_r = sum(p['profit_r'] for p in self.shadow_predictions) / total_predictions
+        avg_profit_amount = sum(p['profit_amount'] for p in self.shadow_predictions) / total_predictions
+        
+        # Group by symbol
+        symbols = {}
+        for pred in self.shadow_predictions:
+            symbol = pred['symbol']
+            if symbol not in symbols:
+                symbols[symbol] = 0
+            symbols[symbol] += 1
+        
+        return {
+            'shadow_mode': True,
+            'total_predictions': total_predictions,
+            'avg_profit_r': round(avg_profit_r, 2),
+            'avg_profit_amount': round(avg_profit_amount, 2),
+            'symbols_tracked': len(symbols),
+            'most_active_symbols': sorted(symbols.items(), key=lambda x: x[1], reverse=True)[:5],
+            'latest_predictions': self.shadow_predictions[-5:]  # Last 5
+        }
     
-    def has_taken_partial_profit(self, symbol: str) -> bool:
-        """Check if partial profit has been taken for symbol"""
-        return symbol in self.partial_exits
+    def check_health(self) -> Dict[str, Any]:
+        """
+        Health check for partial profit system
+        
+        Returns:
+            dict: Health status
+        """
+        try:
+            issues = []
+            warnings = []
+            
+            # Check if enabled but no partial profits taken
+            if self.enabled and len(self.partial_profits_taken) == 0:
+                warnings.append("Partial profits enabled but none taken yet (may be normal if no +1R positions)")
+            
+            # Check shadow mode predictions
+            if self.shadow_mode_active and len(self.shadow_predictions) == 0:
+                warnings.append("Shadow mode active but no predictions logged yet")
+            
+            # Check configuration
+            if self.first_target_r <= 0:
+                issues.append(f"Invalid first target: {self.first_target_r}R")
+            
+            if self.profit_percentage <= 0 or self.profit_percentage >= 1:
+                issues.append(f"Invalid profit percentage: {self.profit_percentage}")
+            
+            if self.second_target_r <= self.first_target_r:
+                issues.append(f"Second target ({self.second_target_r}R) must be > first target ({self.first_target_r}R)")
+            
+            status = "healthy" if not issues else "unhealthy"
+            if warnings and not issues:
+                status = "healthy_with_warnings"
+            
+            return {
+                'status': status,
+                'enabled': self.enabled,
+                'shadow_mode': self.shadow_mode_active,
+                'partial_profits_taken': len(self.partial_profits_taken),
+                'shadow_predictions': len(self.shadow_predictions),
+                'issues': issues,
+                'warnings': warnings,
+                'config': {
+                    'first_target_r': self.first_target_r,
+                    'profit_percentage': self.profit_percentage,
+                    'second_target_r': self.second_target_r,
+                    'use_trailing': self.use_trailing,
+                    'max_positions': self.max_positions
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in health check: {e}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
     
     async def get_performance_metrics(self) -> Dict[str, Any]:
         """
-        Get partial profit performance metrics
+        Get partial profit taking performance metrics
         
         Returns:
             dict: Performance metrics
         """
         try:
-            # Get partial profit exits from database
-            result = self.supabase.table('position_exits').select('*').eq(
+            # Get trades with partial profits from database
+            result = self.supabase.table('trades').select('*').eq(
                 'exit_type', 'partial_profit'
             ).execute()
             
-            partial_exits = result.data if result.data else []
+            partial_trades = result.data if result.data else []
             
-            if not partial_exits:
+            if not partial_trades:
                 return {
-                    'total_partial_exits': 0,
-                    'message': 'No partial profit exits yet'
+                    'total_partial_trades': 0,
+                    'message': 'No partial profit trades yet',
+                    'shadow_mode': self.shadow_mode_active
                 }
             
             # Calculate metrics
-            total_exits = len(partial_exits)
-            total_profit = sum(e.get('exit_benefit', 0) for e in partial_exits)
-            avg_profit = total_profit / total_exits
+            total_trades = len(partial_trades)
+            total_benefit = sum(t.get('profit_amount', 0) for t in partial_trades)
+            avg_benefit = total_benefit / total_trades
             
-            # Calculate improvement
-            # Compare to if we had held full position
-            # (This would require comparing to actual final exit)
+            # Win rate improvement
+            improved_trades = [t for t in partial_trades if t.get('profit_amount', 0) > 0]
+            improvement_rate = (len(improved_trades) / total_trades) * 100
             
             return {
-                'total_partial_exits': total_exits,
-                'total_profit_locked': round(total_profit, 2),
-                'avg_profit_per_exit': round(avg_profit, 2),
-                'active_partial_positions': len(self.partial_exits)
+                'total_partial_trades': total_trades,
+                'total_benefit': round(total_benefit, 2),
+                'avg_benefit': round(avg_benefit, 2),
+                'improvement_rate': round(improvement_rate, 1),
+                'active_partial_positions': len(self.partial_profits_taken),
+                'shadow_mode': self.shadow_mode_active
             }
             
         except Exception as e:
             logger.error(f"Error getting partial profit metrics: {e}")
             return {'error': str(e)}
-    
-    def get_configuration(self) -> Dict[str, Any]:
-        """Get current configuration"""
-        return {
-            'profit_targets': self.profit_targets,
-            'active_partial_exits': len(self.partial_exits)
-        }
-    
-    def update_configuration(self, new_targets: list):
-        """
-        Update profit targets
-        
-        Args:
-            new_targets: List of profit targets
-                Example: [{'r_multiple': 2.0, 'percentage': 50}]
-        """
-        self.profit_targets = new_targets
-        logger.info(f"Updated profit targets: {new_targets}")

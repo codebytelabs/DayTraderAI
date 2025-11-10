@@ -47,13 +47,13 @@ class SentimentAggregator:
             return sentiment
         
         self.source_stats['perplexity']['failures'] += 1
-        logger.warning("⚠️  Perplexity sentiment unavailable, falling back to VIX")
+        logger.warning("⚠️  Perplexity sentiment unavailable, falling back to Fear & Greed Index")
         
-        # Try Tier 2: VIX-based sentiment
-        sentiment = self._get_vix_sentiment()
+        # Try Tier 2: Fear & Greed Index sentiment
+        sentiment = self._get_vix_sentiment()  # Note: Despite name, this fetches Fear & Greed Index
         if sentiment and self._is_valid_sentiment(sentiment):
             self.source_stats['vix']['successes'] += 1
-            logger.info(f"✅ Using VIX sentiment: {sentiment['score']}/100")
+            logger.info(f"✅ Using Fear & Greed Index: {sentiment['score']}/100")
             return sentiment
         
         self.source_stats['vix']['failures'] += 1
@@ -95,59 +95,41 @@ class SentimentAggregator:
             return None
     
     def _get_vix_sentiment(self) -> Optional[Dict]:
-        """Get sentiment from VIX (via Alpaca)."""
+        """
+        Get sentiment from Fear & Greed Index (replacing VIX)
+        Uses web scraping from reliable sources
+        
+        Returns:
+            dict: Sentiment data or None if failed
+        """
         try:
             self.source_stats['vix']['attempts'] += 1
             
-            from datetime import timedelta
-            from alpaca.data.timeframe import TimeFrame
+            from indicators.fear_greed_scraper import FearGreedScraper
             
-            # Get VIX data
-            end = datetime.now()
-            start = end - timedelta(days=5)
+            scraper = FearGreedScraper()
+            result = scraper.get_fear_greed_index()
             
-            bars = self.alpaca.get_bars(
-                'VIX',
-                start=start.strftime('%Y-%m-%d'),
-                end=end.strftime('%Y-%m-%d'),
-                timeframe=TimeFrame.Day
-            )
-            
-            if bars is None:
+            if not result.get('success'):
+                logger.debug("Fear & Greed Index not available")
                 return None
             
-            # Handle both dict and DataFrame responses
-            import pandas as pd
-            if isinstance(bars, dict):
-                vix_bars = bars.get('VIX', [])
-                if not vix_bars or len(vix_bars) == 0:
-                    return None
-                current_vix = float(vix_bars[-1].close)
-            elif isinstance(bars, pd.DataFrame):
-                # DataFrame
-                if bars.empty:
-                    return None
-                current_vix = float(bars.iloc[-1]['close'])
-            else:
-                # List or other iterable
-                if not bars or len(bars) == 0:
-                    return None
-                current_vix = float(bars[-1].close)
+            score = result['score']
+            classification = result['classification']
             
-            # Convert VIX to Fear & Greed scale
-            score, classification = self._vix_to_fear_greed(current_vix)
+            logger.debug(f"Fear & Greed sentiment: {score}/100 ({classification}) from {result['source']}")
             
             return {
                 'score': score,
                 'classification': classification,
-                'source': 'vix',
-                'confidence': 'medium',
-                'timestamp': datetime.now().isoformat(),
-                'vix_value': current_vix
+                'source': 'fear_greed_index',
+                'confidence': 'high',
+                'fear_greed_score': score,
+                'timestamp': result['timestamp']
             }
             
         except Exception as e:
-            logger.error(f"Error getting VIX sentiment: {e}")
+            logger.debug(f"Fear & Greed sentiment failed: {e}")
             return None
     
     def _vix_to_fear_greed(self, vix_value: float) -> tuple:

@@ -11,15 +11,40 @@ logger = setup_logger(__name__)
 class PositionManager:
     """
     Manages positions: syncing, monitoring, updating.
+    Includes trailing stops (Sprint 5) and partial profits (Sprint 6) integration.
     """
     
     def __init__(
         self,
         alpaca_client: AlpacaClient,
-        supabase_client: SupabaseClient
+        supabase_client: SupabaseClient,
+        trailing_stop_manager=None,
+        profit_taker=None,
+        cooldown_manager=None
     ):
         self.alpaca = alpaca_client
         self.supabase = supabase_client
+        self.trailing_stop_manager = trailing_stop_manager
+        self.profit_taker = profit_taker
+        self.cooldown_manager = cooldown_manager
+        
+        # Initialize trailing stops if not provided
+        if self.trailing_stop_manager is None:
+            from trading.trailing_stops import TrailingStopManager
+            self.trailing_stop_manager = TrailingStopManager(supabase_client)
+            logger.info("Trailing Stop Manager auto-initialized in Position Manager")
+        
+        # Initialize profit taker if not provided (Sprint 6)
+        if self.profit_taker is None:
+            from trading.profit_taker import ProfitTaker
+            self.profit_taker = ProfitTaker(supabase_client)
+            logger.info("Profit Taker auto-initialized in Position Manager")
+        
+        # Initialize cooldown manager if not provided (Sprint 6)
+        if self.cooldown_manager is None:
+            from trading.symbol_cooldown import SymbolCooldownManager
+            self.cooldown_manager = SymbolCooldownManager(supabase_client)
+            logger.info("Symbol Cooldown Manager auto-initialized in Position Manager")
     
     def sync_positions(self):
         """
@@ -104,6 +129,7 @@ class PositionManager:
         """
         Update current prices for all positions.
         Call this frequently (every few seconds).
+        Also updates trailing stops if enabled.
         """
         try:
             positions = trading_state.get_all_positions()
@@ -136,11 +162,71 @@ class PositionManager:
                     position.market_value = current_price * position.qty
                     
                     trading_state.update_position(position)
+                    
+                    # Sprint 6: Check for partial profits
+                    self._check_partial_profits_for_position(position)
+                    
+                    # Sprint 5: Update trailing stops
+                    self._update_trailing_stop_for_position(position)
             
             logger.debug(f"Updated prices for {len(positions)} positions")
             
         except Exception as e:
             logger.error(f"Failed to update position prices: {e}")
+    
+    def _update_trailing_stop_for_position(self, position: Position):
+        """
+        Update trailing stop for a single position (Sprint 5)
+        
+        Args:
+            position: Position object
+        """
+        try:
+            if not self.trailing_stop_manager:
+                return
+            
+            # Get ATR for this symbol if available
+            features = trading_state.get_features(position.symbol)
+            atr = features.get('atr', None) if features else None
+            
+            # Update trailing stop
+            result = self.trailing_stop_manager.update_trailing_stop(
+                symbol=position.symbol,
+                entry_price=position.avg_entry_price,
+                current_price=position.current_price,
+                current_stop=position.stop_loss,
+                side='long' if position.side == 'buy' else 'short',
+                atr=atr
+            )
+            
+            # If trailing stop was updated (and not in shadow mode), update the position
+            if result.get('updated') and not result.get('shadow_mode'):
+                new_stop = result['new_stop']
+                
+                # Update position stop loss
+                position.stop_loss = new_stop
+                trading_state.update_position(position)
+                
+                # Update database with full position data to avoid constraint violations
+                self.supabase.upsert_position({
+                    'symbol': position.symbol,
+                    'qty': position.qty,
+                    'side': position.side,
+                    'avg_entry_price': position.avg_entry_price,
+                    'current_price': position.current_price,
+                    'unrealized_pl': position.unrealized_pl,
+                    'unrealized_pl_pct': position.unrealized_pl_pct,
+                    'market_value': position.market_value,
+                    'stop_loss': new_stop,
+                    'take_profit': position.take_profit,
+                    'entry_time': position.entry_time.isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                })
+                
+                logger.info(f"✓ Position {position.symbol} stop loss updated to ${new_stop:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Error updating trailing stop for {position.symbol}: {e}")
     
     def check_stops_and_targets(self) -> List[str]:
         """
@@ -271,6 +357,22 @@ class PositionManager:
                 trading_state.remove_position(symbol)
                 self.supabase.delete_position(symbol)
                 
+                # Sprint 5: Clean up trailing stop tracking
+                if self.trailing_stop_manager:
+                    self.trailing_stop_manager.remove_trailing_stop(symbol)
+                
+                # Sprint 6: Clean up partial profit tracking
+                if self.profit_taker:
+                    self.profit_taker.remove_partial_profit(symbol)
+                
+                # Sprint 6: Record trade result for cooldown tracking
+                if self.cooldown_manager:
+                    self.cooldown_manager.record_trade_result(
+                        symbol=symbol,
+                        pnl=position.unrealized_pl,
+                        reason=reason
+                    )
+                
                 logger.info(f"✓ Position closed: {symbol} - P/L: ${position.unrealized_pl:.2f} ({reason})")
                 return True
             else:
@@ -288,3 +390,129 @@ class PositionManager:
                 trading_state.remove_position(symbol)
                 self.supabase.delete_position(symbol)
             return False
+
+    def _check_partial_profits_for_position(self, position: Position):
+        """
+        Check and execute partial profits for a single position (Sprint 6)
+        
+        Args:
+            position: Position object
+        """
+        try:
+            if not self.profit_taker:
+                return
+            
+            # Check if should take partial profits
+            result = self.profit_taker.should_take_partial_profits(
+                symbol=position.symbol,
+                entry_price=position.avg_entry_price,
+                current_price=position.current_price,
+                stop_loss=position.stop_loss,
+                side='long' if position.side == 'buy' else 'short'
+            )
+            
+            # If should take partial profits (and not in shadow mode)
+            if result.get('should_take') and not result.get('shadow_mode'):
+                self._execute_partial_profit_taking(position, result)
+            
+        except Exception as e:
+            logger.error(f"Error checking partial profits for {position.symbol}: {e}")
+    
+    def _execute_partial_profit_taking(self, position: Position, result: dict):
+        """
+        Execute partial profit taking for a position
+        
+        Args:
+            position: Position object
+            result: Partial profit decision result
+        """
+        try:
+            from typing import Dict, Any
+            
+            symbol = position.symbol
+            percentage = result['percentage']
+            profit_r = result['profit_r']
+            
+            # Calculate shares to sell (50% by default)
+            shares_to_sell = int(position.qty * percentage)
+            if shares_to_sell <= 0:
+                logger.warning(f"Cannot take partial profits for {symbol}: shares_to_sell = {shares_to_sell}")
+                return
+            
+            logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R")
+            
+            # Submit partial close order
+            try:
+                if position.side == 'buy':
+                    # Close partial long position
+                    order = self.alpaca.submit_order(
+                        symbol=symbol,
+                        qty=shares_to_sell,
+                        side='sell',
+                        type='market',
+                        time_in_force='day'
+                    )
+                else:
+                    # Close partial short position
+                    order = self.alpaca.submit_order(
+                        symbol=symbol,
+                        qty=shares_to_sell,
+                        side='buy',
+                        type='market',
+                        time_in_force='day'
+                    )
+                
+                if order:
+                    # Record partial profit taking
+                    self.profit_taker.record_partial_profit(
+                        symbol=symbol,
+                        shares_sold=shares_to_sell,
+                        price=position.current_price,
+                        profit_r=profit_r,
+                        profit_amount=result['profit_amount']
+                    )
+                    
+                    # Update position quantity
+                    remaining_qty = position.qty - shares_to_sell
+                    position.qty = remaining_qty
+                    trading_state.update_position(position)
+                    
+                    # Update database with full position data to avoid constraint violations
+                    self.supabase.upsert_position({
+                        'symbol': symbol,
+                        'qty': remaining_qty,
+                        'side': position.side,
+                        'avg_entry_price': position.avg_entry_price,
+                        'current_price': position.current_price,
+                        'unrealized_pl': position.unrealized_pl,
+                        'unrealized_pl_pct': position.unrealized_pl_pct,
+                        'market_value': position.market_value,
+                        'stop_loss': position.stop_loss,
+                        'take_profit': position.take_profit,
+                        'entry_time': position.entry_time.isoformat(),
+                        'partial_profits_taken': True,
+                        'updated_at': datetime.utcnow().isoformat()
+                    })
+                    
+                    logger.info(f"✓ Partial profits taken for {symbol}: {shares_to_sell} shares sold, {remaining_qty} remaining")
+                    
+                    # Log trade for analysis
+                    self.supabase.insert_trade({
+                        'symbol': symbol,
+                        'side': 'sell' if position.side == 'buy' else 'buy',
+                        'qty': shares_to_sell,
+                        'price': position.current_price,
+                        'exit_type': 'partial_profit',
+                        'profit_r': profit_r,
+                        'profit_amount': result['profit_amount'],
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
+                    
+                else:
+                    logger.error(f"Failed to submit partial profit order for {symbol}")
+                    
+            except Exception as e:
+                logger.error(f"Error submitting partial profit order for {symbol}: {e}")
+                
+        except Exception as e:
+            logger.error(f"Error executing partial profit taking for {position.symbol}: {e}")

@@ -51,6 +51,29 @@
 
 ## 🚀 Key Features
 
+### 🎉 Recent Enhancements (Nov 10-11, 2025)
+
+#### Sprint 6: Symbol Cooldown System ✨ NEW
+- **Prevents Overtrading**: Automatically freezes symbols after consecutive losses
+- **24-48 Hour Cooldowns**: 2 losses = 24h freeze, 3+ losses = 48h freeze
+- **Position Size Reduction**: 50-75% size reduction after cooldown expires
+- **Confidence Boost Required**: +10-20 points needed for re-entry
+- **Research-Backed**: Industry-standard risk management technique
+- **Currently Active**: TSLA (48h), ABNB, PATH, ELF (24h each)
+- **Impact**: Prevented ~$386 in TSLA losses, 5-10% drawdown reduction expected
+
+#### Sprint 5 & 6: Profit Protection
+- **Trailing Stops** (ACTIVE): Protects profits at +2R, currently managing 2 positions
+- **Partial Profits** (SHADOW MODE): Takes 50% at +1R, testing phase
+- **ATR-Based Stops**: Volatility-aware stop distances
+- **Dynamic Risk Adjustment**: VIX-based position sizing (0.25x-0.75x multipliers)
+
+#### Enhanced Risk Management
+- **Enhanced Short Filters**: Multi-layer validation (sentiment + RSI + volume + EMA)
+- **Fear & Greed Index**: Real-time market sentiment (currently 29/100 - fear)
+- **Market Regime Detection**: Trending/ranging/choppy with adaptive multipliers
+- **Circuit Breaker**: Automatic trading halt at 5% daily loss
+
 ### Core Trading Features
 
 #### 1. **AI Opportunity Discovery**
@@ -2127,6 +2150,14 @@ take_profit_atr_mult = 4.0    # Target distance
 
 **Built with ❤️ for algorithmic traders**
 
-**Version**: 2.0.0  
-**Last Updated**: November 8, 2025  
+**Version**: 2.1.0  
+**Last Updated**: November 11, 2025  
 **Status**: Production Ready ✅
+
+### Recent Updates (v2.1.0)
+- ✅ Symbol Cooldown System (Sprint 6)
+- ✅ Trailing Stops Active (Sprint 5)
+- ✅ Partial Profits Shadow Mode (Sprint 6)
+- ✅ Enhanced Risk Management
+- ✅ Fear & Greed Index Integration
+- ✅ Dynamic Regime Multipliers

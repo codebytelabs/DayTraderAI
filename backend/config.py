@@ -61,6 +61,23 @@ class Settings(BaseSettings):
     max_trades_per_day: int = 30  # Cap daily trades to prevent over-trading
     max_trades_per_symbol_per_day: int = 2  # Max 2 entries per symbol per day
     trade_cooldown_minutes: int = 15  # Minimum 15 minutes between trades in same symbol
+    
+    # Sprint 5: Trailing Stops Configuration
+    trailing_stops_enabled: bool = False  # Feature flag - start disabled
+    trailing_stops_activation_threshold: float = 2.0  # Activate after +2R profit
+    trailing_stops_distance_r: float = 0.5  # Trail by 0.5R
+    trailing_stops_min_distance_pct: float = 0.005  # Minimum 0.5% trailing distance
+    trailing_stops_use_atr: bool = True  # Use ATR for dynamic trailing distance
+    trailing_stops_atr_multiplier: float = 1.5  # 1.5x ATR for trailing distance
+    max_trailing_stop_positions: int = 999  # Limit for gradual rollout (999 = unlimited)
+    
+    # Sprint 6: Partial Profit Taking Configuration
+    partial_profits_enabled: bool = False  # Feature flag - start disabled
+    partial_profits_first_target_r: float = 1.0  # Take partial profits at +1R
+    partial_profits_percentage: float = 0.5  # Sell 50% of position
+    partial_profits_second_target_r: float = 2.0  # Let remaining run to +2R
+    partial_profits_use_trailing: bool = True  # Use trailing stops on remaining position
+    max_partial_profit_positions: int = 999  # Limit for gradual rollout
 
     # Copilot configuration
     copilot_context_enabled: bool = True

@@ -79,9 +79,9 @@ class EMAStrategy:
         confirmation_count = signal_info['confirmation_count']
         market_regime = signal_info['market_regime']
         
-        # CRITICAL: Filter shorts in bullish markets
+        # CRITICAL: Enhanced short entry filters (professional criteria)
         if signal == 'sell':
-            # Get market sentiment to avoid shorting in uptrends
+            # 1. Market sentiment filter - avoid shorting in uptrends
             if self.sentiment_aggregator:
                 try:
                     sentiment_data = self.sentiment_aggregator.get_sentiment()
@@ -90,35 +90,59 @@ class EMAStrategy:
                     # Don't short when market is bullish (score > 55)
                     if market_score > 55:
                         logger.info(
-                            f"⛔ Short signal rejected for {symbol}: Market too bullish "
-                            f"(sentiment: {market_score}/100)"
+                            f"⛔ Short rejected {symbol}: Market too bullish (sentiment: {market_score}/100)"
                         )
                         return None
                     
-                    # Require HIGHER confidence for shorts (75% vs 70% for longs)
-                    if confidence < 75.0:
+                    # In extreme fear (< 30), avoid shorts - oversold bounce risk
+                    if market_score < 30:
                         logger.info(
-                            f"⛔ Short signal rejected for {symbol}: Insufficient confidence "
-                            f"for short ({confidence:.1f}/100, need 75+)"
+                            f"⛔ Short rejected {symbol}: Extreme fear - bounce risk (sentiment: {market_score}/100)"
                         )
                         return None
+                        
                 except Exception as e:
                     logger.warning(f"Could not check market sentiment for short filter: {e}")
-                    # If we can't check sentiment, require even higher confidence
-                    if confidence < 80.0:
-                        logger.info(
-                            f"⛔ Short signal rejected for {symbol}: Cannot verify market direction, "
-                            f"require 80+ confidence (have {confidence:.1f})"
-                        )
-                        return None
-            else:
-                # No sentiment aggregator available, require higher confidence
-                if confidence < 80.0:
-                    logger.info(
-                        f"⛔ Short signal rejected for {symbol}: Cannot verify market direction, "
-                        f"require 80+ confidence (have {confidence:.1f})"
-                    )
-                    return None
+            
+            # 2. Price action filter - must be at resistance or breakdown
+            price = features.get('price', 0)
+            ema_short = features.get('ema_short', 0)
+            ema_long = features.get('ema_long', 0)
+            
+            # Short must be below BOTH EMAs (confirmed downtrend)
+            if price > ema_short or price > ema_long:
+                logger.info(
+                    f"⛔ Short rejected {symbol}: Price not below EMAs (price: ${price:.2f}, EMA9: ${ema_short:.2f}, EMA21: ${ema_long:.2f})"
+                )
+                return None
+            
+            # 3. Volume confirmation - need strong volume on breakdown
+            volume_ratio = signal_info.get('volume_ratio', 0)
+            if volume_ratio < 1.5:  # Need at least 1.5x average volume
+                logger.info(
+                    f"⛔ Short rejected {symbol}: Insufficient volume for short (volume: {volume_ratio:.2f}x, need 1.5x+)"
+                )
+                return None
+            
+            # 4. RSI filter - avoid shorting oversold (RSI < 30)
+            rsi = signal_info.get('rsi', 50)
+            if rsi < 30:
+                logger.info(
+                    f"⛔ Short rejected {symbol}: Oversold - bounce risk (RSI: {rsi:.1f})"
+                )
+                return None
+            
+            # 5. Require HIGHER confidence for shorts (75% vs 70% for longs)
+            if confidence < 75.0:
+                logger.info(
+                    f"⛔ Short rejected {symbol}: Insufficient confidence ({confidence:.1f}/100, need 75+)"
+                )
+                return None
+            
+            logger.info(
+                f"✓ Short entry validated for {symbol}: "
+                f"Below EMAs, Volume {volume_ratio:.2f}x, RSI {rsi:.1f}, Confidence {confidence:.1f}%"
+            )
         
         # Require HIGH confidence score (70/100) - quality over quantity
         if confidence < 70.0:
@@ -170,26 +194,59 @@ class EMAStrategy:
                 return False
             
             # Calculate position size based on risk
-            price = features['price']
+            # IMPORTANT: Get CURRENT price, not stale feature price
+            # Features may be from minutes ago, market moves fast!
+            try:
+                latest_bars = self.alpaca.get_latest_bars([symbol])
+                if latest_bars and symbol in latest_bars:
+                    current_price = float(latest_bars[symbol].close)
+                    logger.debug(f"Using current price ${current_price:.2f} for {symbol} (feature price was ${features['price']:.2f})")
+                else:
+                    current_price = features['price']
+                    logger.warning(f"Could not get current price for {symbol}, using feature price ${current_price:.2f}")
+            except Exception as e:
+                logger.warning(f"Error getting current price for {symbol}: {e}, using feature price")
+                current_price = features['price']
+            
+            price = current_price  # Use current price for all calculations
             atr = features['atr']
             
             stop_price = calculate_atr_stop(price, atr, self.stop_mult, signal)
             target_price = calculate_atr_target(price, atr, self.target_mult, signal)
             
-            # Enforce minimum stop distance
+            # Enforce minimum stop distance - ADAPTIVE based on volatility
+            # Use ATR/Price ratio to determine volatility
+            atr_pct = (atr / price) * 100  # ATR as % of price
+            
+            # Dynamic minimum stop based on volatility:
+            # Low volatility (ATR < 1%): 1.0% min stop
+            # Medium volatility (ATR 1-2%): 1.5% min stop  
+            # High volatility (ATR 2-3%): 2.0% min stop
+            # Very high volatility (ATR > 3%): 2.5% min stop
+            if atr_pct < 1.0:
+                min_stop_pct = 0.010  # 1.0%
+            elif atr_pct < 2.0:
+                min_stop_pct = 0.015  # 1.5%
+            elif atr_pct < 3.0:
+                min_stop_pct = 0.020  # 2.0%
+            else:
+                min_stop_pct = 0.025  # 2.5%
+            
             stop_distance = abs(price - stop_price)
-            min_stop_distance = price * settings.min_stop_distance_pct
+            min_stop_distance = price * min_stop_pct
             
             if stop_distance < min_stop_distance:
                 logger.warning(
                     f"Stop distance too small for {symbol}: ${stop_distance:.2f} < ${min_stop_distance:.2f} "
-                    f"(min {settings.min_stop_distance_pct*100}%). Adjusting..."
+                    f"(min {min_stop_pct*100:.1f}% for {atr_pct:.1f}% ATR). Adjusting..."
                 )
                 # Adjust stop to meet minimum distance
                 if signal == 'buy':
                     stop_price = price - min_stop_distance
-                else:
+                else:  # sell/short
                     stop_price = price + min_stop_distance
+                
+                logger.info(f"Adjusted stop for {symbol}: ${stop_price:.2f} (entry: ${price:.2f}, volatility: {atr_pct:.1f}% ATR, min: {min_stop_pct*100:.1f}%)")
             
             # Dynamic risk based on confidence score
             signal_info = features.get('_signal_info', {})

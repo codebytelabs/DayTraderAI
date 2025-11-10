@@ -43,8 +43,8 @@ class MarketRegimeDetector:
             # Determine regime
             regime = self._determine_regime(breadth, trend, volatility)
             
-            # Calculate position size multiplier
-            multiplier = self._calculate_position_multiplier(regime)
+            # Calculate position size multiplier (pass volatility for choppy regime)
+            multiplier = self._calculate_position_multiplier(regime, volatility)
             
             # Determine if we should trade
             should_trade = self._should_trade(regime)
@@ -194,7 +194,7 @@ class MarketRegimeDetector:
     
     def _calculate_volatility(self) -> Dict:
         """
-        Calculate market volatility level.
+        Calculate market volatility level using real VIX data.
         
         Returns:
             dict: {
@@ -203,16 +203,19 @@ class MarketRegimeDetector:
             }
         """
         try:
-            # Try to get VIX
-            bars = self.alpaca.get_latest_bars(['VIX'])
+            # Get real VIX from Yahoo Finance
+            from indicators.vix_fetcher import get_vix_fetcher
             
-            if bars and 'VIX' in bars:
-                vix = float(bars['VIX'].close)
-            else:
-                # Fallback: estimate from SPY volatility
-                vix = 20.0  # Default assumption
+            vix_fetcher = get_vix_fetcher()
+            vix = vix_fetcher.get_vix()
             
-            # Classify volatility
+            if vix is None:
+                vix = 20.0  # Fallback to historical average
+            
+            # Classify volatility based on VIX levels
+            # VIX < 15: Low volatility (calm market)
+            # VIX 15-25: Normal volatility
+            # VIX > 25: High volatility (fearful market)
             if vix < 15:
                 level = 'low'
             elif vix < 25:
@@ -258,23 +261,51 @@ class MarketRegimeDetector:
         else:
             return 'choppy'
     
-    def _calculate_position_multiplier(self, regime: str) -> float:
+    def _calculate_position_multiplier(self, regime: str, volatility: Dict = None) -> float:
         """
-        Calculate position size multiplier based on regime.
+        Calculate position size multiplier based on regime and volatility.
+        
+        For choppy regimes, multiplier varies with VIX:
+        - VIX < 20 (low vol): 0.75x
+        - VIX 20-30 (medium vol): 0.5x
+        - VIX > 30 (high vol): 0.25x
         
         Returns:
-            float: 0.5-1.5 multiplier for position sizing
+            float: 0.25-1.5 multiplier for position sizing
         """
-        multipliers = {
+        # Base multipliers for non-choppy regimes
+        base_multipliers = {
             'broad_bullish': 1.5,   # Best conditions - trade bigger
             'broad_bearish': 1.5,   # Good for shorts - trade bigger
             'broad_neutral': 1.0,   # Normal conditions
             'narrow_bullish': 0.7,  # Risky - trade smaller
             'narrow_bearish': 0.7,  # Risky - trade smaller
-            'choppy': 0.5           # Worst conditions - trade much smaller
         }
         
-        return multipliers.get(regime, 1.0)
+        # For choppy regime, use dynamic VIX-based multiplier
+        if regime == 'choppy':
+            if volatility is None:
+                # Fallback to conservative default
+                return 0.5
+            
+            vix = volatility.get('vix', 20.0)
+            
+            if vix < 20:
+                # Low volatility choppy - less risky
+                multiplier = 0.75
+                logger.info(f"📊 Choppy + Low VIX ({vix:.1f}) → {multiplier}x multiplier")
+            elif vix <= 30:
+                # Medium volatility choppy - moderate risk
+                multiplier = 0.5
+                logger.info(f"📊 Choppy + Medium VIX ({vix:.1f}) → {multiplier}x multiplier")
+            else:
+                # High volatility choppy - very risky
+                multiplier = 0.25
+                logger.info(f"📊 Choppy + High VIX ({vix:.1f}) → {multiplier}x multiplier")
+            
+            return multiplier
+        
+        return base_multipliers.get(regime, 1.0)
     
     def _should_trade(self, regime: str) -> bool:
         """
