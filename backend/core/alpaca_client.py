@@ -203,6 +203,116 @@ class AlpacaClient:
             logger.error(f"Failed to get latest bars: {e}")
             return None
     
+    def get_bars_for_symbol(
+        self,
+        symbol: str,
+        timeframe: TimeFrame = TimeFrame.Minute,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        limit: Optional[int] = None
+    ):
+        """
+        Get bars for a single symbol, returning a clean DataFrame.
+        Handles multi-index extraction automatically.
+        
+        This is a convenience method that wraps get_bars() and handles
+        the multi-index DataFrame structure that Alpaca returns.
+        """
+        try:
+            import pandas as pd
+            
+            bars = self.get_bars(
+                symbols=[symbol],
+                timeframe=timeframe,
+                start=start,
+                end=end,
+                limit=limit
+            )
+            
+            if bars is None:
+                return None
+            
+            # Extract symbol level if multi-indexed
+            if isinstance(bars, pd.DataFrame) and isinstance(bars.index, pd.MultiIndex):
+                if symbol in bars.index.get_level_values(0):
+                    return bars.loc[symbol]
+                else:
+                    logger.warning(f"Symbol {symbol} not found in multi-indexed bars")
+                    return None
+            else:
+                return bars
+                
+        except Exception as e:
+            logger.error(f"Failed to get bars for {symbol}: {e}")
+            return None
+    
+    def get_latest_trade_price(self, symbol: str) -> Optional[float]:
+        """
+        Get the most recent trade price for a symbol.
+        This is the ACTUAL current market price, not historical bar data.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            float: Latest trade price, or None if unavailable
+        """
+        try:
+            from alpaca.data.requests import StockLatestTradeRequest
+            
+            request = StockLatestTradeRequest(
+                symbol_or_symbols=symbol,
+                feed=DataFeed.IEX
+            )
+            trades = self.data_client.get_stock_latest_trade(request)
+            
+            if trades and symbol in trades:
+                price = float(trades[symbol].price)
+                logger.debug(f"📍 Real-time price for {symbol}: ${price:.2f}")
+                return price
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to get latest trade for {symbol}: {e}")
+            return None
+    
+    def get_latest_quote(self, symbol: str) -> Optional[Dict]:
+        """
+        Get the latest bid/ask quote for a symbol.
+        Useful for checking spread before placing orders.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            dict: {'bid': float, 'ask': float, 'spread': float, 'mid': float}
+        """
+        try:
+            from alpaca.data.requests import StockLatestQuoteRequest
+            
+            request = StockLatestQuoteRequest(
+                symbol_or_symbols=symbol,
+                feed=DataFeed.IEX
+            )
+            quotes = self.data_client.get_stock_latest_quote(request)
+            
+            if quotes and symbol in quotes:
+                quote = quotes[symbol]
+                bid = float(quote.bid_price)
+                ask = float(quote.ask_price)
+                spread = ask - bid
+                mid = (bid + ask) / 2
+                logger.debug(f"📍 Quote for {symbol}: Bid ${bid:.2f} | Ask ${ask:.2f} | Spread ${spread:.2f}")
+                return {
+                    'bid': bid,
+                    'ask': ask,
+                    'spread': spread,
+                    'mid': mid
+                }
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to get latest quote for {symbol}: {e}")
+            return None
+    
     def is_market_open(self) -> bool:
         """Check if market is currently open."""
         try:

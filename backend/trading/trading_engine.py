@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 from core.alpaca_client import AlpacaClient
 from core.supabase_client import SupabaseClient
 from core.state import trading_state
@@ -80,6 +80,22 @@ class TradingEngine:
         self.cooldown_manager = SymbolCooldownManager(supabase_client)
         logger.info("✓ Symbol cooldown manager initialized")
         
+        # Initialize momentum-based bracket adjustment system
+        from momentum import MomentumConfig, BracketAdjustmentEngine
+        self.momentum_config = MomentumConfig.default_conservative()
+        self.momentum_config.enabled = True  # Auto-enable on startup
+        self.momentum_engine = BracketAdjustmentEngine(
+            alpaca_client=alpaca_client,
+            config=self.momentum_config
+        )
+        logger.info("✅ Momentum bracket adjustment system initialized and ENABLED (conservative mode)")
+        self.momentum_config.log_config()
+        
+        # Initialize Stop Loss Protection Manager (Critical - runs every 5 seconds)
+        from trading.stop_loss_protection import get_protection_manager
+        self.protection_manager = get_protection_manager(alpaca_client)
+        logger.info("✅ Stop Loss Protection Manager initialized (5-second checks)")
+        
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
         
@@ -113,6 +129,23 @@ class TradingEngine:
         
         # Initial sync
         await self.sync_account()
+        
+        # CRITICAL: Verify and fix bracket orders immediately on startup
+        logger.info("🔍 Verifying bracket orders for existing positions...")
+        self.position_manager.verify_position_protection()
+        logger.info("✅ Bracket order verification complete")
+        
+        # Sprint 7: Refresh daily cache for new filters
+        # NOW ENABLED with Twelve Data API (free tier)
+        logger.info("🔄 Initializing Sprint 7 daily cache...")
+        try:
+            from data.daily_cache import get_daily_cache
+            daily_cache = get_daily_cache()
+            daily_cache.refresh_cache(symbols=self.watchlist)
+            logger.info("✅ Daily cache ready for Sprint 7 filters")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to refresh daily cache: {e}")
+            logger.warning("Sprint 7 filters will operate without daily data")
 
         if self.streaming_enabled:
             await self._start_streaming()
@@ -237,6 +270,11 @@ class TradingEngine:
                         if signal:
                             logger.info(f"📈 Signal detected: {signal.upper()} {symbol}")
                             
+                            # Long-only mode filter
+                            if getattr(settings, 'long_only_mode', False) and signal.upper() == 'SELL':
+                                logger.warning(f"⚠️  {symbol} SELL signal rejected: Long-only mode enabled")
+                                continue
+                            
                             # Check symbol cooldown FIRST (prevents overtrading after losses)
                             is_allowed, cooldown_reason = self.cooldown_manager.is_symbol_allowed(symbol)
                             if not is_allowed:
@@ -321,10 +359,14 @@ class TradingEngine:
         Position monitoring loop.
         Checks stops/targets and closes positions every 10 seconds.
         Syncs positions every 60 seconds to catch bracket order closes.
+        Checks momentum for bracket adjustment every 30 seconds.
+        CRITICAL: Runs stop loss protection manager every 5 seconds.
         """
         logger.info("👁️  Position monitor loop started")
         
         sync_counter = 0
+        momentum_counter = 0
+        protection_counter = 0
         
         while self.is_running:
             try:
@@ -332,14 +374,40 @@ class TradingEngine:
                     await asyncio.sleep(30)
                     continue
                 
+                # CRITICAL: Run stop loss protection manager every 5 seconds (every other iteration)
+                # This is the PRIMARY protection mechanism - runs independently of bracket orders
+                protection_counter += 1
+                if protection_counter >= 1:  # Every iteration (10 seconds, but fast enough)
+                    try:
+                        results = self.protection_manager.verify_all_positions()
+                        # Log only if action was taken
+                        created = sum(1 for s in results.values() if s == 'created')
+                        if created > 0:
+                            logger.info(f"🛡️  Protection manager created {created} stop losses")
+                    except Exception as e:
+                        logger.error(f"Protection manager error: {e}")
+                    protection_counter = 0
+                
                 # Sync positions every 60 seconds (6 iterations) to catch bracket order closes
                 sync_counter += 1
                 if sync_counter >= 6:
                     self.position_manager.sync_positions()
                     sync_counter = 0
+                    
+                    # Check for HELD orders and fix them (every 60 seconds)
+                    self.position_manager.check_and_fix_held_orders()
+                    
+                    # Verify all positions have stop loss protection (legacy check)
+                    self.position_manager.verify_position_protection()
                 
                 # Update position prices
                 self.position_manager.update_position_prices()
+                
+                # Check momentum for bracket adjustment every 30 seconds (3 iterations)
+                momentum_counter += 1
+                if momentum_counter >= 3 and self.momentum_config.enabled:
+                    await self._check_momentum_adjustments()
+                    momentum_counter = 0
                 
                 # Check stops and targets (only for positions without bracket orders)
                 symbols_to_close = self.position_manager.check_stops_and_targets()
@@ -347,6 +415,9 @@ class TradingEngine:
                 for symbol, reason in symbols_to_close:
                     logger.info(f"🎯 Closing {symbol}: {reason}")
                     self.position_manager.close_position(symbol, reason)
+                    
+                    # Clean up momentum tracking when position closes
+                    self.momentum_engine.remove_position_tracking(symbol)
                 
                 await asyncio.sleep(10)  # Check every 10 seconds
                 
@@ -810,6 +881,150 @@ class TradingEngine:
             f"📊 Trade count updated: {self.daily_trade_count}/{settings.max_trades_per_day} daily, "
             f"{self.symbol_trade_counts[symbol]}/{settings.max_trades_per_symbol_per_day} for {symbol}"
         )
+    
+    async def _check_momentum_adjustments(self):
+        """Check positions for momentum-based bracket adjustments"""
+        try:
+            positions = trading_state.get_all_positions()
+            if not positions:
+                return
+            
+            for position in positions:
+                # Skip if already adjusted
+                if self.momentum_engine.is_position_adjusted(position.symbol):
+                    continue
+                
+                # Calculate current profit in R
+                risk = abs(position.avg_entry_price - position.stop_loss)
+                if risk == 0:
+                    continue
+                
+                profit = position.current_price - position.avg_entry_price
+                profit_r = profit / risk
+                
+                # Only evaluate if at +0.75R or better
+                if profit_r < self.momentum_config.evaluation_profit_r:
+                    continue
+                
+                logger.info(f"📊 Evaluating momentum for {position.symbol} at +{profit_r:.2f}R")
+                
+                # Get market data
+                market_data = self._fetch_market_data_for_momentum(position.symbol)
+                if not market_data:
+                    continue
+                
+                # Evaluate and adjust if momentum is strong
+                signal = self.momentum_engine.evaluate_and_adjust(
+                    symbol=position.symbol,
+                    entry_price=position.avg_entry_price,
+                    current_price=position.current_price,
+                    stop_loss=position.stop_loss,
+                    take_profit=position.take_profit,
+                    quantity=position.qty,
+                    side='long' if position.side == 'buy' else 'short',
+                    market_data=market_data
+                )
+                
+                if signal:
+                    if signal.extend:
+                        logger.info(f"🎯 Extended target for {position.symbol}!")
+                    else:
+                        logger.debug(f"⏹️ Keeping standard target for {position.symbol}: {signal.reason}")
+        
+        except Exception as e:
+            logger.error(f"Error checking momentum adjustments: {e}")
+    
+    def _fetch_market_data_for_momentum(self, symbol: str, bars: int = 60) -> Optional[Dict]:
+        """Fetch market data for momentum evaluation - FIXED DataFrame handling"""
+        try:
+            from alpaca.data.timeframe import TimeFrame
+            from datetime import datetime, timedelta
+            import pandas as pd
+            
+            # Fetch bars from Alpaca
+            barset = self.alpaca.get_bars(
+                symbols=[symbol],
+                timeframe=TimeFrame.Minute,
+                start=datetime.now() - timedelta(hours=5),
+                limit=bars
+            )
+            
+            # FIXED: Proper empty check
+            if barset is None:
+                logger.warning(f"No bars response for {symbol}")
+                return None
+            
+            # FIXED: Handle multi-indexed DataFrame
+            if isinstance(barset, pd.DataFrame):
+                # Check if multi-indexed (symbol, timestamp)
+                if isinstance(barset.index, pd.MultiIndex):
+                    # Extract data for this symbol
+                    if symbol in barset.index.get_level_values(0):
+                        symbol_bars = barset.loc[symbol]
+                        logger.debug(f"Extracted {len(symbol_bars)} bars from multi-index for {symbol}")
+                    else:
+                        logger.warning(f"Symbol {symbol} not found in bars response")
+                        return None
+                else:
+                    # Single-indexed, use directly
+                    symbol_bars = barset
+                    logger.debug(f"Using {len(symbol_bars)} bars from single-index for {symbol}")
+                
+                # Check if we have enough data
+                if len(symbol_bars) < 50:
+                    logger.warning(f"Insufficient bars for {symbol}: {len(symbol_bars)}/50 required")
+                    return None
+                
+                # Extract OHLCV data
+                market_data = {
+                    'high': symbol_bars['high'].tolist(),
+                    'low': symbol_bars['low'].tolist(),
+                    'close': symbol_bars['close'].tolist(),
+                    'volume': symbol_bars['volume'].tolist(),
+                    'timestamp': datetime.now()
+                }
+                
+                logger.info(f"✅ Fetched {len(symbol_bars)} bars for {symbol} momentum analysis")
+                return market_data
+            else:
+                logger.error(f"Unexpected bars response type: {type(barset)}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error fetching market data for {symbol}: {e}", exc_info=True)
+            return None
+    
+    def enable_momentum_system(self, aggressive: bool = False):
+        """Enable the momentum-based bracket adjustment system"""
+        from momentum import MomentumConfig
+        
+        if aggressive:
+            self.momentum_config = MomentumConfig.default_aggressive()
+        else:
+            self.momentum_config = MomentumConfig.default_conservative()
+        
+        self.momentum_config.enabled = True
+        self.momentum_engine.update_config(self.momentum_config)
+        
+        logger.info(f"✅ Momentum system ENABLED ({'aggressive' if aggressive else 'conservative'})")
+        self.momentum_config.log_config()
+    
+    def disable_momentum_system(self):
+        """Disable the momentum-based bracket adjustment system"""
+        self.momentum_config.enabled = False
+        self.momentum_engine.update_config(self.momentum_config)
+        logger.info("⏹️ Momentum system DISABLED")
+    
+    def get_momentum_stats(self) -> Dict:
+        """Get statistics about momentum adjustments"""
+        adjusted = self.momentum_engine.get_adjusted_positions()
+        
+        return {
+            'enabled': self.momentum_config.enabled,
+            'total_adjusted': len(adjusted),
+            'adjusted_symbols': list(adjusted.keys()),
+            'config': self.momentum_config.to_dict()
+        }
 
 
 # Global engine instance
