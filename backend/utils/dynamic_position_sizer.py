@@ -25,6 +25,7 @@ class DynamicPositionSizer:
         self,
         symbol: str,
         price: float,
+        stop_distance: float,
         confidence: float,
         base_risk_pct: float = 0.01,
         max_position_pct: float = 0.10
@@ -32,21 +33,41 @@ class DynamicPositionSizer:
         """
         Calculate optimal position size considering all constraints.
         
+        Args:
+            symbol: Stock symbol
+            price: Entry price
+            stop_distance: Actual stop distance in dollars (e.g., |entry - stop|)
+            confidence: Signal confidence (0-100)
+            base_risk_pct: Base risk percentage of equity
+            max_position_pct: Maximum position size as % of equity
+        
         Returns:
             (quantity, reasoning)
         """
         try:
             account = self.alpaca.get_account()
             equity = float(account.equity)
-            available_bp = float(account.daytrading_buying_power) if account.pattern_day_trader else float(account.buying_power)
+            cash = float(account.cash)
+            regular_bp = float(account.buying_power)
+            daytrading_bp = float(account.daytrading_buying_power)
             
-            # 1. Calculate base position size from risk
-            risk_multiplier = confidence / 100.0  # Scale risk by confidence
-            adjusted_risk = base_risk_pct * risk_multiplier
-            risk_amount = equity * adjusted_risk
+            # Use the best available buying power source
+            if account.pattern_day_trader and daytrading_bp > 0:
+                available_bp = daytrading_bp
+            else:
+                # Fallback: use cash or regular buying power (whichever is higher)
+                # This handles cases where daytrading_buying_power is 0 or account is not PDT
+                available_bp = max(cash, regular_bp)
             
-            # Assume 2% stop loss for initial calculation
-            stop_distance = price * 0.02
+            logger.info(f"Account status for {symbol}: Equity=${equity:,.0f}, Cash=${cash:,.0f}, RegularBP=${regular_bp:,.0f}, DayTradingBP=${daytrading_bp:,.0f}, PDT={account.pattern_day_trader}")
+            logger.info(f"  Using BP: ${available_bp:,.0f}")
+            
+            # 1. Calculate base position size from risk using ACTUAL stop distance
+            # NOTE: base_risk_pct is already adjusted for confidence in strategy.py
+            # Do NOT apply confidence scaling again here!
+            risk_amount = equity * base_risk_pct
+            
+            # Use actual stop distance from strategy (no assumptions!)
             risk_based_qty = int(risk_amount / stop_distance)
             
             # 2. Calculate buying power constraint (with 20% buffer)
@@ -68,10 +89,17 @@ class DynamicPositionSizer:
             limiting_factor = min(constraints, key=constraints.get)
             final_qty = constraints[limiting_factor]
             
-            # 5. Ensure minimum viable size
-            min_qty = max(1, int(100 / price))  # At least $100 position or 1 share
+            # DEBUG: Log all constraints
+            logger.info(f"Position sizing for {symbol}: risk={risk_based_qty}, bp={max_bp_qty}, equity={max_equity_qty}, final={final_qty}, limiting={limiting_factor}")
+            logger.info(f"  Risk calc: ${risk_amount:.2f} / ${stop_distance:.2f} = {risk_based_qty} shares")
+            
+            # 5. Ensure minimum viable size (0.5% of equity minimum for meaningful positions)
+            min_position_value = equity * 0.005  # 0.5% of equity minimum
+            min_qty = max(1, int(min_position_value / price))
+            
             if final_qty < min_qty:
-                return 0, f"Position too small: {final_qty} < {min_qty} minimum"
+                logger.warning(f"Position size {final_qty} below minimum {min_qty} shares (${min_position_value:.0f} min position)")
+                return 0, f"Position too small: {final_qty} < {min_qty} minimum (risk_amount=${risk_amount:.2f}, stop_distance=${stop_distance:.2f})"
             
             # 6. Generate reasoning
             reasoning = self._generate_reasoning(

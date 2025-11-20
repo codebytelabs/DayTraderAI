@@ -7,6 +7,7 @@ from trading.risk_manager import RiskManager
 from utils.helpers import generate_order_id
 from utils.logger import setup_logger
 from orders.bracket_orders import BracketOrderBuilder
+from orders.smart_order_executor import SmartOrderExecutor, OrderConfig
 from alpaca.trading.enums import OrderSide as AlpacaOrderSide
 from config import settings
 
@@ -28,6 +29,11 @@ class OrderManager:
         self.alpaca = alpaca_client
         self.supabase = supabase_client
         self.risk_manager = risk_manager
+        
+        # Initialize Smart Order Executor
+        # DISABLED: Has NoneType error, needs debugging
+        self.smart_executor = None
+        logger.info("⚠️  Smart Order Executor disabled - using legacy bracket orders")
     
     def submit_order(
         self,
@@ -85,7 +91,57 @@ class OrderManager:
         use_bracket = settings.bracket_orders_enabled and bracket_prices is not None
 
         try:
-            if use_bracket:
+            # Use Smart Order Executor if enabled and bracket prices are available
+            if use_bracket and self.smart_executor and price:
+                # Calculate risk amount from stop loss
+                risk_amount = abs(price - bracket_prices["stop_loss"])
+                
+                # Calculate R/R ratio
+                reward_amount = abs(bracket_prices["take_profit"] - price)
+                rr_ratio = reward_amount / risk_amount if risk_amount > 0 else 2.0
+                
+                logger.info(
+                    f"🎯 Using Smart Order Executor for {symbol}: "
+                    f"Signal ${price:.2f}, Risk ${risk_amount:.2f}, R/R 1:{rr_ratio:.2f}"
+                )
+                
+                # Execute with smart executor
+                result = self.smart_executor.execute_trade(
+                    symbol=symbol,
+                    side=side.lower(),
+                    quantity=qty,
+                    signal_price=price,
+                    risk_amount=risk_amount,
+                    rr_ratio=rr_ratio
+                )
+                
+                if not result.success:
+                    logger.warning(
+                        f"⚠️  Smart executor rejected trade: {result.reason} "
+                        f"(Slippage: {result.slippage_pct*100:.3f}% if available)"
+                    )
+                    self._log_rejection(symbol, side, qty, result.reason)
+                    return None
+                
+                logger.info(
+                    f"✅ Smart executor trade successful: {symbol} "
+                    f"Filled ${result.filled_price:.2f}, SL ${result.stop_loss:.2f}, "
+                    f"TP ${result.take_profit:.2f}, Slippage {result.slippage_pct*100:.3f}%, "
+                    f"R/R 1:{result.rr_ratio:.2f}"
+                )
+                
+                # Create mock alpaca order object for compatibility
+                from types import SimpleNamespace
+                alpaca_order = SimpleNamespace(
+                    id=result.order_id,
+                    status=SimpleNamespace(value='filled'),
+                    filled_qty=qty,
+                    filled_avg_price=result.filled_price,
+                    submitted_at=datetime.now()
+                )
+                
+            elif use_bracket:
+                # Legacy bracket order execution
                 request = BracketOrderBuilder.create_market_bracket(
                     symbol=symbol,
                     qty=qty,
@@ -197,15 +253,18 @@ class OrderManager:
             
             # Submit options order to Alpaca
             # Note: Options orders are typically limit orders at the premium price
-            order = self.alpaca.submit_order(
-                symbol=option_symbol,
-                qty=contracts,
-                side='buy',
-                type='limit',
-                limit_price=premium,
-                time_in_force='day',
-                client_order_id=client_order_id
-            )
+            # TODO: Implement proper options order submission when options trading is enabled
+            logger.error("Options trading not yet implemented in AlpacaClient")
+            return None
+            # order = self.alpaca.submit_order(
+            #     symbol=option_symbol,
+            #     qty=contracts,
+            #     side='buy',
+            #     type='limit',
+            #     limit_price=premium,
+            #     time_in_force='day',
+            #     client_order_id=client_order_id
+            # )
             
             if not order:
                 logger.error(f"Failed to submit options order: {option_symbol}")

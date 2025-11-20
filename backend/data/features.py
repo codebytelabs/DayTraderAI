@@ -157,40 +157,56 @@ class FeatureEngine:
         try:
             score = 0.0
             
-            # EMA alignment (20 points max)
+            # EMA alignment (20 points max) - MORE GENEROUS
             ema_diff_pct = abs((ema_short - ema_long) / ema_long) * 100
             if ema_diff_pct > 0.5:  # Strong trend
                 score += 20
-            elif ema_diff_pct > 0.2:  # Moderate trend
-                score += 15
-            elif ema_diff_pct > 0.1:  # Weak trend
+            elif ema_diff_pct > 0.3:  # Moderate trend (was 0.2)
+                score += 17
+            elif ema_diff_pct > 0.15:  # Decent trend (was 0.1)
+                score += 14
+            elif ema_diff_pct > 0.05:  # Weak trend (new)
                 score += 10
-            
-            # RSI momentum (20 points max)
-            if 30 <= rsi <= 70:  # Not overbought/oversold
-                score += 10
-            if rsi > 50:  # Bullish momentum
-                score += 10
-            elif rsi < 50:  # Bearish momentum (still valid)
+            else:  # Very weak trend (new)
                 score += 5
             
-            # MACD confirmation (20 points max)
+            # RSI momentum (20 points max) - MORE BALANCED
+            if 30 <= rsi <= 70:  # Not overbought/oversold
+                score += 12  # Was 10
+            elif 25 <= rsi < 30 or 70 < rsi <= 75:  # Slightly extended (new)
+                score += 8
+            else:  # Very extended (new)
+                score += 4
+            
+            if rsi > 50:  # Bullish momentum
+                score += 8  # Was 10
+            elif rsi < 50:  # Bearish momentum (still valid)
+                score += 8  # Was 5 - equal weight now
+            
+            # MACD confirmation (20 points max) - MORE LENIENT
             if abs(macd_histogram) > 0.1:  # Strong MACD signal
                 score += 20
             elif abs(macd_histogram) > 0.05:  # Moderate MACD signal
-                score += 15
-            elif abs(macd_histogram) > 0.01:  # Weak MACD signal
-                score += 10
+                score += 16
+            elif abs(macd_histogram) > 0.02:  # Decent MACD signal (was 0.01)
+                score += 12
+            elif abs(macd_histogram) > 0.005:  # Weak MACD signal (new)
+                score += 8
+            else:  # Very weak (new)
+                score += 4
             
-            # Volume confirmation (20 points max)
-            if volume_ratio > 2.0:  # High volume
+            # Volume confirmation (20 points max) - ADJUSTED FOR DAY TRADING
+            # Industry standard: Don't penalize midday low volume too heavily
+            if volume_ratio > 1.5:  # High volume
                 score += 20
-            elif volume_ratio > 1.5:  # Above average volume
+            elif volume_ratio > 1.0:  # Above average volume
                 score += 15
-            elif volume_ratio > 1.2:  # Slightly above average
-                score += 10
-            elif volume_ratio > 0.8:  # Normal volume
-                score += 5
+            elif volume_ratio > 0.7:  # Decent volume (was 1.2)
+                score += 12
+            elif volume_ratio > 0.4:  # Acceptable midday volume (was 0.8)
+                score += 8
+            elif volume_ratio > 0.2:  # Low but tradeable
+                score += 4
             
             # VWAP position (20 points max)
             vwap_diff_pct = abs((price - vwap) / vwap) * 100
@@ -248,24 +264,35 @@ class FeatureEngine:
             # Check for EMA crossover (primary signal)
             ema_signal = FeatureEngine.detect_ema_crossover(features)
             
+            # Get EMA values (needed for logging regardless of crossover)
+            ema_short = features.get('ema_short', 0)
+            ema_long = features.get('ema_long', 0)
+            ema_diff_pct = features.get('ema_diff_pct', 0)
+            price = features.get('price', 0)
+            
             # If no crossover, check if we're in a clear trend
             if not ema_signal:
-                ema_short = features.get('ema_short', 0)
-                ema_long = features.get('ema_long', 0)
-                ema_diff_pct = features.get('ema_diff_pct', 0)
-                
                 # If EMAs are clearly separated, trade in that direction
                 if abs(ema_diff_pct) > 0.1:  # 0.1% separation
                     if ema_short > ema_long:
                         ema_signal = 'buy'  # Uptrend
+                        logger.debug(f"BUY signal: EMA9 ${ema_short:.2f} > EMA21 ${ema_long:.2f} (price ${price:.2f})")
                     else:
                         ema_signal = 'sell'  # Downtrend
+                        logger.debug(f"SELL signal: EMA9 ${ema_short:.2f} < EMA21 ${ema_long:.2f} (price ${price:.2f})")
                 else:
                     # No clear trend, skip
                     return None
             
             # Get confidence score
             confidence = features.get('confidence_score', 50.0)
+            
+            # Log signal generation for debugging
+            logger.info(
+                f"📊 Signal Generated: {ema_signal.upper()} | "
+                f"EMA9: ${ema_short:.2f} | EMA21: ${ema_long:.2f} | "
+                f"Diff: {ema_diff_pct:.2f}% | Price: ${price:.2f} | Confidence: {confidence:.1f}%"
+            )
             
             # Multi-indicator confirmation
             confirmations = []
@@ -285,8 +312,9 @@ class FeatureEngine:
                 confirmations.append('macd_bearish')
             
             # Volume confirmation
+            # FIXED: Lower threshold for 1-minute bars (1.5x is too high for intraday)
             volume_ratio = features.get('volume_ratio', 1.0)
-            if volume_ratio > 1.5:
+            if volume_ratio > 0.8:  # Above 80% of average is sufficient for 1-min bars
                 confirmations.append('volume_confirmed')
             
             # VWAP confirmation

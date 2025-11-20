@@ -28,13 +28,23 @@ class OpportunityScanner:
         self.use_ai = use_ai
         self.sentiment_analyzer = sentiment_analyzer
         
+        # Daily cache for enhanced scoring
+        try:
+            from data.daily_cache import get_daily_cache
+            self.daily_cache = get_daily_cache()
+            logger.info("✅ Daily cache available for enhanced scoring")
+        except Exception as e:
+            self.daily_cache = None
+            logger.warning(f"Daily cache not available: {e}")
+        
         # Cache
         self.last_scan_time = None
         self.last_scan_results = []
         self.scan_interval = timedelta(hours=1)  # Scan every hour
         
         mode = "AI-powered" if use_ai else "traditional"
-        logger.info(f"OpportunityScanner initialized ({mode} mode)")
+        enhanced = " + daily data" if self.daily_cache else ""
+        logger.info(f"OpportunityScanner initialized ({mode} mode{enhanced})")
     
     async def scan_universe_async(self, symbols: Optional[List[str]] = None, 
                                    min_score: float = 50.0) -> List[Dict]:
@@ -97,18 +107,45 @@ class OpportunityScanner:
                         logger.debug(f"Failed to calculate features for {symbol}")
                         continue
                     
-                    # Score opportunity
+                    # Score opportunity (base score)
                     score_dict = self.scorer.calculate_total_score(features)
+                    base_score = score_dict['total_score']
                     
-                    # Filter by minimum score
-                    if score_dict['total_score'] < min_score:
+                    # Calculate daily data bonus (Sprint 7+ enhancement)
+                    daily_bonus = self.calculate_daily_data_bonus(symbol, features['price'])
+                    enhanced_score = base_score + daily_bonus['total_bonus']
+                    
+                    # Filter by minimum score (using enhanced score)
+                    if enhanced_score < min_score:
                         continue
+                    
+                    # Recalculate grade with enhanced score
+                    if enhanced_score >= 90:
+                        grade = 'A+'
+                    elif enhanced_score >= 85:
+                        grade = 'A'
+                    elif enhanced_score >= 80:
+                        grade = 'A-'
+                    elif enhanced_score >= 75:
+                        grade = 'B+'
+                    elif enhanced_score >= 70:
+                        grade = 'B'
+                    elif enhanced_score >= 65:
+                        grade = 'B-'
+                    elif enhanced_score >= 60:
+                        grade = 'C+'
+                    elif enhanced_score >= 55:
+                        grade = 'C'
+                    else:
+                        grade = 'C-'
                     
                     # Create opportunity record
                     opportunity = {
                         'symbol': symbol,
-                        'score': score_dict['total_score'],
-                        'grade': score_dict['grade'],
+                        'score': enhanced_score,  # Enhanced score
+                        'base_score': base_score,  # Original score
+                        'daily_bonus': daily_bonus['total_bonus'],  # Bonus points
+                        'grade': grade,  # Recalculated grade
                         'technical_score': score_dict['technical_score'],
                         'momentum_score': score_dict['momentum_score'],
                         'volume_score': score_dict['volume_score'],
@@ -121,7 +158,8 @@ class OpportunityScanner:
                         'market_regime': features.get('market_regime', 'transitional'),
                         'confidence': features.get('confidence_score', 50),
                         'scanned_at': datetime.now().isoformat(),
-                        'ai_discovered': self.use_ai
+                        'ai_discovered': self.use_ai,
+                        'daily_data_details': daily_bonus['details']  # Enhancement details
                     }
                     
                     opportunities.append(opportunity)
@@ -202,18 +240,45 @@ class OpportunityScanner:
                         logger.debug(f"Failed to calculate features for {symbol}")
                         continue
                     
-                    # Score opportunity
+                    # Score opportunity (base score)
                     score_dict = self.scorer.calculate_total_score(features)
+                    base_score = score_dict['total_score']
                     
-                    # Filter by minimum score
-                    if score_dict['total_score'] < min_score:
+                    # Calculate daily data bonus (Sprint 7+ enhancement)
+                    daily_bonus = self.calculate_daily_data_bonus(symbol, features['price'])
+                    enhanced_score = base_score + daily_bonus['total_bonus']
+                    
+                    # Filter by minimum score (using enhanced score)
+                    if enhanced_score < min_score:
                         continue
+                    
+                    # Recalculate grade with enhanced score
+                    if enhanced_score >= 90:
+                        grade = 'A+'
+                    elif enhanced_score >= 85:
+                        grade = 'A'
+                    elif enhanced_score >= 80:
+                        grade = 'A-'
+                    elif enhanced_score >= 75:
+                        grade = 'B+'
+                    elif enhanced_score >= 70:
+                        grade = 'B'
+                    elif enhanced_score >= 65:
+                        grade = 'B-'
+                    elif enhanced_score >= 60:
+                        grade = 'C+'
+                    elif enhanced_score >= 55:
+                        grade = 'C'
+                    else:
+                        grade = 'C-'
                     
                     # Create opportunity record
                     opportunity = {
                         'symbol': symbol,
-                        'score': score_dict['total_score'],
-                        'grade': score_dict['grade'],
+                        'score': enhanced_score,  # Enhanced score
+                        'base_score': base_score,  # Original score
+                        'daily_bonus': daily_bonus['total_bonus'],  # Bonus points
+                        'grade': grade,  # Recalculated grade
                         'technical_score': score_dict['technical_score'],
                         'momentum_score': score_dict['momentum_score'],
                         'volume_score': score_dict['volume_score'],
@@ -225,7 +290,8 @@ class OpportunityScanner:
                         'volume_ratio': features.get('volume_ratio', 1.0),
                         'market_regime': features.get('market_regime', 'transitional'),
                         'confidence': features.get('confidence_score', 50),
-                        'scanned_at': datetime.now().isoformat()
+                        'scanned_at': datetime.now().isoformat(),
+                        'daily_data_details': daily_bonus['details']  # Enhancement details
                     }
                     
                     opportunities.append(opportunity)
@@ -399,3 +465,130 @@ class OpportunityScanner:
             distribution[grade] = distribution.get(grade, 0) + 1
         
         return distribution
+    
+    def calculate_daily_data_bonus(self, symbol: str, current_price: float, signal: str = 'long') -> Dict:
+        """
+        Calculate bonus points based on daily data AND signal direction (Sprint 7+ enhancement).
+        
+        NOW SUPPORTS BOTH LONG AND SHORT SIGNALS!
+        
+        Args:
+            symbol: Stock symbol
+            current_price: Current price
+            signal: 'long' or 'short' - determines bonus logic
+            
+        Returns:
+            Dict with bonus points and details
+        """
+        bonus = {
+            'total_bonus': 0,
+            'ema_200_bonus': 0,
+            'daily_trend_bonus': 0,
+            'trend_strength_bonus': 0,
+            'details': []
+        }
+        
+        if not self.daily_cache:
+            return bonus
+        
+        try:
+            daily_data = self.daily_cache.get_daily_data(symbol)
+            
+            if not daily_data:
+                return bonus
+            
+            # Bonus 1: Price vs 200-EMA (0-15 points) - DIRECTION AWARE
+            ema_200 = daily_data.get('ema_200', 0)
+            if ema_200 > 0:
+                distance_pct = ((current_price - ema_200) / ema_200) * 100
+                
+                if signal == 'long':
+                    # LONG: Reward uptrends (above 200-EMA)
+                    if distance_pct > 15:  # >15% above
+                        bonus['ema_200_bonus'] = 15
+                        bonus['details'].append(f"Strong uptrend: {distance_pct:.1f}% above 200-EMA")
+                    elif distance_pct > 10:  # >10% above
+                        bonus['ema_200_bonus'] = 12
+                        bonus['details'].append(f"Good uptrend: {distance_pct:.1f}% above 200-EMA")
+                    elif distance_pct > 5:  # >5% above
+                        bonus['ema_200_bonus'] = 8
+                        bonus['details'].append(f"Moderate uptrend: {distance_pct:.1f}% above 200-EMA")
+                    elif distance_pct > 0:  # Above EMA
+                        bonus['ema_200_bonus'] = 5
+                        bonus['details'].append(f"Above 200-EMA: {distance_pct:.1f}%")
+                
+                elif signal == 'short':
+                    # SHORT: Reward downtrends (below 200-EMA)
+                    if distance_pct < -15:  # >15% below
+                        bonus['ema_200_bonus'] = 15
+                        bonus['details'].append(f"Strong downtrend: {abs(distance_pct):.1f}% below 200-EMA")
+                    elif distance_pct < -10:  # >10% below
+                        bonus['ema_200_bonus'] = 12
+                        bonus['details'].append(f"Good downtrend: {abs(distance_pct):.1f}% below 200-EMA")
+                    elif distance_pct < -5:  # >5% below
+                        bonus['ema_200_bonus'] = 8
+                        bonus['details'].append(f"Moderate downtrend: {abs(distance_pct):.1f}% below 200-EMA")
+                    elif distance_pct < 0:  # Below EMA
+                        bonus['ema_200_bonus'] = 5
+                        bonus['details'].append(f"Below 200-EMA: {abs(distance_pct):.1f}%")
+            
+            # Bonus 2: Daily trend (0-15 points) - DIRECTION AWARE
+            trend = daily_data.get('trend', 'neutral')
+            ema_9 = daily_data.get('ema_9', 0)
+            ema_21 = daily_data.get('ema_21', 0)
+            
+            if signal == 'long' and trend == 'bullish':
+                # LONG: Reward bullish trend
+                if ema_9 > 0 and ema_21 > 0:
+                    trend_strength = ((ema_9 - ema_21) / ema_21) * 100
+                    
+                    if trend_strength > 5:  # Strong bullish
+                        bonus['daily_trend_bonus'] = 15
+                        bonus['details'].append(f"Strong bullish trend: {trend_strength:.1f}%")
+                    elif trend_strength > 2:  # Moderate bullish
+                        bonus['daily_trend_bonus'] = 10
+                        bonus['details'].append(f"Bullish trend: {trend_strength:.1f}%")
+                    else:  # Weak bullish
+                        bonus['daily_trend_bonus'] = 5
+                        bonus['details'].append("Weak bullish trend")
+            
+            elif signal == 'short' and trend == 'bearish':
+                # SHORT: Reward bearish trend
+                if ema_9 > 0 and ema_21 > 0:
+                    trend_strength = ((ema_21 - ema_9) / ema_9) * 100  # Inverted for bearish
+                    
+                    if trend_strength > 5:  # Strong bearish
+                        bonus['daily_trend_bonus'] = 15
+                        bonus['details'].append(f"Strong bearish trend: {trend_strength:.1f}%")
+                    elif trend_strength > 2:  # Moderate bearish
+                        bonus['daily_trend_bonus'] = 10
+                        bonus['details'].append(f"Bearish trend: {trend_strength:.1f}%")
+                    else:  # Weak bearish
+                        bonus['daily_trend_bonus'] = 5
+                        bonus['details'].append("Weak bearish trend")
+            
+            # Bonus 3: Trend strength (0-10 points) - Works for both LONG and SHORT
+            # Combination of both factors
+            if bonus['ema_200_bonus'] > 10 and bonus['daily_trend_bonus'] > 10:
+                bonus['trend_strength_bonus'] = 10
+                direction = "bullish" if signal == 'long' else "bearish"
+                bonus['details'].append(f"Excellent {direction} alignment")
+            elif bonus['ema_200_bonus'] > 5 and bonus['daily_trend_bonus'] > 5:
+                bonus['trend_strength_bonus'] = 5
+                direction = "bullish" if signal == 'long' else "bearish"
+                bonus['details'].append(f"Good {direction} alignment")
+            
+            # Calculate total
+            bonus['total_bonus'] = (
+                bonus['ema_200_bonus'] + 
+                bonus['daily_trend_bonus'] + 
+                bonus['trend_strength_bonus']
+            )
+            
+            if bonus['total_bonus'] > 0:
+                logger.debug(f"{symbol}: Daily data bonus = +{bonus['total_bonus']} points")
+            
+        except Exception as e:
+            logger.error(f"Error calculating daily bonus for {symbol}: {e}")
+        
+        return bonus

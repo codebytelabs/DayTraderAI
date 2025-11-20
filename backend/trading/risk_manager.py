@@ -1,5 +1,6 @@
 from typing import Optional, Tuple
 from datetime import datetime
+import asyncio
 from config import settings
 from core.state import trading_state, Position
 from core.alpaca_client import AlpacaClient
@@ -23,6 +24,24 @@ class RiskManager:
         self.regime_detector = get_regime_detector(alpaca_client)
         self.sentiment_aggregator = sentiment_aggregator
         self.current_regime = None
+        
+        # Daily cache for enhanced risk management (Sprint 7+)
+        try:
+            from data.daily_cache import get_daily_cache
+            self.daily_cache = get_daily_cache()
+            logger.info("✅ Daily cache available for enhanced risk management")
+        except Exception as e:
+            self.daily_cache = None
+            logger.warning(f"Daily cache not available: {e}")
+        
+        # AI Trade Validator for high-risk trades (Phase 1)
+        try:
+            from trading.ai_trade_validator import AITradeValidator
+            self.ai_validator = AITradeValidator()
+            logger.info("✅ AI Trade Validator initialized")
+        except Exception as e:
+            self.ai_validator = None
+            logger.warning(f"AI Trade Validator not available: {e}")
     
     def check_order(
         self,
@@ -72,13 +91,19 @@ class RiskManager:
         # 6. Check buying power and max position size
         try:
             account = self.alpaca.get_account()
-            # Use day trading buying power for intraday trades
-            buying_power = float(account.daytrading_buying_power) if account.pattern_day_trader else float(account.buying_power)
             equity = float(account.equity)
+            cash = float(account.cash)
+            regular_bp = float(account.buying_power)
+            daytrading_bp = float(account.daytrading_buying_power)
             
-            # Add safety margin for day trading buying power (10% buffer)
-            if account.pattern_day_trader:
+            # Use day trading buying power for intraday trades, with fallback
+            if account.pattern_day_trader and daytrading_bp > 0:
+                buying_power = daytrading_bp
+                # Add safety margin for day trading buying power (10% buffer)
                 buying_power *= 0.9  # Use 90% of available to avoid edge cases
+            else:
+                # Fallback: use cash or regular buying power (whichever is higher)
+                buying_power = max(cash, regular_bp)
             
             if price:
                 order_value = price * qty
@@ -109,16 +134,34 @@ class RiskManager:
         regime = self._get_market_regime()
         regime_multiplier = regime['position_size_multiplier']
         
-        # Apply sentiment-based position size multiplier (NEW!)
+        # Apply sentiment-based position size multiplier
         sentiment_multiplier = self._get_sentiment_multiplier()
         
-        # Combined multiplier (take the more conservative one)
-        combined_multiplier = min(regime_multiplier, sentiment_multiplier)
+        # Apply trend strength multiplier (Sprint 7+ enhancement) - NOW DIRECTION AWARE
+        trend_multiplier = self._get_trend_strength_multiplier(symbol, price, side)
+        
+        # Apply sector concentration multiplier (Sprint 7+ enhancement)
+        sector_multiplier = self._get_sector_concentration_multiplier(symbol)
+        
+        # Combined multiplier (multiply all factors)
+        combined_multiplier = (
+            regime_multiplier * 
+            sentiment_multiplier * 
+            trend_multiplier * 
+            sector_multiplier
+        )
         
         adjusted_risk_pct = self.risk_per_trade_pct * combined_multiplier
         max_risk_amount = equity * adjusted_risk_pct
         
-        logger.info(f"Regime: {regime['regime']} | Regime Mult: {regime_multiplier:.2f}x | Sentiment Mult: {sentiment_multiplier:.2f}x | Final: {combined_multiplier:.2f}x | Risk: {adjusted_risk_pct*100:.2f}%")
+        logger.info(
+            f"Risk Multipliers: Regime={regime_multiplier:.2f}x | "
+            f"Sentiment={sentiment_multiplier:.2f}x | "
+            f"Trend={trend_multiplier:.2f}x | "
+            f"Sector={sector_multiplier:.2f}x | "
+            f"Combined={combined_multiplier:.2f}x | "
+            f"Risk={adjusted_risk_pct*100:.2f}%"
+        )
         
         # Get features for stop loss calculation
         features = trading_state.get_features(symbol)
@@ -129,12 +172,13 @@ class RiskManager:
             adx = features.get('adx', 25)
             
             # Adjust ADX threshold based on market regime
+            # Industry standard: 15-18 for day trading, 20+ for swing trading
             if regime['regime'] == 'choppy':
-                adx_threshold = 15  # More lenient in choppy markets
+                adx_threshold = 12  # Very lenient in choppy markets
             elif regime['volatility_level'] == 'high':
-                adx_threshold = 18  # Slightly more lenient in high volatility
+                adx_threshold = 15  # Lenient in high volatility
             else:
-                adx_threshold = 20  # Standard threshold for trending markets
+                adx_threshold = 18  # Day trading threshold (was 20)
             
             if adx < adx_threshold:
                 return False, f"Low volatility setup rejected: ADX {adx:.1f} < {adx_threshold} (regime: {regime['regime']})"
@@ -142,16 +186,27 @@ class RiskManager:
             # Adaptive volume filter - threshold varies by market regime
             volume_ratio = features.get('volume_ratio', 1.0)
             
-            # Determine volume threshold based on regime
+            # Determine volume threshold based on regime and time of day
+            # Industry standard: 0.5x midday, 0.8x morning, 1.0x+ for breakouts
+            import pytz
+            from datetime import datetime
+            et_time = datetime.now(tz=pytz.timezone('US/Eastern'))
+            hour = et_time.hour
+            
+            # Time-based volume adjustment (volume drops midday)
+            if 11 <= hour <= 14:  # Midday lull
+                time_volume_mult = 0.6
+            elif hour >= 15:  # Afternoon pickup
+                time_volume_mult = 0.8
+            else:  # Morning
+                time_volume_mult = 1.0
+            
             if regime['regime'] == 'choppy':
-                # Relaxed threshold in choppy markets (position already 0.5x)
-                volume_threshold = 1.0
+                volume_threshold = 0.4 * time_volume_mult
             elif regime['volatility_level'] == 'high':
-                # Slightly relaxed in high volatility
-                volume_threshold = 1.2
+                volume_threshold = 0.6 * time_volume_mult
             else:
-                # Standard threshold for normal/trending markets
-                volume_threshold = 1.5
+                volume_threshold = 0.7 * time_volume_mult
             
             if volume_ratio < volume_threshold:
                 return False, f"Low volume rejected: {volume_ratio:.2f}x < {volume_threshold:.1f}x (regime: {regime['regime']})"
@@ -170,6 +225,36 @@ class RiskManager:
         # Removed static watchlist check - AI can discover any symbol
         # if symbol not in settings.watchlist_symbols:
         #     return False, f"{symbol} not in watchlist"
+        
+        # 9. AI validation for high-risk trades (Phase 1)
+        if self.ai_validator and settings.ENABLE_AI_VALIDATION:
+            # Build context for AI validation
+            context = self._build_ai_context(
+                symbol, side, qty, price, equity, 
+                combined_multiplier, adjusted_risk_pct, features
+            )
+            
+            # Check if this is a high-risk trade
+            is_high_risk, risk_reason = self.ai_validator.is_high_risk(symbol, side, context)
+            
+            if is_high_risk:
+                logger.warning(f"🤖 High-risk trade detected for {symbol}: {risk_reason}")
+                
+                # Run async AI validation
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                approved, ai_reason = loop.run_until_complete(
+                    self.ai_validator.validate(symbol, side, features or {}, context)
+                )
+                
+                if not approved:
+                    return False, f"AI rejected: {ai_reason}"
+                else:
+                    logger.info(f"🤖 AI approved high-risk trade: {ai_reason}")
         
         # All checks passed
         logger.info(f"Risk check PASSED: {side} {qty} {symbol}")
@@ -287,6 +372,86 @@ class RiskManager:
             logger.error(f"Error getting sentiment multiplier: {e}")
             return 1.0  # Default to no adjustment on error
     
+    def _get_trend_strength_multiplier(self, symbol: str, price: float, side: str = 'long') -> float:
+        """
+        Get position size multiplier based on daily trend strength AND trade direction (Sprint 7+ enhancement).
+        
+        NOW SUPPORTS BOTH LONG AND SHORT!
+        
+        Args:
+            symbol: Stock symbol
+            price: Current price
+            side: 'long' or 'short' - determines multiplier logic
+            
+        Returns:
+            float: Multiplier (0.8-1.2 based on trend strength and direction)
+        """
+        if not self.daily_cache:
+            return 1.0
+        
+        try:
+            daily_data = self.daily_cache.get_daily_data(symbol)
+            
+            if not daily_data:
+                return 1.0
+            
+            ema_200 = daily_data.get('ema_200', 0)
+            
+            if ema_200 <= 0:
+                return 1.0
+            
+            # Calculate distance from 200-EMA
+            distance_pct = ((price - ema_200) / ema_200) * 100
+            
+            if side == 'long':
+                # LONG: Increase size for uptrends (above 200-EMA)
+                if distance_pct > 10:  # >10% above 200-EMA
+                    return 1.2  # Increase 20%
+                elif distance_pct > 5:  # >5% above
+                    return 1.1  # Increase 10%
+                elif distance_pct > 0:  # Above EMA
+                    return 1.0  # Normal size
+                elif distance_pct > -5:  # Slightly below
+                    return 0.9  # Reduce 10%
+                else:  # >5% below
+                    return 0.8  # Reduce 20%
+            
+            elif side == 'short':
+                # SHORT: Increase size for downtrends (below 200-EMA)
+                if distance_pct < -10:  # >10% below 200-EMA
+                    return 1.2  # Increase 20% (strong downtrend)
+                elif distance_pct < -5:  # >5% below
+                    return 1.1  # Increase 10%
+                elif distance_pct < 0:  # Below EMA
+                    return 1.0  # Normal size
+                elif distance_pct < 5:  # Slightly above
+                    return 0.9  # Reduce 10%
+                else:  # >5% above
+                    return 0.8  # Reduce 20%
+            
+            return 1.0  # Default
+                
+        except Exception as e:
+            logger.error(f"Error calculating trend multiplier: {e}")
+            return 1.0
+    
+    def _get_sector_concentration_multiplier(self, symbol: str) -> float:
+        """
+        Get position size multiplier based on sector concentration (Sprint 7+ enhancement).
+        
+        Reduces position size if too much exposure to one sector.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            float: Multiplier (0.5-1.0 based on sector exposure)
+        """
+        # TODO: Implement sector tracking
+        # For now, return 1.0 (no adjustment)
+        # Future: Track sector exposure and reduce if >40% in one sector
+        return 1.0
+    
     def _get_market_regime(self):
         """Get current market regime (cached for 5 minutes)."""
         from datetime import timedelta
@@ -300,6 +465,63 @@ class RiskManager:
         # Detect new regime
         self.current_regime = self.regime_detector.detect_regime()
         return self.current_regime
+    
+    def _build_ai_context(
+        self, 
+        symbol: str, 
+        side: str, 
+        qty: int, 
+        price: float, 
+        equity: float,
+        combined_multiplier: float,
+        adjusted_risk_pct: float,
+        features: dict
+    ) -> dict:
+        """Build context dictionary for AI validation."""
+        
+        # Get symbol cooldown status (handled by trading engine)
+        in_cooldown = False
+        cooldown_hours = 0
+        consecutive_losses = 0
+        
+        # Get symbol win rate (simplified - no historical stats needed)
+        symbol_win_rate = 1.0  # Default to neutral
+        
+        # Calculate position size as % of equity
+        position_value = price * qty
+        position_pct = (position_value / equity) * 100
+        
+        # Check if counter-trend
+        counter_trend = False
+        daily_trend = 'unknown'
+        if self.daily_cache:
+            daily_data = self.daily_cache.get_daily_data(symbol)
+            if daily_data:
+                daily_trend = daily_data.get('ema_trend', 'unknown')
+                # Counter-trend if going long in bearish trend or short in bullish trend
+                if (side == 'buy' and daily_trend == 'bearish') or \
+                   (side == 'sell' and daily_trend == 'bullish'):
+                    counter_trend = True
+        
+        # Get confidence from features
+        confidence = features.get('confidence', 100) if features else 100
+        
+        return {
+            'symbol': symbol,
+            'side': side,
+            'qty': qty,
+            'price': price,
+            'position_pct': position_pct,
+            'in_cooldown': in_cooldown,
+            'cooldown_hours': cooldown_hours,
+            'consecutive_losses': consecutive_losses,
+            'symbol_win_rate': symbol_win_rate,
+            'counter_trend': counter_trend,
+            'daily_trend': daily_trend,
+            'confidence': confidence,
+            'combined_multiplier': combined_multiplier,
+            'adjusted_risk_pct': adjusted_risk_pct * 100
+        }
     
     def emergency_stop(self):
         """Emergency: disable trading and close all positions."""

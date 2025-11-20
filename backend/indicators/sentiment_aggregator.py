@@ -39,7 +39,17 @@ class SentimentAggregator:
             }
         """
         
-        # Try Tier 1: Perplexity AI (from opportunity discovery)
+        # Primary: Multi-source Fear & Greed Index (most reliable)
+        sentiment = self._get_vix_sentiment()  # Note: Despite name, this fetches Fear & Greed Index
+        if sentiment and self._is_valid_sentiment(sentiment):
+            self.source_stats['vix']['successes'] += 1
+            # Only log at debug level to reduce noise
+            logger.debug(f"✅ Using Fear & Greed Index: {sentiment['score']}/100")
+            return sentiment
+        
+        self.source_stats['vix']['failures'] += 1
+        
+        # Fallback: Try Perplexity if available (from recent AI scan)
         sentiment = self._get_perplexity_sentiment()
         if sentiment and self._is_valid_sentiment(sentiment):
             self.source_stats['perplexity']['successes'] += 1
@@ -47,19 +57,9 @@ class SentimentAggregator:
             return sentiment
         
         self.source_stats['perplexity']['failures'] += 1
-        logger.warning("⚠️  Perplexity sentiment unavailable, falling back to Fear & Greed Index")
+        logger.warning("⚠️  All sentiment sources unavailable, using neutral default")
         
-        # Try Tier 2: Fear & Greed Index sentiment
-        sentiment = self._get_vix_sentiment()  # Note: Despite name, this fetches Fear & Greed Index
-        if sentiment and self._is_valid_sentiment(sentiment):
-            self.source_stats['vix']['successes'] += 1
-            logger.info(f"✅ Using Fear & Greed Index: {sentiment['score']}/100")
-            return sentiment
-        
-        self.source_stats['vix']['failures'] += 1
-        logger.error("❌ All sentiment sources failed, using neutral default")
-        
-        # Fallback: Neutral
+        # Final fallback: Neutral
         return {
             'score': 50,
             'classification': 'neutral',

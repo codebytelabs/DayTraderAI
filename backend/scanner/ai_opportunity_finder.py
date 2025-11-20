@@ -175,9 +175,91 @@ class AIOpportunityFinder:
             return self._get_fallback_symbols()
     
     def _build_discovery_query(self, allowed_caps: Dict = None) -> str:
-        """Build combined query for sentiment + opportunities with market cap filtering."""
+        """Build institutional-grade discovery query based on professional trading methodology."""
         
-        current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p ET")
+        from datetime import datetime
+        import pytz
+        
+        # Get current ET time for market session awareness
+        et_tz = pytz.timezone('US/Eastern')
+        current_dt = datetime.now(et_tz)
+        current_time = current_dt.strftime("%B %d, %Y at %I:%M %p ET")
+        hour = current_dt.hour
+        minute = current_dt.minute
+        
+        # Determine market session and strategy
+        if 9 <= hour < 10:
+            session = "OPENING_BELL"
+            session_strategy = "Gap plays, earnings reactions, overnight catalysts. High volatility expected."
+        elif 10 <= hour < 11:
+            session = "MORNING_MOMENTUM"
+            session_strategy = "Trend continuation, breakout confirmations, institutional accumulation."
+        elif 11 <= hour < 14:
+            session = "MIDDAY_CONSOLIDATION"
+            session_strategy = "Range-bound plays, mean reversion, lower volume expected."
+        elif 14 <= hour < 15:
+            session = "AFTERNOON_SETUP"
+            session_strategy = "Position for power hour, institutional rebalancing, sector rotation."
+        elif 15 <= hour < 16:
+            session = "POWER_HOUR"
+            session_strategy = "High volume momentum, closing auction impacts, end-of-day positioning."
+        else:
+            session = "EXTENDED_HOURS"
+            session_strategy = "After-hours catalysts, earnings reactions, overnight positioning."
+        
+        # Professional sector rotation with catalyst awareness
+        sector_rotations = [
+            {
+                "primary": "Technology, Semiconductors, AI/ML",
+                "secondary": "Software, Cloud Computing, Cybersecurity",
+                "catalysts": "Earnings, chip demand, AI adoption, cloud growth"
+            },
+            {
+                "primary": "Financial Services, Banking, Insurance",
+                "secondary": "REITs, Payment Processors, Fintech",
+                "catalysts": "Interest rate changes, loan growth, regulatory updates"
+            },
+            {
+                "primary": "Healthcare, Biotechnology, Pharmaceuticals",
+                "secondary": "Medical Devices, Health Insurance, Diagnostics",
+                "catalysts": "FDA approvals, clinical trials, drug pricing, M&A"
+            },
+            {
+                "primary": "Energy, Oil & Gas, Renewables",
+                "secondary": "Utilities, Pipeline, Energy Storage",
+                "catalysts": "Oil prices, production cuts, renewable adoption"
+            },
+            {
+                "primary": "Consumer Discretionary, Retail",
+                "secondary": "E-commerce, Automotive, Luxury Goods",
+                "catalysts": "Consumer spending, earnings, inventory levels"
+            },
+            {
+                "primary": "Industrials, Aerospace, Defense",
+                "secondary": "Transportation, Construction, Manufacturing",
+                "catalysts": "Government contracts, infrastructure spending"
+            },
+            {
+                "primary": "Materials, Metals, Mining",
+                "secondary": "Chemicals, Steel, Precious Metals",
+                "catalysts": "Commodity prices, China demand, infrastructure"
+            },
+            {
+                "primary": "Communications, Media, Telecom",
+                "secondary": "Streaming, Social Media, 5G Infrastructure",
+                "catalysts": "Subscriber growth, content costs, spectrum auctions"
+            }
+        ]
+        
+        # Rotate sector focus (changes every 2 hours)
+        rotation_index = (hour // 2) % len(sector_rotations)
+        current_rotation = sector_rotations[rotation_index]
+        
+        sector_focus = f"""**SECTOR ROTATION FOCUS**:
+- **PRIMARY**: {current_rotation['primary']}
+- **SECONDARY**: {current_rotation['secondary']}
+- **KEY CATALYSTS**: {current_rotation['catalysts']}
+- **DIVERSIFICATION**: Include 3-4 other sectors for portfolio balance"""
         
         # Default: allow all caps
         if allowed_caps is None:
@@ -190,71 +272,115 @@ class AIOpportunityFinder:
             cap_sections.append("""
 **LARGE-CAP STOCKS** (>$10B market cap):
 - High volume (>5M shares today)
-- Examples: AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, AMD, SPY, QQQ
-- Find 10-15 opportunities""")
+- Search across ALL sectors: Tech, Finance, Healthcare, Energy, Consumer, Industrial, etc.
+- Include unusual movers and breakout candidates, not just mega-caps
+- Find 10-15 DIVERSE opportunities""")
         
         if allowed_caps.get('mid_caps', True):
             cap_sections.append("""
 **MID-CAP STOCKS** ($2B-$10B market cap):
 - High volume (>1M shares today)  
-- Examples: PLTR, COIN, SOFI, RIVN, SNOW, DKNG, CRWD
-- Find 10-15 opportunities""")
+- Search across ALL sectors and industries
+- Include growth stocks, value plays, and momentum names
+- Find 10-15 DIVERSE opportunities""")
         
         if allowed_caps.get('small_caps', True):
             cap_sections.append("""
 **SMALL-CAP STOCKS** ($300M-$2B, price $5-$50):
 - High volume (>1M shares today)
-- Must have news catalyst
-- Examples: MARA, RIOT, AMC, GME (but find ANY that meet criteria)
-- Find 5-10 opportunities""")
+- Must have news catalyst or unusual activity
+- Search across ALL sectors - biotech, tech, retail, energy, etc.
+- Find 5-10 DIVERSE opportunities with real catalysts""")
         
         # If no caps allowed (shouldn't happen), default to large-caps
         if not cap_sections:
             cap_sections.append("""
 **LARGE-CAP STOCKS** (>$10B market cap):
 - High volume (>5M shares today)
-- Examples: AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, AMD, SPY, QQQ
-- Find 10-15 opportunities""")
+- Search across ALL sectors and industries
+- Find 10-15 DIVERSE opportunities""")
         
         caps_text = "\n".join(cap_sections)
         
-        # Combined query: Get sentiment AND opportunities in one call
-        query = f"""Provide TWO things for day trading on {current_time}:
+        # INSTITUTIONAL-GRADE DISCOVERY QUERY based on professional research
+        query = f"""PROFESSIONAL TRADING OPPORTUNITY ANALYSIS for {current_time}
 
-**PART 1: MARKET SENTIMENT**
-According to top trading websites like CNN, Yahoo Finance, etc., what is the Fear and Greed rating today?
-- Provide the PRIMARY score (0-100) from the most authoritative source
-- Classification: (Extreme Fear/Fear/Neutral/Greed/Extreme Greed)
-- Brief market context (1 sentence)
+**PART 1: MARKET REGIME ANALYSIS**
+Search current market data and provide:
+- **Fear & Greed Index**: Score (0-100) from CNN Fear & Greed Index
+- **Market Regime**: Risk-On/Risk-Off/Transitional/Choppy
+- **VIX Level**: Current volatility environment
+- **Sector Rotation**: Which sectors are leading/lagging TODAY
 
-**PART 2: TRADING OPPORTUNITIES**
-Find the best day trading opportunities RIGHT NOW ({current_time}).
+**PART 2: INSTITUTIONAL-GRADE OPPORTUNITY DISCOVERY**
+**MARKET SESSION**: {session} ({current_time})
+**SESSION STRATEGY**: {session_strategy}
 
-Analyze stocks and provide opportunities for BOTH long and short positions:
+{sector_focus}
+
+**DISCOVERY METHODOLOGY** - Use ALL of these professional screening vectors:
+
+**1. CATALYST SCREENING** (Highest Priority - Search TODAY's News):
+   - **Earnings surprises**: >5% beat/miss with guidance changes happening TODAY
+   - **FDA approvals**: Clinical trial results, regulatory decisions announced TODAY
+   - **Analyst actions**: Upgrades/downgrades from tier-1 firms (Goldman, Morgan Stanley, JPM) TODAY
+   - **M&A activity**: Merger rumors, activist positions, insider buying announced TODAY
+   - **Economic catalysts**: Sector-specific impacts from data releases TODAY
+   
+**2. TECHNICAL VALIDATION** (Confirm with Real-Time Data):
+   - **Volume anomalies**: 2-3x average volume SUSTAINED for 2-5 bars (not one-off spikes)
+   - **Breakout patterns**: Multi-week consolidations breaking key levels with volume
+   - **Relative strength**: Stocks outperforming sector by >5% TODAY
+   - **Gap analysis**: Overnight gaps >3% with follow-through potential
+   - **Momentum confirmation**: Price action aligned with volume (no divergences)
+
+**3. QUANTITATIVE FILTERS** (Apply These Standards):
+   - **Minimum liquidity**: >500K shares/day average volume (>1M for large-caps)
+   - **Price range**: $5-$500 (avoid penny stocks and extreme high-priced)
+   - **Market cap**: >$300M minimum for small-caps, >$2B for mid-caps, >$10B for large-caps
+   - **Risk/Reward**: Minimum 2:1 ratio (prefer 3:1+) with clear technical levels
+   - **Volatility**: ATR movement >1.5-2x normal range
+
+**4. MARKET MICROSTRUCTURE** (Institutional Flow Signals):
+   - **Options flow**: Unusual call/put activity, large block trades TODAY
+   - **Dark pool activity**: Institutional accumulation/distribution signals
+   - **Short interest**: Squeeze potential or heavy short covering
+   - **Smart Money Concepts**: Liquidity grabs, break of structure patterns
+
+**CRITICAL QUALITY REQUIREMENTS**:
+✅ Each opportunity MUST have a SPECIFIC catalyst happening TODAY (not generic "technical setup")
+✅ Include stocks from at least 5 DIFFERENT sectors (avoid sector concentration)
+✅ Prioritize UNUSUAL volume (2x+ average) with directional conviction
+✅ Avoid obvious/overtraded mega-caps - find hidden gems with real catalysts
+✅ Focus on actionable setups for the next 2-4 hours of trading
+✅ Provide DIVERSE symbols - DO NOT repeat the same stocks from previous scans
 
 {caps_text}
 
-**OUTPUT FORMAT:**
+**PROFESSIONAL OUTPUT FORMAT** (For Each Opportunity):
+SYMBOL ($price) | CATALYST: [Specific event TODAY] | TECHNICAL: [Entry level, pattern] | VOLUME: Xx avg | STOP: $X | TARGET: $X | TIMEFRAME: Xh
+
+**EXAMPLE FORMAT**:
 **LARGE-CAP LONG:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
-2. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. NVDA ($145.20) | CATALYST: Beat earnings by 8%, raised guidance | TECHNICAL: Breaking $145 resistance, volume 3.2x | STOP: $142 | TARGET: $152 | TIMEFRAME: 2-3h
+2. [Continue with 8-12 diverse opportunities]
 
 **LARGE-CAP SHORT:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. SYMBOL ($price) | CATALYST: [Specific negative event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
 
 **MID-CAP LONG:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
 
 **MID-CAP SHORT:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
 
 **SMALL-CAP LONG:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
 
 **SMALL-CAP SHORT:**
-1. SYMBOL - $price, catalyst, setup, volume Xx, Target $target
+1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
 
-Focus on stocks with clear catalysts, high volume, and technical setups for the next 1-2 hours."""
+SEARCH REQUIREMENT: You MUST search current market data, news, earnings calendars, and real-time stock movements to find opportunities with ACTUAL catalysts happening TODAY. Do not provide generic lists or historical examples."""
 
         return query
     
@@ -351,14 +477,15 @@ Focus on stocks with clear catalysts, high volume, and technical setups for the 
         """Parse opportunities with full metadata."""
         opportunities = []
         
-        # Pattern: "1. **SYMBOL (SYMBOL)** – $PRICE, catalyst; setup; volume Xx, Target $TARGET"
-        # Also handle: "1. SYMBOL - $PRICE, catalyst, setup, volume Xx, Target $TARGET"
+        # Pattern: Match the new format with pipes: "1. **SYMBOL ($PRICE) | CATALYST: ... | TECHNICAL: ... | VOLUME: Xx | STOP: $X | TARGET: $X"
         patterns = [
-            # Format: "1. **DATADOG (DDOG)** – $117.55, catalyst; setup; volume 20x, Target $130"
-            r'(\d+)\.\s+\*\*[^(]*\(([A-Z]{1,5})\)\*\*\s*[–-]\s*\$?([\d.]+).*?volume\s+(\d+\.?\d*)x.*?[Tt]arget\s+\$?([\d.]+)',
-            # Format: "1. SYMBOL - $PRICE, catalyst, setup, volume Xx, Target $TARGET"
+            # Format: "1. **FCX ($36.52) | CATALYST:** ... | VOLUME: 2.3x ... | STOP: $35 | TARGET: $38"
+            r'(\d+)\.\s+\*\*([A-Z]{1,5})\s*\(\$?([\d.]+)\)\s*\|.*?VOLUME:\s*(\d+\.?\d*)x.*?TARGET:\s*\$?([\d.]+)',
+            # Format without bold: "1. FCX ($36.52) | CATALYST: ... | VOLUME: 2.3x | TARGET: $38"
+            r'(\d+)\.\s+([A-Z]{1,5})\s*\(\$?([\d.]+)\)\s*\|.*?VOLUME:\s*(\d+\.?\d*)x.*?TARGET:\s*\$?([\d.]+)',
+            # Fallback: Old comma format "1. SYMBOL - $PRICE, catalyst, volume Xx, Target $TARGET"
             r'(\d+)\.\s+([A-Z]{1,5})\s*[-–]\s*\$?([\d.]+).*?volume\s+(\d+\.?\d*)x.*?[Tt]arget\s+\$?([\d.]+)',
-            # Format: "1. **SYMBOL** - $PRICE, catalyst, setup, volume Xx, Target $TARGET"
+            # Fallback: Bold format "1. **SYMBOL** - $PRICE, volume Xx, Target $TARGET"
             r'(\d+)\.\s+\*\*([A-Z]{1,5})\*\*\s*[-–]\s*\$?([\d.]+).*?volume\s+(\d+\.?\d*)x.*?[Tt]arget\s+\$?([\d.]+)'
         ]
         
@@ -385,9 +512,12 @@ Focus on stocks with clear catalysts, high volume, and technical setups for the 
             volume_mult = float(match.group(4))
             target = float(match.group(5))
             
-            # Extract catalyst (text between price and "volume")
+            # Extract catalyst (text after "CATALYST:" or between price and "volume")
             full_match = match.group(0)
-            catalyst_match = re.search(r'\$?[\d.]+,\s*(.+?)(?:volume|vol)', full_match, re.IGNORECASE)
+            catalyst_match = re.search(r'CATALYST:\s*([^|]+)', full_match, re.IGNORECASE)
+            if not catalyst_match:
+                # Fallback: old format
+                catalyst_match = re.search(r'\$?[\d.]+[,\s]+(.+?)(?:volume|vol|VOLUME)', full_match, re.IGNORECASE)
             catalyst = catalyst_match.group(1).strip() if catalyst_match else "Unknown"
             
             if self._is_valid_symbol(symbol):
@@ -409,34 +539,49 @@ Focus on stocks with clear catalysts, high volume, and technical setups for the 
         opportunities = []
         
         # Look for numbered list items with symbols
+        # Format: "1. **COST ($621.10)** | CATALYST: ..."
         lines = section.split('\n')
         for line in lines:
             line = line.strip()
             if not line:
                 continue
                 
-            # Pattern: "1. **SYMBOL** - description" or "1. SYMBOL - description"
-            match = re.match(r'(\d+)\.\s+(?:\*\*)?([A-Z]{1,5})(?:\*\*)?\s*[-–]', line)
+            # Pattern: "1. **SYMBOL ($PRICE)** | ..." or "1. SYMBOL ($PRICE) | ..."
+            match = re.match(r'(\d+)\.\s+(?:\*\*)?([A-Z]{2,5})\s*\(\$?([\d.]+)\)(?:\*\*)?\s*\|', line)
             if match:
                 symbol = match.group(2)
+                price = float(match.group(3))
+                
+                # Extract catalyst and other info
+                rest = line[match.end():].strip()
+                catalyst_match = re.search(r'CATALYST:\s*([^|]+)', rest, re.IGNORECASE)
+                catalyst = catalyst_match.group(1).strip() if catalyst_match else rest[:100]
+                
+                # Extract volume if available
+                volume_match = re.search(r'volume\s+(\d+\.?\d*)x', rest, re.IGNORECASE)
+                volume_mult = float(volume_match.group(1)) if volume_match else 1.0
+                
+                # Extract target if available
+                target_match = re.search(r'TARGET:\s*\$?([\d.]+)', rest, re.IGNORECASE)
+                target = float(target_match.group(1)) if target_match else price * 1.02  # Default 2% target
+                
                 if self._is_valid_symbol(symbol):
-                    # Extract basic info from the line
                     opportunities.append({
                         'symbol': symbol,
                         'tier': tier,
                         'direction': direction,
-                        'price': 0,  # Will be filled later if available
-                        'target': 0,  # Will be filled later if available
-                        'volume_mult': 1.0,  # Default
-                        'catalyst': line[match.end():].strip()[:100],  # First 100 chars as catalyst
-                        'confidence': 'MEDIUM'
+                        'price': price,
+                        'target': target,
+                        'volume_mult': volume_mult,
+                        'catalyst': catalyst,
+                        'confidence': 'HIGH' if volume_mult >= 2.0 else 'MEDIUM'
                     })
         
         logger.info(f"Simple extraction found {len(opportunities)} opportunities")
         
         # Log each opportunity found
         for opp in opportunities:
-            logger.info(f"   📊 {tier.upper()} {direction}: {opp['symbol']} - {opp['catalyst'][:50]}...")
+            logger.info(f"   📊 {tier.upper()} {direction}: {opp['symbol']} @ ${opp['price']:.2f} - {opp['catalyst'][:50]}...")
         
         return opportunities
     
@@ -548,12 +693,26 @@ Focus on stocks with clear catalysts, high volume, and technical setups for the 
         return True
     
     def _get_fallback_symbols(self) -> List[str]:
-        """Get fallback symbols if AI discovery fails."""
+        """Get fallback symbols if AI discovery fails - DIVERSIFIED across sectors."""
         
+        # Diversified fallback across sectors (not just tech mega-caps)
         fallback = [
-            'SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD',
-            'GOOGL', 'AMZN', 'META', 'NFLX', 'PLTR', 'COIN',
-            'SOFI', 'RIVN', 'LCID', 'NIO', 'HOOD', 'IWM', 'DIA'
+            # Indices
+            'SPY', 'QQQ', 'IWM', 'DIA',
+            # Tech
+            'AAPL', 'MSFT', 'NVDA', 'AMD', 'GOOGL', 'META', 'NFLX', 'TSLA',
+            # Finance
+            'JPM', 'BAC', 'GS', 'MS', 'C', 'WFC',
+            # Healthcare
+            'JNJ', 'UNH', 'PFE', 'ABBV', 'LLY',
+            # Energy
+            'XOM', 'CVX', 'COP', 'SLB',
+            # Consumer
+            'AMZN', 'WMT', 'HD', 'NKE', 'MCD',
+            # Industrial
+            'BA', 'CAT', 'GE', 'UPS',
+            # Growth/Momentum
+            'PLTR', 'COIN', 'SOFI', 'RIVN', 'HOOD', 'SNOW', 'CRWD'
         ]
         
         logger.warning("🔄 USING FALLBACK SYMBOLS - AI discovery failed")
@@ -562,9 +721,11 @@ Focus on stocks with clear catalysts, high volume, and technical setups for the 
         logger.info("=" * 80)
         
         # Categorize fallback symbols
-        large_cap = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD', 'GOOGL', 'AMZN', 'META', 'NFLX', 'IWM', 'DIA']
-        mid_cap = ['PLTR', 'COIN', 'SOFI', 'RIVN', 'HOOD']
-        small_cap = ['LCID', 'NIO']
+        large_cap = ['SPY', 'QQQ', 'IWM', 'DIA', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'GOOGL', 'META', 'NFLX', 'TSLA',
+                     'JPM', 'BAC', 'GS', 'MS', 'C', 'WFC', 'JNJ', 'UNH', 'PFE', 'ABBV', 'LLY',
+                     'XOM', 'CVX', 'COP', 'SLB', 'AMZN', 'WMT', 'HD', 'NKE', 'MCD', 'BA', 'CAT', 'GE', 'UPS']
+        mid_cap = ['PLTR', 'COIN', 'SOFI', 'RIVN', 'HOOD', 'SNOW', 'CRWD']
+        small_cap = []  # Will be populated by AI
         
         logger.info(f"🏢 Large-Cap ({len(large_cap)}): {', '.join(large_cap)}")
         logger.info(f"🏭 Mid-Cap ({len(mid_cap)}): {', '.join(mid_cap)}")
