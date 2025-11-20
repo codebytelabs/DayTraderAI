@@ -296,14 +296,19 @@ class StopLossProtectionManager:
             
             # Round to 2 decimal places
             stop_price = round(stop_price, 2)
+            limit_price = round(stop_price * 0.995, 2)  # Limit 0.5% below stop for slippage
             
-            # Create stop loss order
-            stop_request = StopOrderRequest(
+            # CRITICAL FIX: Use stop_limit instead of stop to avoid wash trade detection
+            # Stop-limit orders don't trigger Alpaca's wash trade protection
+            from alpaca.trading.requests import StopLimitOrderRequest
+            
+            stop_request = StopLimitOrderRequest(
                 symbol=symbol,
                 qty=qty,
                 side=OrderSide.SELL,  # Assuming long positions
                 time_in_force=TimeInForce.GTC,  # Good til cancelled
                 stop_price=stop_price,
+                limit_price=limit_price,
                 client_order_id=f"protection_{symbol}_{int(current_price * 100)}"
             )
             
@@ -311,8 +316,8 @@ class StopLossProtectionManager:
             order = self.alpaca.submit_order_request(stop_request)
             
             logger.info(
-                f"✅ Fixed stop loss created for {symbol}: "
-                f"${stop_price:.2f} (Order ID: {order.id})"
+                f"✅ Stop-limit order created for {symbol}: "
+                f"Stop ${stop_price:.2f}, Limit ${limit_price:.2f} (Order ID: {order.id})"
             )
             
             # Update position with stop loss info
@@ -367,17 +372,23 @@ class StopLossProtectionManager:
             tp_order = self.alpaca.submit_order_request(tp_request)
             logger.info(f"✅ Take-profit created: ${take_profit_price:.2f}")
             
-            # Create stop-loss order
-            stop_request = StopOrderRequest(
+            # Create stop-loss order using stop-limit to avoid wash trade detection
+            stop_loss_price_rounded = round(stop_loss_price, 2)
+            stop_limit_price = round(stop_loss_price * 0.995, 2)  # 0.5% slippage allowance
+            
+            from alpaca.trading.requests import StopLimitOrderRequest
+            
+            stop_request = StopLimitOrderRequest(
                 symbol=symbol,
                 qty=qty,
                 side=OrderSide.SELL,
                 time_in_force=TimeInForce.GTC,
-                stop_price=round(stop_loss_price, 2)
+                stop_price=stop_loss_price_rounded,
+                limit_price=stop_limit_price
             )
             
             order = self.alpaca.submit_order_request(stop_request)
-            logger.info(f"✅ Stop-loss created: ${stop_loss_price:.2f}")
+            logger.info(f"✅ Stop-loss created: ${stop_loss_price_rounded:.2f} (limit ${stop_limit_price:.2f})")
             
             logger.info(
                 f"✅ Complete bracket recreated for {symbol}: "

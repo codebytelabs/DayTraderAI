@@ -566,6 +566,32 @@ class PositionManager:
             
             logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R")
             
+            # CRITICAL FIX: Cancel take-profit orders first to free up shares
+            try:
+                open_orders = self.alpaca.get_orders(status='open')
+                tp_orders = [
+                    o for o in open_orders 
+                    if o.symbol == symbol and 
+                    o.type.value == 'limit' and 
+                    o.side.value == 'sell' and
+                    o.status.value in ['new', 'accepted', 'pending_new', 'held']
+                ]
+                
+                if tp_orders:
+                    logger.info(f"📋 Cancelling {len(tp_orders)} take-profit orders to free shares for partial profit")
+                    for order in tp_orders:
+                        try:
+                            self.alpaca.cancel_order(order.id)
+                            logger.info(f"✅ Cancelled TP order {order.id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to cancel TP order {order.id}: {e}")
+                    
+                    # Wait briefly for cancellations to process
+                    import time
+                    time.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Error cancelling take-profit orders for {symbol}: {e}")
+            
             # Submit partial close order
             try:
                 if position.side == 'buy':
@@ -618,6 +644,25 @@ class PositionManager:
                     })
                     
                     logger.info(f"✓ Partial profits taken for {symbol}: {shares_to_sell} shares sold, {remaining_qty} remaining")
+                    
+                    # CRITICAL: Recreate take-profit for remaining shares
+                    if remaining_qty > 0 and position.take_profit:
+                        try:
+                            from alpaca.trading.requests import LimitOrderRequest
+                            from alpaca.trading.enums import OrderSide, TimeInForce
+                            
+                            tp_request = LimitOrderRequest(
+                                symbol=symbol,
+                                qty=remaining_qty,
+                                side=OrderSide.SELL,
+                                time_in_force=TimeInForce.GTC,
+                                limit_price=round(position.take_profit, 2)
+                            )
+                            
+                            tp_order = self.alpaca.submit_order_request(tp_request)
+                            logger.info(f"✅ Recreated take-profit for remaining {remaining_qty} shares at ${position.take_profit:.2f}")
+                        except Exception as e:
+                            logger.error(f"Failed to recreate take-profit for {symbol}: {e}")
                     
                     # Log trade for analysis
                     self.supabase.insert_trade({
