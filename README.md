@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white)]()
 [![Alpaca](https://img.shields.io/badge/Alpaca-Trading_API-yellow?style=for-the-badge&logo=alpacadotmarkets&logoColor=white)]()
 [![Supabase](https://img.shields.io/badge/Supabase-Database-green?style=for-the-badge&logo=supabase&logoColor=white)]()
-[![License](https://img.shields.io/badge/license-MIT-red?style=for-the-badge)]()
+[![License](https://img.shields.io/badge/license-Proprietary-red?style=for-the-badge)]()
 
 ---
 
