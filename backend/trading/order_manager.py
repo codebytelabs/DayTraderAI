@@ -74,21 +74,34 @@ class OrderManager:
         # 4. Submit to Alpaca
         order_side_enum = AlpacaOrderSide.BUY if side.lower() == "buy" else AlpacaOrderSide.SELL
 
+        # Check if this is an exit order
+        is_exit = False
+        current_position = trading_state.get_position(symbol)
+        if current_position:
+            # If we have a long position and selling, it's an exit
+            if current_position.side == 'buy' and side.lower() == 'sell':
+                is_exit = True
+            # If we have a short position and buying, it's an exit
+            elif current_position.side == 'sell' and side.lower() == 'buy':
+                is_exit = True
+        
         bracket_prices = None
-        if take_profit_price is not None and stop_loss_price is not None:
-            bracket_prices = {
-                "take_profit": float(take_profit_price),
-                "stop_loss": float(stop_loss_price),
-            }
-        elif settings.bracket_orders_enabled and price:
-            bracket_prices = BracketOrderBuilder.calculate_bracket_prices(
-                price,
-                order_side_enum,
-                settings.default_take_profit_pct,
-                settings.default_stop_loss_pct,
-            )
+        # Only generate bracket for ENTRY orders
+        if not is_exit:
+            if take_profit_price is not None and stop_loss_price is not None:
+                bracket_prices = {
+                    "take_profit": float(take_profit_price),
+                    "stop_loss": float(stop_loss_price),
+                }
+            elif settings.bracket_orders_enabled and price:
+                bracket_prices = BracketOrderBuilder.calculate_bracket_prices(
+                    price,
+                    order_side_enum,
+                    settings.default_take_profit_pct,
+                    settings.default_stop_loss_pct,
+                )
 
-        use_bracket = settings.bracket_orders_enabled and bracket_prices is not None
+        use_bracket = settings.bracket_orders_enabled and bracket_prices is not None and not is_exit
 
         try:
             # Use Smart Order Executor if enabled and bracket prices are available

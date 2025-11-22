@@ -8,6 +8,7 @@ to verify it can create stop losses without conflicts.
 
 import sys
 from pathlib import Path
+from datetime import datetime
 
 # Add backend to path
 backend_dir = Path(__file__).parent
@@ -30,11 +31,8 @@ def test_protection_manager():
     print("="*80)
     
     # Initialize Alpaca client
-    alpaca = AlpacaClient(
-        api_key=settings.alpaca_api_key,
-        secret_key=settings.alpaca_secret_key,
-        base_url=settings.alpaca_base_url
-    )
+    # Initialize clients
+    alpaca = AlpacaClient()
     
     print("\n📊 STEP 1: Load Current Positions")
     print("-" * 80)
@@ -55,12 +53,15 @@ def test_protection_manager():
         position = Position(
             symbol=pos.symbol,
             qty=float(pos.qty),
-            side='buy',  # Assuming long
+            side='buy' if float(pos.qty) > 0 else 'sell',
             avg_entry_price=float(pos.avg_entry_price),
             current_price=float(pos.current_price),
             unrealized_pl=float(pos.unrealized_pl),
-            unrealized_pl_pct=float(pos.unrealized_plpc) * 100,
-            market_value=float(pos.market_value)
+            unrealized_pl_pct=float(pos.unrealized_plpc),
+            market_value=float(pos.market_value),
+            stop_loss=0,
+            take_profit=0,
+            entry_time=datetime.utcnow()
         )
         trading_state.update_position(position)
     
@@ -68,7 +69,7 @@ def test_protection_manager():
     print("-" * 80)
     
     # Get all orders
-    all_orders = alpaca.get_orders(status='all', limit=200)
+    all_orders = alpaca.get_orders(status='all')
     
     for pos in positions:
         symbol = pos.symbol
@@ -108,7 +109,7 @@ def test_protection_manager():
     print("-" * 80)
     
     # Re-check orders
-    all_orders = alpaca.get_orders(status='all', limit=200)
+    all_orders = alpaca.get_orders(status='all')
     
     for pos in positions:
         symbol = pos.symbol

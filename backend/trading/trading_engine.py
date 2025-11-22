@@ -104,6 +104,10 @@ class TradingEngine:
         self.symbol_trade_counts = {}  # {symbol: count}
         self.last_reset_date = None
         logger.info(f"📊 Trade limits: {settings.max_trades_per_day}/day, {settings.max_trades_per_symbol_per_day}/symbol/day")
+        
+        # EOD Force Close State
+        self.eod_triggered = False
+        self.last_eod_date = None
     
     async def start(self):
         """Start all trading loops."""
@@ -252,7 +256,7 @@ class TradingEngine:
                     continue
                 
                 # Evaluate strategy for each symbol
-                logger.info(f"🔍 Evaluating {len(self.watchlist)} symbols: {', '.join(self.watchlist)}")
+                logger.debug(f"🔍 Evaluating {len(self.watchlist)} symbols: {', '.join(self.watchlist)}")
                 
                 for symbol in self.watchlist:
                     try:
@@ -368,8 +372,47 @@ class TradingEngine:
         momentum_counter = 0
         protection_counter = 0
         
+        # Parse EOD time
+        try:
+            eod_hour, eod_minute = map(int, settings.eod_exit_time.split(':'))
+        except ValueError:
+            logger.error(f"Invalid EOD exit time format: {settings.eod_exit_time}, defaulting to 15:58")
+            eod_hour, eod_minute = 15, 58
+        
         while self.is_running:
             try:
+                # Check for EOD Force Close
+                if settings.force_eod_exit:
+                    clock = self.alpaca.get_clock()
+                    now = clock.timestamp
+                    
+                    # Reset trigger if it's a new day
+                    if self.last_eod_date != now.date():
+                        self.eod_triggered = False
+                        self.last_eod_date = now.date()
+                    
+                    # Check if it's time to close
+                    # Convert to ET time components for comparison
+                    et_now = now.astimezone(datetime.timezone(datetime.timedelta(hours=-5))) # Approx ET, better to use pytz but keeping simple for now
+                    # Actually, let's rely on the clock object if possible or just simple hour/minute check from timestamp
+                    # Alpaca clock timestamp is UTC. We need to be careful.
+                    # Let's use the simple approach: Get current time in ET
+                    import pytz
+                    ny_tz = pytz.timezone('America/New_York')
+                    now_ny = datetime.now(ny_tz)
+                    
+                    if (now_ny.hour > eod_hour or (now_ny.hour == eod_hour and now_ny.minute >= eod_minute)) and \
+                       now_ny.hour < 16 and \
+                       not self.eod_triggered:
+                        
+                        logger.warning(f"⏰ EOD FORCE CLOSE TRIGGERED at {now_ny.strftime('%H:%M:%S')}")
+                        self.position_manager.close_all_positions(reason="EOD Force Close")
+                        self.eod_triggered = True
+                        
+                        # Also cancel all open orders
+                        self.order_manager.cancel_all_orders()
+                        logger.info("🛑 All positions closed and orders canceled for EOD")
+                        
                 if not self.alpaca.is_market_open():
                     await asyncio.sleep(30)
                     continue
@@ -398,7 +441,7 @@ class TradingEngine:
                     self.position_manager.check_and_fix_held_orders()
                     
                     # Verify all positions have stop loss protection (legacy check)
-                    self.position_manager.verify_position_protection()
+                    # self.position_manager.verify_position_protection()
                 
                 # Update position prices
                 self.position_manager.update_position_prices()

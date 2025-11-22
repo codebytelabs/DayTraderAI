@@ -62,9 +62,29 @@ class StopLossProtectionManager:
                 
                 try:
                     # Check if position has active stop loss
-                    has_stop, stop_price = self._has_active_stop_loss(symbol, all_orders)
+                    has_stop, stop_price, stop_order = self._has_active_stop_loss(symbol, all_orders)
                     
                     if has_stop:
+                        # SELF-HEALING CHECK:
+                        # Does the actual stop price match what we expect?
+                        if hasattr(position, 'stop_loss') and position.stop_loss:
+                            expected_stop = float(position.stop_loss)
+                            
+                            # Check for drift (allow small floating point diff)
+                            if abs(expected_stop - stop_price) > 0.01:
+                                # Logic: If expected stop is "better" than actual stop, sync it.
+                                # Long: expected > actual (we want higher stop)
+                                # Short: expected < actual (we want lower stop)
+                                should_sync = False
+                                if position.side == 'buy' and expected_stop > stop_price:
+                                    should_sync = True
+                                elif position.side == 'sell' and expected_stop < stop_price:
+                                    should_sync = True
+                                    
+                                if should_sync:
+                                    self._sync_stop_loss(symbol, stop_order.id, stop_price, expected_stop)
+                                    stop_price = expected_stop  # Update for logging
+                        
                         results[symbol] = 'protected'
                         self.protected_positions.add(symbol)
                         logger.debug(f"✅ {symbol} protected with stop at ${stop_price:.2f}")
@@ -132,9 +152,31 @@ class StopLossProtectionManager:
             if hasattr(order, 'stop_price') and order.stop_price:
                 stop_price = float(order.stop_price)
             
-            return True, stop_price
+            return True, stop_price, order
         
-        return False, None
+        return False, None, None
+
+    def _sync_stop_loss(self, symbol: str, order_id: str, current_stop_price: float, target_stop_price: float):
+        """
+        Sync the actual Alpaca order to match the internal target stop price.
+        This is the 'Self-Healing' mechanism.
+        """
+        try:
+            logger.warning(
+                f"🔄 Syncing stop loss for {symbol}: "
+                f"Alpaca ${current_stop_price:.2f} -> Target ${target_stop_price:.2f}"
+            )
+            
+            self.alpaca.replace_order(
+                order_id=order_id,
+                stop_price=target_stop_price
+            )
+            logger.info(f"✅ Successfully synced stop loss for {symbol}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to sync stop loss for {symbol}: {e}")
+            return False
     
     def _cancel_all_exit_orders(self, symbol: str, all_orders: List) -> List[str]:
         """
@@ -148,29 +190,25 @@ class StopLossProtectionManager:
         """
         cancelled = []
         
-        for order in all_orders:
-            if order.symbol != symbol:
-                continue
-            
-            # Cancel ANY exit order (stop, limit, trailing_stop)
-            is_exit_order = (
-                order.type.value in ['stop', 'trailing_stop', 'limit'] and
-                order.side.value == 'sell' and  # For long positions
-                order.status.value in ['new', 'accepted', 'pending_new', 'held']
-            )
-            
-            if is_exit_order:
+    def _cancel_all_exit_orders(self, symbol: str, open_orders: List[Any]) -> List[str]:
+        """Cancel all existing exit orders for a symbol."""
+        cancelled_ids = []
+        
+        for order in open_orders:
+            if order.symbol == symbol:
+                # Cancel ANY order for this symbol to clear the slate
+                # This includes limits, stops, brackets, etc.
                 try:
+                    logger.info(f"Cancelling existing order for {symbol}: {order.id} ({order.type}, {order.status})")
                     self.alpaca.cancel_order(order.id)
-                    cancelled.append(order.id)
-                    logger.info(f"🗑️  Cancelled {order.type.value} order: {order.id}")
+                    cancelled_ids.append(order.id)
                 except Exception as e:
                     logger.error(f"Failed to cancel order {order.id}: {e}")
+                    
+        if cancelled_ids:
+            logger.info(f"✅ Cancelled {len(cancelled_ids)} exit orders for {symbol}")
         
-        if cancelled:
-            logger.info(f"✅ Cancelled {len(cancelled)} exit orders for {symbol}")
-        
-        return cancelled
+        return cancelled_ids
     
     def _create_stop_loss(self, position) -> bool:
         """
@@ -189,60 +227,44 @@ class StopLossProtectionManager:
             # Get OPEN orders only (not cancelled/filled)
             open_orders = self.alpaca.get_orders(status='open')
             
-            # Check if take-profit exists
-            has_take_profit = any(
-                order.symbol == symbol and
-                order.type.value == 'limit' and
-                order.side.value == 'sell' and
-                order.status.value in ['new', 'accepted', 'pending_new', 'held']
-                for order in open_orders
-            )
+            # ALWAYS cancel existing exit orders first to ensure clean slate
+            # This prevents "potential wash trade" or "insufficient qty" errors
+            # if we failed to detect an existing order.
+            cancelled = self._cancel_all_exit_orders(symbol, open_orders)
+            if cancelled:
+                logger.info(f"Cancelled {len(cancelled)} orders for {symbol} before recreation")
             
-            if has_take_profit:
-                logger.info(f"🔄 {symbol} has take-profit but no stop - recreating as bracket")
-                
-                # Cancel all exit orders
-                cancelled = self._cancel_all_exit_orders(symbol, open_orders)
-                logger.info(f"Cancelled {len(cancelled)} orders for {symbol}")
-                
-                # Wait briefly for cancellations to process
-                import time
-                time.sleep(0.5)
-                
-                # Recreate as complete bracket
+            # Wait for cancellations to process
+            import time
+            time.sleep(1.0)
+            
+            # Try to create complete bracket
+            try:
                 return self._recreate_complete_bracket(position)
-            else:
-                # No open orders - position needs protection
-                # Check if this is a case where orders were cancelled but shares still held
-                logger.info(f"No open orders for {symbol} - creating complete bracket")
+            except Exception as e:
+                logger.warning(f"Bracket creation failed for {symbol}, falling back to standalone stop: {e}")
                 
-                # Try to create complete bracket first
-                try:
-                    return self._recreate_complete_bracket(position)
-                except Exception as e:
-                    logger.warning(f"Bracket creation failed for {symbol}, falling back to standalone stop: {e}")
-                    
-                    # Fallback to standalone stop
-                    entry_price = position.avg_entry_price
-                    current_price = position.current_price
-                    
-                    if hasattr(position, 'stop_loss') and position.stop_loss:
-                        risk = abs(entry_price - position.stop_loss)
-                    else:
-                        risk = entry_price * 0.01  # Default 1% risk
-                    
-                    profit_r = (current_price - entry_price) / risk if risk > 0 else 0
-                    
-                    # Use trailing stop for profitable positions
-                    use_trailing = (
-                        profit_r >= getattr(settings, 'trailing_stops_activation_threshold', 2.0) and
-                        getattr(settings, 'trailing_stops_enabled', True)
-                    )
-                    
-                    if use_trailing:
-                        return self._create_trailing_stop(position, profit_r)
-                    else:
-                        return self._create_fixed_stop(position)
+                # Fallback to standalone stop
+                entry_price = position.avg_entry_price
+                current_price = position.current_price
+                
+                if hasattr(position, 'stop_loss') and position.stop_loss:
+                    risk = abs(entry_price - position.stop_loss)
+                else:
+                    risk = entry_price * 0.01  # Default 1% risk
+                
+                profit_r = (current_price - entry_price) / risk if risk > 0 else 0
+                
+                # Use trailing stop for profitable positions
+                use_trailing = (
+                    profit_r >= getattr(settings, 'trailing_stops_activation_threshold', 2.0) and
+                    getattr(settings, 'trailing_stops_enabled', True)
+                )
+                
+                if use_trailing:
+                    return self._create_trailing_stop(position, profit_r)
+                else:
+                    return self._create_fixed_stop(position)
             
         except Exception as e:
             logger.error(f"Failed to create stop loss for {position.symbol}: {e}")
@@ -297,11 +319,17 @@ class StopLossProtectionManager:
             # Round to 2 decimal places
             stop_price = round(stop_price, 2)
             
+            # Determine correct side for stop loss (EXIT order)
+            if position.side == 'buy':
+                exit_side = OrderSide.SELL
+            else:
+                exit_side = OrderSide.BUY
+
             # Create stop loss order
             stop_request = StopOrderRequest(
                 symbol=symbol,
                 qty=qty,
-                side=OrderSide.SELL,  # Assuming long positions
+                side=exit_side,
                 time_in_force=TimeInForce.GTC,  # Good til cancelled
                 stop_price=stop_price,
                 client_order_id=f"protection_{symbol}_{int(current_price * 100)}"
@@ -355,23 +383,25 @@ class StopLossProtectionManager:
             # We can't use bracket orders for existing positions
             from alpaca.trading.requests import LimitOrderRequest
             
-            # Create take-profit order
-            tp_request = LimitOrderRequest(
-                symbol=symbol,
-                qty=qty,
-                side=OrderSide.SELL,  # Exit order for long position
-                time_in_force=TimeInForce.GTC,
-                limit_price=round(take_profit_price, 2)
-            )
+            # CRITICAL CHANGE: Submit STOP LOSS first!
+            # If we submit TP first, it locks shares and SL fails with "insufficient qty".
+            # We prioritize protection (SL) over profit taking (TP).
             
-            tp_order = self.alpaca.submit_order_request(tp_request)
-            logger.info(f"✅ Take-profit created: ${take_profit_price:.2f}")
-            
-            # Create stop-loss order
+            # Determine correct side for stop loss (EXIT order)
+            # Long position -> SELL order
+            # Short position -> BUY order
+            if position.side == 'buy':
+                exit_side = OrderSide.SELL
+            else:
+                exit_side = OrderSide.BUY
+                
+            logger.info(f"Creating stop loss for {symbol} (Position: {position.side}, Exit Side: {exit_side})")
+
+            # 1. Create stop-loss order (PRIORITY)
             stop_request = StopOrderRequest(
                 symbol=symbol,
                 qty=qty,
-                side=OrderSide.SELL,
+                side=exit_side,
                 time_in_force=TimeInForce.GTC,
                 stop_price=round(stop_loss_price, 2)
             )
@@ -379,11 +409,29 @@ class StopLossProtectionManager:
             order = self.alpaca.submit_order_request(stop_request)
             logger.info(f"✅ Stop-loss created: ${stop_loss_price:.2f}")
             
-            logger.info(
-                f"✅ Complete bracket recreated for {symbol}: "
-                f"Entry ${entry_price:.2f}, Current ${current_price:.2f}, "
-                f"SL ${stop_loss_price:.2f}, TP ${take_profit_price:.2f}"
-            )
+            # 2. Create take-profit order (Best Effort)
+            try:
+                tp_request = LimitOrderRequest(
+                    symbol=symbol,
+                    qty=qty,
+                    side=OrderSide.SELL,  # Exit order for long position
+                    time_in_force=TimeInForce.GTC,
+                    limit_price=round(take_profit_price, 2)
+                )
+                
+                tp_order = self.alpaca.submit_order_request(tp_request)
+                logger.info(f"✅ Take-profit created: ${take_profit_price:.2f}")
+                
+                logger.info(
+                    f"✅ Complete bracket recreated for {symbol}: "
+                    f"Entry ${entry_price:.2f}, Current ${current_price:.2f}, "
+                    f"SL ${stop_loss_price:.2f}, TP ${take_profit_price:.2f}"
+                )
+            except Exception as tp_error:
+                # If TP fails (e.g. due to shares locked by SL if not OCO), just log it
+                # The position is PROTECTED by SL, which is the most important thing.
+                logger.warning(f"⚠️  Take-profit creation failed for {symbol} (shares locked by SL?): {tp_error}")
+                logger.info(f"✅ Position {symbol} is protected by SL ${stop_loss_price:.2f}")
             
             # Update position
             position.stop_loss = stop_loss_price

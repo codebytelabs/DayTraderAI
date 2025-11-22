@@ -1,5 +1,11 @@
 from pydantic_settings import BaseSettings
 from typing import List
+import os
+from dotenv import load_dotenv
+
+# Force load .env to override any stale shell environment variables
+load_dotenv(override=True)
+
 
 
 class Settings(BaseSettings):
@@ -13,13 +19,24 @@ class Settings(BaseSettings):
     supabase_key: str
     supabase_service_key: str
     
-    # OpenRouter Configuration (Models tested and optimized for quality + speed)
+    # AI Provider Configuration
+    ai_primary_provider: str = "perplexity"  # perplexity or openrouter
+    ai_secondary_provider: str = "openrouter"  # perplexity or openrouter
+    
+    # OpenRouter Configuration
     openrouter_api_key: str = ""
     openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_primary_model: str = "openai/gpt-oss-safeguard-20b"  # Best: 408 score, 1.4s
-    openrouter_secondary_model: str = "google/gemini-2.5-flash-preview-09-2025"  # Fast: 322 score, 1.7s
-    openrouter_tertiary_model: str = "openai/gpt-oss-120b"  # Balanced: 221 score, 3.4s
-    openrouter_backup_model: str = "minimax/minimax-m2:free"
+    # Models for comparison/fallback
+    openrouter_model_sonar_pro: str = "perplexity/sonar-pro"
+    openrouter_model_sonar: str = "perplexity/sonar"
+    openrouter_model_deepseek: str = "deepseek/deepseek-chat"  # Verify exact ID
+    openrouter_model_gemini: str = "google/gemini-3-pro-preview" # User requested specific model
+    
+    # Default models to use
+    openrouter_primary_model: str = "perplexity/sonar-reasoning" 
+    openrouter_secondary_model: str = "google/gemini-3-pro-preview"
+    openrouter_tertiary_model: str = "google/gemini-2.0-flash-exp:free" # Fast fallback
+    openrouter_backup_model: str = "deepseek/deepseek-chat" # Ultimate backup
     openrouter_temperature: float = 0.7
     
     # Perplexity Configuration
@@ -168,6 +185,10 @@ class Settings(BaseSettings):
     # Daily trend settings
     daily_trend_ema_period: int = 200
     cache_refresh_time: str = "09:30"  # Market open
+    
+    # EOD Risk Management (Sprint 8)
+    force_eod_exit: bool = False  # Force close all positions before market close
+    eod_exit_time: str = "15:58"  # 2 minutes before market close (ET)
     
     class Config:
         env_file = ".env"

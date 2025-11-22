@@ -4,13 +4,14 @@ from alpaca.trading.requests import (
     LimitOrderRequest,
     GetOrdersRequest,
     GetPortfolioHistoryRequest,
+    ReplaceOrderRequest,
 )
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus, QueryOrderStatus
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestBarRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import DataFeed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from config import settings
 from utils.logger import setup_logger
@@ -133,6 +134,48 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to cancel order {order_id}: {e}")
             return False
+            
+    def replace_order(
+        self,
+        order_id: str,
+        qty: Optional[int] = None,
+        limit_price: Optional[float] = None,
+        stop_price: Optional[float] = None,
+        trail: Optional[float] = None,
+        client_order_id: Optional[str] = None
+    ):
+        """
+        Replace an existing order with updated parameters.
+        Useful for trailing stops and adjusting brackets.
+        """
+        try:
+            # Build request object
+            # Only include fields that are not None
+            req_data = {}
+            if qty is not None:
+                req_data['qty'] = qty
+            if limit_price is not None:
+                req_data['limit_price'] = limit_price
+            if stop_price is not None:
+                req_data['stop_price'] = stop_price
+            if trail is not None:
+                req_data['trail'] = trail
+            if client_order_id is not None:
+                req_data['client_order_id'] = client_order_id
+                
+            request = ReplaceOrderRequest(**req_data)
+            
+            order = self.trading_client.replace_order_by_id(
+                order_id=order_id,
+                order_data=request
+            )
+            
+            logger.info(f"Order {order_id} replaced successfully")
+            return order
+            
+        except Exception as e:
+            logger.error(f"Failed to replace order {order_id}: {e}")
+            return None
     
     def close_position(self, symbol: str):
         """Close position for symbol."""
@@ -170,9 +213,9 @@ class AlpacaClient:
         """Get historical bars using IEX feed (free for paper trading)."""
         try:
             if start is None:
-                start = datetime.now() - timedelta(days=30)
+                start = datetime.now(timezone.utc) - timedelta(days=30)
             if end is None:
-                end = datetime.now()
+                end = datetime.now(timezone.utc)
             
             request = StockBarsRequest(
                 symbol_or_symbols=symbols,

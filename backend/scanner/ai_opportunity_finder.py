@@ -119,24 +119,64 @@ class AIOpportunityFinder:
             List of stock symbols recommended by AI
         """
         try:
+            from config import settings
+            
             # Check cache first
             if self._is_cache_valid():
                 logger.info(f"🔄 Using cached opportunities ({len(self.last_opportunities)} symbols)")
                 return self.last_opportunities[:max_symbols]
             
-            logger.info("🤖 AI discovering trading opportunities...")
+            logger.info(f"🤖 AI discovering trading opportunities using {settings.ai_primary_provider.upper()}...")
             
             # Build comprehensive research query with market cap filtering
             query = self._build_discovery_query(allowed_caps=allowed_caps)
             
-            # Get AI research
-            result = await self.perplexity.search(query)
+            result = None
+            primary_failed = False
             
-            if not result or not result.get('content'):
-                logger.error("No response from Perplexity AI")
-                return self._get_fallback_symbols()
+            # PRIMARY PROVIDER ATTEMPT
+            try:
+                if settings.ai_primary_provider == "openrouter":
+                    # Lazy load OpenRouter
+                    if not hasattr(self, 'openrouter'):
+                        from advisory.openrouter_client import OpenRouterClient
+                        self.openrouter = OpenRouterClient()
+                    result = await self.openrouter.search(query)
+                else:
+                    # Default to Perplexity
+                    result = await self.perplexity.search(query)
+                    
+                if not result or not result.get('content'):
+                    logger.warning(f"Primary provider {settings.ai_primary_provider} returned no content")
+                    primary_failed = True
+                    
+            except Exception as e:
+                logger.error(f"Primary provider {settings.ai_primary_provider} failed: {e}")
+                primary_failed = True
             
-            logger.info(f"✅ Got Perplexity response: {len(result['content'])} chars")
+            # SECONDARY PROVIDER FALLBACK
+            if primary_failed:
+                logger.info(f"🔄 Attempting fallback via {settings.ai_secondary_provider.upper()}...")
+                try:
+                    if settings.ai_secondary_provider == "openrouter":
+                        if not hasattr(self, 'openrouter'):
+                            from advisory.openrouter_client import OpenRouterClient
+                            self.openrouter = OpenRouterClient()
+                        result = await self.openrouter.search(query)
+                    elif settings.ai_secondary_provider == "perplexity":
+                        result = await self.perplexity.search(query)
+                        
+                    if not result or not result.get('content'):
+                        logger.error("Secondary provider also failed")
+                        return self._get_fallback_symbols()
+                        
+                    logger.info(f"✅ Fallback successful via {settings.ai_secondary_provider}")
+                    
+                except Exception as e:
+                    logger.error(f"Secondary provider {settings.ai_secondary_provider} failed: {e}")
+                    return self._get_fallback_symbols()
+            
+            logger.info(f"✅ Got AI response: {len(result['content'])} chars")
             
             # Log AI response analysis
             self._log_ai_response_analysis(result)

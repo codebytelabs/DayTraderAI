@@ -64,11 +64,52 @@ class ProfitTaker:
         self.shadow_mode_active = not self.enabled
         self.shadow_predictions = []  # Track what would happen in shadow mode
         
+        # Hydrate state from database
+        self._load_state_from_db()
+        
         status = "ENABLED" if self.enabled else "SHADOW MODE"
         logger.info(f"🎯 Profit Taker initialized - Status: {status}")
         logger.info(f"   First target: +{self.first_target_r}R | Percentage: {self.profit_percentage*100:.0f}%")
         logger.info(f"   Second target: +{self.second_target_r}R | Use trailing: {self.use_trailing}")
         logger.info(f"   Max positions: {self.max_positions}")
+        logger.info(f"   Restored {len(self.partial_profits_taken)} partial profit states from DB")
+
+    def _load_state_from_db(self):
+        """Load partial profit state from trades table."""
+        try:
+            # Get all open positions first to know what to check
+            # We can't access trading_state here easily as it might not be ready
+            # So we query the positions table directly
+            response = self.supabase.client.table('positions').select('symbol, entry_time').execute()
+            positions = response.data if response.data else []
+            
+            for pos in positions:
+                symbol = pos['symbol']
+                entry_time = pos['entry_time']
+                
+                # Check for partial profit trades (no time filter needed - just check by symbol and reason)
+                trades_response = self.supabase.client.table('trades')\
+                    .select('*')\
+                    .eq('symbol', symbol)\
+                    .eq('reason', 'partial_profit')\
+                    .order('timestamp', desc=True)\
+                    .limit(1)\
+                    .execute()
+                
+                if trades_response.data:
+                    # Found a partial profit trade!
+                    trade = trades_response.data[0]
+                    self.partial_profits_taken[symbol] = {
+                        'timestamp': trade['timestamp'],
+                        'shares_sold': trade['qty'],
+                        'price': trade['exit_price'],
+                        'profit_r': trade.get('profit_r', 0),
+                        'profit_amount': trade.get('profit_amount', 0)
+                    }
+                    logger.debug(f"Restored partial profit state for {symbol}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to load profit taker state: {e}")
     
     def should_take_partial_profits(
         self,

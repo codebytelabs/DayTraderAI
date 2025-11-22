@@ -235,6 +235,14 @@ async def lifespan(app: FastAPI):
         streaming_broadcaster = StreamingBroadcaster()
         await streaming_broadcaster.start(snapshot_builder=build_streaming_snapshot)
         
+        # Attach WebSocket log handler
+        from utils.websocket_logger import WebSocketLogHandler
+        ws_log_handler = WebSocketLogHandler(streaming_broadcaster)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ws_log_handler.setFormatter(formatter)
+        logging.getLogger().addHandler(ws_log_handler)
+        logger.info("✓ WebSocket log handler attached")
+        
         # Set global ML shadow mode for API routes
         from api.ml_routes import set_ml_shadow_mode
         set_ml_shadow_mode(ml_shadow_mode)

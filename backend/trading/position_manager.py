@@ -58,6 +58,15 @@ class PositionManager:
             current_symbols = set(trading_state.positions.keys())
             alpaca_symbols = set()
             
+            # Fetch existing positions from DB to preserve stop losses if features missing
+            db_positions = {}
+            try:
+                db_result = self.supabase.get_positions()
+                if db_result:
+                    db_positions = {p['symbol']: p for p in db_result}
+            except Exception as e:
+                logger.error(f"Failed to fetch DB positions for sync: {e}")
+
             for alpaca_pos in alpaca_positions:
                 symbol = alpaca_pos.symbol
                 alpaca_symbols.add(symbol)
@@ -67,18 +76,25 @@ class PositionManager:
                 stop_loss = 0
                 take_profit = 0
                 
+                # Try to get from DB first (preserve existing protection)
+                if symbol in db_positions:
+                    stop_loss = db_positions[symbol].get('stop_loss', 0)
+                    take_profit = db_positions[symbol].get('take_profit', 0)
+                
                 if features:
                     # Recalculate stops based on current ATR
                     from config import settings
                     atr = features.get('atr', 0)
                     entry_price = float(alpaca_pos.avg_entry_price)
                     
-                    if int(alpaca_pos.qty) > 0:  # Long position
-                        stop_loss = entry_price - (atr * settings.stop_loss_atr_mult)
-                        take_profit = entry_price + (atr * settings.take_profit_atr_mult)
-                    else:  # Short position
-                        stop_loss = entry_price + (atr * settings.stop_loss_atr_mult)
-                        take_profit = entry_price - (atr * settings.take_profit_atr_mult)
+                    # Only recalculate if ATR is valid
+                    if atr > 0:
+                        if int(alpaca_pos.qty) > 0:  # Long position
+                            stop_loss = entry_price - (atr * settings.stop_loss_atr_mult)
+                            take_profit = entry_price + (atr * settings.take_profit_atr_mult)
+                        else:  # Short position
+                            stop_loss = entry_price + (atr * settings.stop_loss_atr_mult)
+                            take_profit = entry_price - (atr * settings.take_profit_atr_mult)
                 
                 # Create Position object
                 position = Position(
@@ -224,6 +240,31 @@ class PositionManager:
                 })
                 
                 logger.info(f"✓ Position {position.symbol} stop loss updated to ${new_stop:.2f}")
+                
+                # CRITICAL FIX: Update the ACTUAL Alpaca order
+                try:
+                    # Find the active stop order
+                    open_orders = self.alpaca.get_orders(status='open')
+                    stop_order = None
+                    
+                    for order in open_orders:
+                        if (order.symbol == position.symbol and 
+                            order.type.value in ['stop', 'trailing_stop'] and
+                            order.status.value in ['new', 'accepted', 'pending_new', 'held']):
+                            stop_order = order
+                            break
+                    
+                    if stop_order:
+                        logger.info(f"🔄 Updating Alpaca order {stop_order.id} to new stop ${new_stop:.2f}")
+                        self.alpaca.replace_order(
+                            order_id=stop_order.id,
+                            stop_price=round(new_stop, 2)
+                        )
+                    else:
+                        logger.warning(f"⚠️  Could not find active stop order for {position.symbol} to update")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to update Alpaca order for {position.symbol}: {e}")
             
         except Exception as e:
             logger.error(f"Error updating trailing stop for {position.symbol}: {e}")
@@ -250,7 +291,7 @@ class PositionManager:
                 if order.status.value in ['new', 'accepted', 'pending_new', 'held']:
                     symbols_with_orders.add(order.symbol)
             
-            logger.info(f"🛡️  Symbols with active orders (skipping manual checks): {symbols_with_orders}")
+            logger.debug(f"🛡️  Symbols with active orders (skipping manual checks): {symbols_with_orders}")
             
             for position in positions:
                 # CRITICAL: Skip if ANY orders exist for this symbol
@@ -536,8 +577,13 @@ class PositionManager:
                 side='long' if position.side == 'buy' else 'short'
             )
             
+            # Log the check result for debugging
+            if position.symbol == 'SPY':
+                logger.info(f"🔍 SPY Partial Profit Check: {result}")
+
             # If should take partial profits (and not in shadow mode)
             if result.get('should_take') and not result.get('shadow_mode'):
+                logger.info(f"✅ Triggering partial profit execution for {position.symbol}")
                 self._execute_partial_profit_taking(position, result)
             
         except Exception as e:
@@ -565,6 +611,10 @@ class PositionManager:
                 return
             
             logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R")
+            
+            # CRITICAL FIX: Cancel existing orders to free up shares
+            # Otherwise we get "insufficient qty available" errors
+            self._cancel_all_symbol_orders(symbol, preserve_brackets=False)
             
             # Submit partial close order
             try:
@@ -624,11 +674,9 @@ class PositionManager:
                         'symbol': symbol,
                         'side': 'sell' if position.side == 'buy' else 'buy',
                         'qty': shares_to_sell,
-                        'price': position.current_price,
-                        'exit_type': 'partial_profit',
-                        'profit_r': profit_r,
-                        'profit_amount': result['profit_amount'],
-                        'timestamp': datetime.utcnow().isoformat()
+                        'exit_price': position.current_price,
+                        'timestamp': datetime.utcnow().isoformat(),
+                        'reason': 'partial_profit'
                     })
                     
                 else:
