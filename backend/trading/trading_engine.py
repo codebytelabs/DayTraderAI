@@ -393,7 +393,6 @@ class TradingEngine:
                     
                     # Check if it's time to close
                     # Convert to ET time components for comparison
-                    et_now = now.astimezone(datetime.timezone(datetime.timedelta(hours=-5))) # Approx ET, better to use pytz but keeping simple for now
                     # Actually, let's rely on the clock object if possible or just simple hour/minute check from timestamp
                     # Alpaca clock timestamp is UTC. We need to be careful.
                     # Let's use the simple approach: Get current time in ET
