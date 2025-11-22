@@ -187,7 +187,7 @@ class Settings(BaseSettings):
     cache_refresh_time: str = "09:30"  # Market open
     
     # EOD Risk Management (Sprint 8)
-    force_eod_exit: bool = False  # Force close all positions before market close
+    force_eod_exit: bool = True  # Force close all positions before market close
     eod_exit_time: str = "15:58"  # 2 minutes before market close (ET)
     
     class Config:
