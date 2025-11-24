@@ -980,14 +980,14 @@ class TradingEngine:
         """Fetch market data for momentum evaluation - FIXED DataFrame handling"""
         try:
             from alpaca.data.timeframe import TimeFrame
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
             import pandas as pd
             
             # Fetch bars from Alpaca
             barset = self.alpaca.get_bars(
                 symbols=[symbol],
                 timeframe=TimeFrame.Minute,
-                start=datetime.now() - timedelta(hours=5),
+                start=datetime.now(timezone.utc) - timedelta(hours=5),
                 limit=bars
             )
             

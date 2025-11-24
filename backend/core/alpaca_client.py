@@ -56,8 +56,8 @@ class AlpacaClient:
             logger.debug(f"No position for {symbol}: {e}")
             return None
     
-    def get_orders(self, status: Optional[str] = None):
-        """Get orders, optionally filtered by status."""
+    def get_orders(self, status: Optional[str] = None, symbols: Optional[List[str]] = None):
+        """Get orders, optionally filtered by status and symbols."""
         try:
             if status:
                 # Map string status to QueryOrderStatus enum (used for filtering)
@@ -73,7 +73,7 @@ class AlpacaClient:
             else:
                 status_enum = QueryOrderStatus.ALL
             
-            request = GetOrdersRequest(status=status_enum)
+            request = GetOrdersRequest(status=status_enum, symbols=symbols)
             return self.trading_client.get_orders(filter=request)
         except Exception as e:
             logger.error(f"Failed to get orders: {e}")

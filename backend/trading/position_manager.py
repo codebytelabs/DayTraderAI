@@ -663,18 +663,31 @@ class PositionManager:
                         'stop_loss': position.stop_loss,
                         'take_profit': position.take_profit,
                         'entry_time': position.entry_time.isoformat(),
-                        'partial_profits_taken': True,
+                        'take_profit': position.take_profit,
+                        'entry_time': position.entry_time.isoformat(),
                         'updated_at': datetime.utcnow().isoformat()
                     })
                     
                     logger.info(f"✓ Partial profits taken for {symbol}: {shares_to_sell} shares sold, {remaining_qty} remaining")
+                    
+                    # Calculate PnL for the partial trade
+                    if position.side == 'buy':
+                        pnl = (position.current_price - position.avg_entry_price) * shares_to_sell
+                    else:
+                        pnl = (position.avg_entry_price - position.current_price) * shares_to_sell
+                    
+                    cost_basis = position.avg_entry_price * shares_to_sell
+                    pnl_pct = (pnl / cost_basis) * 100 if cost_basis else 0
                     
                     # Log trade for analysis
                     self.supabase.insert_trade({
                         'symbol': symbol,
                         'side': 'sell' if position.side == 'buy' else 'buy',
                         'qty': shares_to_sell,
+                        'entry_price': position.avg_entry_price,
                         'exit_price': position.current_price,
+                        'pnl': pnl,
+                        'pnl_pct': pnl_pct,
                         'timestamp': datetime.utcnow().isoformat(),
                         'reason': 'partial_profit'
                     })

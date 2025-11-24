@@ -519,8 +519,8 @@ SEARCH REQUIREMENT: You MUST search current market data, news, earnings calendar
         
         # Pattern: Match the new format with pipes: "1. **SYMBOL ($PRICE) | CATALYST: ... | TECHNICAL: ... | VOLUME: Xx | STOP: $X | TARGET: $X"
         patterns = [
-            # Format: "1. **FCX ($36.52) | CATALYST:** ... | VOLUME: 2.3x ... | STOP: $35 | TARGET: $38"
-            r'(\d+)\.\s+\*\*([A-Z]{1,5})\s*\(\$?([\d.]+)\)\s*\|.*?VOLUME:\s*(\d+\.?\d*)x.*?TARGET:\s*\$?([\d.]+)',
+            # Format: "1. **FCX ($36.52)** | CATALYST: ..." or "1. **FCX** ($36.52) | ..."
+            r'(\d+)\.\s+\*\*([A-Z]{1,5})(?:\*\*)?\s*\(\$?([\d.]+)\)(?:\*\*)?\s*\|.*?VOLUME:\s*(\d+\.?\d*)x.*?TARGET:\s*\$?([\d.]+)',
             # Format without bold: "1. FCX ($36.52) | CATALYST: ... | VOLUME: 2.3x | TARGET: $38"
             r'(\d+)\.\s+([A-Z]{1,5})\s*\(\$?([\d.]+)\)\s*\|.*?VOLUME:\s*(\d+\.?\d*)x.*?TARGET:\s*\$?([\d.]+)',
             # Fallback: Old comma format "1. SYMBOL - $PRICE, catalyst, volume Xx, Target $TARGET"
@@ -681,25 +681,32 @@ SEARCH REQUIREMENT: You MUST search current market data, news, earnings calendar
         """Extract symbols from a text section."""
         symbols = []
         
-        # Pattern 1: "1. SYMBOL - reasoning"
-        pattern1 = r'\d+\.\s+([A-Z]{1,5})\s*[-:]'
+        # Pattern 1: Explicit tickers like $AAPL or (AAPL)
+        pattern1 = r'(?:\$|\()([A-Z]{2,5})(?:\)|\b)'
         matches1 = re.findall(pattern1, text)
         symbols.extend(matches1)
         
-        # Pattern 2: "SYMBOL: reasoning" or "SYMBOL - reasoning"
-        pattern2 = r'\b([A-Z]{2,5})\s*[-:]'
+        # Pattern 2: "1. SYMBOL" or "SYMBOL:" format
+        pattern2 = r'(?:\d+\.|:)\s*\*?([A-Z]{2,5})\b'
         matches2 = re.findall(pattern2, text)
         symbols.extend(matches2)
         
-        # Pattern 3: Just capital letters (stock symbols)
+        # Pattern 3: Stricter fallback for just capital letters
+        # Only accept if surrounded by spaces or specific punctuation
+        # Avoid matching words inside sentences unless they look very much like tickers
         pattern3 = r'\b([A-Z]{2,5})\b'
         matches3 = re.findall(pattern3, text)
+        
+        # Only add pattern3 matches if we haven't found enough symbols yet
+        # or if they are in the valid symbol list (if we had one)
+        # For now, just add them but rely on the exclusion list to filter garbage
         symbols.extend(matches3)
         
         # Remove duplicates while preserving order
         seen = set()
         unique_symbols = []
         for symbol in symbols:
+            # Double check length and validity
             if symbol not in seen and self._is_valid_symbol(symbol):
                 seen.add(symbol)
                 unique_symbols.append(symbol)
@@ -715,9 +722,14 @@ SEARCH REQUIREMENT: You MUST search current market data, news, earnings calendar
             'NYSE', 'NASDAQ', 'SEC', 'FDA', 'API', 'USD', 'GDP', 'CPI',
             'THE', 'AND', 'FOR', 'WITH', 'FROM', 'THAT', 'THIS', 'HAVE',
             'WILL', 'BEEN', 'WERE', 'THEIR', 'ABOUT', 'WOULD', 'THERE',
-            # Exclude section headers
+            # Exclude section headers and common AI response words
             'LONG', 'SHORT', 'LONGS', 'SHORTS', 'BUY', 'SELL', 'BULLISH', 'BEARISH',
-            'OPPORTUNITIES', 'LIST', 'TOP'
+            'OPPORTUNITIES', 'LIST', 'TOP', 'FOCUS', 'LARGE', 'STOP', 'MID', 'SMALL', 
+            'PART', 'VIX', 'OPEC', 'GRADE', 'HOURS', 'CAP', 'TODAY', 'PR', 'EPS', 
+            'ARR', 'EST', 'OUT', 'LOW', 'HIGH', 'AVG', 'VOL', 'TARGET', 'CATALYST',
+            'TECHNICAL', 'VOLUME', 'TIMEFRAME', 'PRIMARY', 'SECONDARY', 'KEY',
+            'SECTOR', 'ROTATION', 'MARKET', 'SESSION', 'STRATEGY', 'ANALYSIS',
+            'REGIME', 'RISK', 'LEVEL', 'DEFENSIVE', 'OFF', 'ON'
         }
         
         if symbol in excluded:

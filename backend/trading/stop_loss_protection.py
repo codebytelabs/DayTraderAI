@@ -162,6 +162,9 @@ class StopLossProtectionManager:
         This is the 'Self-Healing' mechanism.
         """
         try:
+            # Round to 2 decimal places to avoid "sub-penny increment" errors
+            target_stop_price = round(target_stop_price, 2)
+            
             logger.warning(
                 f"🔄 Syncing stop loss for {symbol}: "
                 f"Alpaca ${current_stop_price:.2f} -> Target ${target_stop_price:.2f}"
@@ -190,24 +193,36 @@ class StopLossProtectionManager:
         """
         cancelled = []
         
-    def _cancel_all_exit_orders(self, symbol: str, open_orders: List[Any]) -> List[str]:
-        """Cancel all existing exit orders for a symbol."""
+    def _cancel_all_exit_orders(self, symbol: str, open_orders: List[Any] = None) -> List[str]:
+        """
+        Cancel ALL existing exit orders for a symbol to free up shares.
+        Fetches fresh orders from Alpaca to ensure we catch everything, including 'held' orders.
+        """
         cancelled_ids = []
         
-        for order in open_orders:
-            if order.symbol == symbol:
-                # Cancel ANY order for this symbol to clear the slate
-                # This includes limits, stops, brackets, etc.
-                try:
-                    logger.info(f"Cancelling existing order for {symbol}: {order.id} ({order.type}, {order.status})")
-                    self.alpaca.cancel_order(order.id)
-                    cancelled_ids.append(order.id)
-                except Exception as e:
-                    logger.error(f"Failed to cancel order {order.id}: {e}")
-                    
-        if cancelled_ids:
-            logger.info(f"✅ Cancelled {len(cancelled_ids)} exit orders for {symbol}")
-        
+        try:
+            # Fetch ALL open orders for this symbol specifically
+            # We ignore the passed open_orders list to ensure we have the latest state
+            # We use status='all' to catch 'held' orders too, then filter
+            all_orders = self.alpaca.get_orders(status='all', symbols=[symbol])
+            
+            for order in all_orders:
+                # Only cancel orders that are in a cancellable state
+                # 'held' is crucial for bracket legs
+                if order.status.value in ['new', 'accepted', 'pending_new', 'held', 'partially_filled']:
+                    try:
+                        logger.info(f"Cancelling existing order for {symbol}: {order.id} ({order.type}, {order.status})")
+                        self.alpaca.cancel_order(order.id)
+                        cancelled_ids.append(order.id)
+                    except Exception as e:
+                        logger.error(f"Failed to cancel order {order.id}: {e}")
+            
+            if cancelled_ids:
+                logger.info(f"✅ Cancelled {len(cancelled_ids)} exit orders for {symbol}")
+                
+        except Exception as e:
+            logger.error(f"Error fetching/cancelling orders for {symbol}: {e}")
+            
         return cancelled_ids
     
     def _create_stop_loss(self, position) -> bool:
