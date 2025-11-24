@@ -679,7 +679,7 @@ class PositionManager:
                     cost_basis = position.avg_entry_price * shares_to_sell
                     pnl_pct = (pnl / cost_basis) * 100 if cost_basis else 0
                     
-                    # Log trade for analysis
+                    # Log trade for analysis with complete schema
                     self.supabase.insert_trade({
                         'symbol': symbol,
                         'side': 'sell' if position.side == 'buy' else 'buy',
@@ -688,8 +688,10 @@ class PositionManager:
                         'exit_price': position.current_price,
                         'pnl': pnl,
                         'pnl_pct': pnl_pct,
-                        'timestamp': datetime.utcnow().isoformat(),
-                        'reason': 'partial_profit'
+                        'entry_time': position.entry_time.isoformat(),  # ✅ FIX: Added missing field
+                        'exit_time': datetime.utcnow().isoformat(),      # ✅ FIX: Added missing field
+                        'strategy': 'ema',       # Shortened to fit varchar(10)
+                        'reason': 'part_prof'    # Shortened from 'partial_profit' (15 chars) to fit varchar(10)
                     })
                     
                 else:

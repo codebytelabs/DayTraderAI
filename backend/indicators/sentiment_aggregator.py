@@ -216,9 +216,9 @@ class SentimentAggregator:
                     'small_caps': False
                 },
                 'target_long_pct': 0.75,  # 75% long, 25% short
-                'position_size_mult': 0.70,  # Reduce size 30%
+                'position_size_mult': 1.0,  # ✅ Extreme fear = contrarian buying opportunity (was 0.70)
                 'strategy': 'Contrarian long bias - Focus large-caps only',
-                'rationale': 'Extreme fear = buying opportunity, but stay liquid'
+                'rationale': 'Extreme fear = buying opportunity, normal position sizing'
             }
         
         elif sentiment_score <= 45:  # Fear
