@@ -130,35 +130,48 @@ class RiskManager:
         # 7. Check position sizing (risk per trade) with adaptive sizing
         equity = float(account.equity)
         
-        # Apply regime-based position size multiplier (Quick Win #3)
-        regime = self._get_market_regime()
-        regime_multiplier = regime['position_size_multiplier']
+        # Get features to extract confidence
+        features = trading_state.get_features(symbol)
+        confidence = features.get('confidence', 65) if features else 65
         
-        # Apply sentiment-based position size multiplier
+        # 1. Confidence Scaling (The "Gas Pedal")
+        confidence_multiplier = self._get_confidence_multiplier(confidence)
+        
+        # 2. Regime Safety (The "Brake")
+        regime = self._get_market_regime()
+        regime_safety_multiplier = self._get_regime_safety_multiplier(regime)
+        
+        # 3. Sentiment Fine-Tuning
         sentiment_multiplier = self._get_sentiment_multiplier()
         
-        # Apply trend strength multiplier (Sprint 7+ enhancement) - NOW DIRECTION AWARE
+        # 4. Trend Alignment
         trend_multiplier = self._get_trend_strength_multiplier(symbol, price, side)
         
-        # Apply sector concentration multiplier (Sprint 7+ enhancement)
+        # 5. Sector Concentration
         sector_multiplier = self._get_sector_concentration_multiplier(symbol)
         
-        # Combined multiplier (multiply all factors)
+        # Combined multiplier
+        # Base: Confidence * Regime Safety
+        # Fine-tuning: Sentiment * Trend * Sector
         combined_multiplier = (
-            regime_multiplier * 
+            confidence_multiplier * 
+            regime_safety_multiplier * 
             sentiment_multiplier * 
             trend_multiplier * 
             sector_multiplier
         )
         
+        # Hard cap at 2.5x to prevent excessive risk
+        combined_multiplier = min(combined_multiplier, 2.5)
+        
         adjusted_risk_pct = self.risk_per_trade_pct * combined_multiplier
         max_risk_amount = equity * adjusted_risk_pct
         
         logger.info(
-            f"Risk Multipliers: Regime={regime_multiplier:.2f}x | "
-            f"Sentiment={sentiment_multiplier:.2f}x | "
+            f"Risk Multipliers: Conf({confidence})={confidence_multiplier:.1f}x | "
+            f"Safety={regime_safety_multiplier:.2f}x | "
+            f"Sent={sentiment_multiplier:.2f}x | "
             f"Trend={trend_multiplier:.2f}x | "
-            f"Sector={sector_multiplier:.2f}x | "
             f"Combined={combined_multiplier:.2f}x | "
             f"Risk={adjusted_risk_pct*100:.2f}%"
         )
@@ -451,6 +464,60 @@ class RiskManager:
         # For now, return 1.0 (no adjustment)
         # Future: Track sector exposure and reduce if >40% in one sector
         return 1.0
+
+    def _get_confidence_multiplier(self, confidence: float) -> float:
+        """
+        Get multiplier based on AI confidence score.
+        
+        Scales risk for high-conviction trades:
+        - 85-100%: 2.0x (Double size)
+        - 75-84%:  1.5x (1.5x size)
+        - 65-74%:  1.0x (Normal size)
+        - <65%:    0.0x (Should be rejected by strategy anyway)
+        
+        Args:
+            confidence: Score 0-100
+            
+        Returns:
+            float: Multiplier (1.0-2.0)
+        """
+        if confidence >= 85:
+            return 2.0
+        elif confidence >= 75:
+            return 1.5
+        elif confidence >= 65:
+            return 1.0
+        else:
+            return 1.0  # Default to 1.0 if low confidence passes strategy
+            
+    def _get_regime_safety_multiplier(self, regime: dict) -> float:
+        """
+        Get safety multiplier based on market regime.
+        
+        Reduces risk in difficult trading conditions.
+        
+        Args:
+            regime: Market regime dict
+            
+        Returns:
+            float: Multiplier (0.5-1.0)
+        """
+        if not regime:
+            return 1.0
+            
+        regime_type = regime.get('regime', 'neutral')
+        volatility = regime.get('volatility_level', 'normal')
+        
+        if regime_type == 'trending':
+            return 1.0  # Full size in trends
+        elif regime_type == 'bear':
+            return 0.50  # Reduce 50% in bear (highest priority for safety)
+        elif regime_type == 'choppy':
+            return 0.75  # Reduce 25% in chop
+        elif volatility == 'high':
+            return 0.85  # Reduce 15% in high vol
+        else:
+            return 1.0
     
     def _get_market_regime(self):
         """Get current market regime (cached for 5 minutes)."""

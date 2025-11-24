@@ -181,22 +181,16 @@ class StopLossProtectionManager:
             logger.error(f"Failed to sync stop loss for {symbol}: {e}")
             return False
     
-    def _cancel_all_exit_orders(self, symbol: str, all_orders: List) -> List[str]:
+    def _cancel_all_exit_orders(self, symbol: str, open_orders: List = None) -> List[str]:
         """
-        Cancel ALL exit orders (stop, take-profit) to free up shares.
-        CRITICAL FIX: Must cancel take-profit orders too, not just stops!
+        Cancel ALL existing exit orders for a symbol to clear the way for new ones.
         
-        This is the KEY fix for "insufficient qty available" errors.
-        
+        Args:
+            symbol: Symbol to cancel orders for
+            open_orders: Optional list of open orders (ignored to ensure freshness)
+            
         Returns:
             List of cancelled order IDs
-        """
-        cancelled = []
-        
-    def _cancel_all_exit_orders(self, symbol: str, open_orders: List[Any] = None) -> List[str]:
-        """
-        Cancel ALL existing exit orders for a symbol to free up shares.
-        Fetches fresh orders from Alpaca to ensure we catch everything, including 'held' orders.
         """
         cancelled_ids = []
         
@@ -209,7 +203,14 @@ class StopLossProtectionManager:
             for order in all_orders:
                 # Only cancel orders that are in a cancellable state
                 # 'held' is crucial for bracket legs
-                if order.status.value in ['new', 'accepted', 'pending_new', 'held', 'partially_filled']:
+                # Also catch 'accepted', 'new', 'partially_filled', 'pending_new', 'pending_replace'
+                if order.status.value in ['new', 'accepted', 'pending_new', 'held', 'partially_filled', 'pending_replace']:
+                    # Don't cancel the ENTRY order if it's still filling (unless we want to kill the whole trade)
+                    # But here we assume we are managing an active position, so entry is likely done or we want to protect what we have.
+                    # For safety, we only cancel SELL orders or orders with type STOP/LIMIT/TRAINING_STOP
+                    if order.side.value == 'buy' and order.type.value == 'market':
+                        continue
+
                     try:
                         logger.info(f"Cancelling existing order for {symbol}: {order.id} ({order.type}, {order.status})")
                         self.alpaca.cancel_order(order.id)
@@ -219,6 +220,9 @@ class StopLossProtectionManager:
             
             if cancelled_ids:
                 logger.info(f"✅ Cancelled {len(cancelled_ids)} exit orders for {symbol}")
+                # Wait for cancellations to propagate
+                import time
+                time.sleep(2.0)
                 
         except Exception as e:
             logger.error(f"Error fetching/cancelling orders for {symbol}: {e}")

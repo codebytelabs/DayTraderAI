@@ -30,11 +30,19 @@ class ADXCalculator:
             
             # Smooth using Wilder's method
             atr = self._wilders_smoothing(tr, self.period)
+            
+            # Avoid division by zero
+            atr = np.where(atr == 0, 1e-10, atr)
+            
             plus_di = 100 * self._wilders_smoothing(plus_dm, self.period) / atr
             minus_di = 100 * self._wilders_smoothing(minus_dm, self.period) / atr
             
             # Calculate DX
-            dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
+            sum_di = plus_di + minus_di
+            # Avoid division by zero
+            sum_di = np.where(sum_di == 0, 1e-10, sum_di)
+            
+            dx = 100 * np.abs(plus_di - minus_di) / sum_di
             
             # Calculate ADX
             adx = self._wilders_smoothing(dx, self.period)

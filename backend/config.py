@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
     max_positions: int = 25  # Increased from 20 (Phase 2a: Conservative rollout) ✅
     risk_per_trade_pct: float = 0.01
-    max_position_pct: float = 0.10  # Max 10% of equity per position
+    max_position_pct: float = 0.20  # Increased to 20% (Hedge Fund Tweak) to unlock 2% risk sizing 🚀
     min_stop_distance_pct: float = 0.015  # Min 1.5% stop distance (was 1.0% - caused TDG bug!)
     circuit_breaker_pct: float = 0.05
     ema_short: int = 9
