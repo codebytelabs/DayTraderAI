@@ -45,10 +45,11 @@ class AITradeValidator:
         if win_rate < 0.40:
             reasons.append(f"low win rate ({win_rate*100:.0f}%)")
         
-        # Check 3: Large position size
+        # Check 3: Very large position size (>25% is unusual even for day trading)
+        # NOTE: 10-20% positions are NORMAL for day trading with 4x leverage
         position_pct = context.get('position_pct', 0)
-        if position_pct > 8.0:
-            reasons.append(f"large position ({position_pct:.1f}%)")
+        if position_pct > 25.0:
+            reasons.append(f"very large position ({position_pct:.1f}%)")
         
         # Check 4: Counter-trend trade
         if context.get('counter_trend', False):
@@ -158,7 +159,7 @@ class AITradeValidator:
         features: Dict,
         context: Dict
     ) -> str:
-        """Build concise validation prompt"""
+        """Build concise validation prompt for day trading context"""
         
         # Extract key data
         price = features.get('price', 0)
@@ -177,8 +178,10 @@ class AITradeValidator:
             win_rate = context.get('symbol_win_rate', 0) * 100
             risk_factors.append(f"Low win rate: {win_rate:.0f}%")
         
-        if position_pct > 8.0:
-            risk_factors.append(f"Large position: {position_pct:.1f}% of equity")
+        # NOTE: Position sizes up to 20% are NORMAL for day trading with 4x leverage
+        # Only flag if position is unusually large (>25% of equity)
+        if position_pct > 25.0:
+            risk_factors.append(f"Very large position: {position_pct:.1f}% of equity")
         
         if context.get('counter_trend'):
             daily_trend = context.get('daily_trend', 'unknown')
@@ -190,17 +193,23 @@ class AITradeValidator:
         # Format risk factors
         risk_text = "\n".join(f"- {rf}" for rf in risk_factors) if risk_factors else "- None"
         
-        # Build prompt
-        prompt = f"""Validate this HIGH-RISK trade:
+        # Build prompt with day trading context
+        prompt = f"""Validate this HIGH-RISK day trade:
 
+CONTEXT: This is an intraday day trading system with 4x margin leverage (Pattern Day Trader account).
+Position sizes of 10-20% of equity are NORMAL and expected for day trading.
+All positions are closed by end of day - no overnight risk.
+
+TRADE DETAILS:
 {signal.upper()} {symbol} @ ${price:.2f}
 Confidence: {confidence}%
-Position Size: {position_pct:.1f}% of equity
+Position Size: {position_pct:.1f}% of equity (normal range: 5-20%)
 
 Risk Factors:
 {risk_text}
 
-Should we take this trade? Answer YES or NO with one sentence explaining the key reason."""
+Should we take this trade? Answer YES or NO with one sentence explaining the key reason.
+Note: Do NOT reject trades solely based on position size if it's within 5-20% range."""
         
         return prompt
     

@@ -30,10 +30,26 @@ class OrderManager:
         self.supabase = supabase_client
         self.risk_manager = risk_manager
         
-        # Initialize Smart Order Executor
-        # DISABLED: Has NoneType error, needs debugging
-        self.smart_executor = None
-        logger.info("⚠️  Smart Order Executor disabled - using legacy bracket orders")
+        # Initialize Smart Order Executor based on config
+        if settings.USE_SMART_EXECUTOR:
+            try:
+                config = OrderConfig(
+                    max_slippage_pct=settings.SMART_EXECUTOR_MAX_SLIPPAGE_PCT,
+                    limit_buffer_regular=settings.SMART_EXECUTOR_LIMIT_BUFFER_REGULAR,
+                    limit_buffer_extended=settings.SMART_EXECUTOR_LIMIT_BUFFER_EXTENDED,
+                    fill_timeout_seconds=settings.SMART_EXECUTOR_FILL_TIMEOUT,
+                    min_rr_ratio=settings.SMART_EXECUTOR_MIN_RR_RATIO,
+                    enable_extended_hours=settings.SMART_EXECUTOR_ENABLE_EXTENDED_HOURS
+                )
+                self.smart_executor = SmartOrderExecutor(alpaca_client, config)
+                logger.info("✅ Smart Order Executor enabled - slippage protection active")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Smart Order Executor: {e}")
+                self.smart_executor = None
+                logger.info("⚠️  Falling back to legacy bracket orders")
+        else:
+            self.smart_executor = None
+            logger.info("⚠️  Smart Order Executor disabled by config - using legacy bracket orders")
     
     def submit_order(
         self,

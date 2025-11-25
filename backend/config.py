@@ -108,15 +108,6 @@ class Settings(BaseSettings):
     partial_profits_use_trailing: bool = True  # Use trailing stops on remaining position
     max_partial_profit_positions: int = 999  # Limit for gradual rollout
 
-    # Smart Order Executor Configuration (Industry Standard)
-    USE_SMART_EXECUTOR: bool = False  # DISABLED - Has NoneType error, needs debugging
-    SMART_EXECUTOR_MAX_SLIPPAGE_PCT: float = 0.001  # 0.10% max slippage
-    SMART_EXECUTOR_LIMIT_BUFFER_REGULAR: float = 0.0005  # 0.05% buffer regular hours
-    SMART_EXECUTOR_LIMIT_BUFFER_EXTENDED: float = 0.0002  # 0.02% buffer extended hours
-    SMART_EXECUTOR_FILL_TIMEOUT: int = 60  # 60 seconds fill timeout
-    SMART_EXECUTOR_MIN_RR_RATIO: float = 2.0  # Minimum 1:2 risk/reward
-    SMART_EXECUTOR_ENABLE_EXTENDED_HOURS: bool = False  # Disable extended hours
-
     # Copilot configuration
     copilot_context_enabled: bool = True
     copilot_hybrid_routing: bool = True
@@ -134,7 +125,7 @@ class Settings(BaseSettings):
     copilot_include_risk: bool = True
     
     # AI Enhancement Configuration (Phase 1: High-Risk Trade Validation)
-    ENABLE_AI_VALIDATION: bool = False  # TEMPORARILY DISABLED - AI rejecting all trades due to position size
+    ENABLE_AI_VALIDATION: bool = True  # ENABLED - Fixed prompt to understand day trading leverage
     AI_VALIDATION_TIMEOUT: float = 3.5  # Max time to wait for AI response (seconds)
     
     # Smart Order Executor Configuration (Industry-Standard Order Execution)
