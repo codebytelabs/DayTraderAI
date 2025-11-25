@@ -145,18 +145,21 @@ class OrderManager:
                 )
                 
                 if not result.success:
+                    slippage_str = f"{result.slippage_pct*100:.3f}%" if result.slippage_pct else "N/A"
                     logger.warning(
                         f"⚠️  Smart executor rejected trade: {result.reason} "
-                        f"(Slippage: {result.slippage_pct*100:.3f}% if available)"
+                        f"(Slippage: {slippage_str})"
                     )
-                    self._log_rejection(symbol, side, qty, result.reason)
+                    self._log_rejection(symbol, side, qty, result.reason or "Unknown")
                     return None
                 
+                slippage_str = f"{result.slippage_pct*100:.3f}%" if result.slippage_pct else "N/A"
+                rr_str = f"1:{result.rr_ratio:.2f}" if result.rr_ratio else "N/A"
                 logger.info(
                     f"✅ Smart executor trade successful: {symbol} "
                     f"Filled ${result.filled_price:.2f}, SL ${result.stop_loss:.2f}, "
-                    f"TP ${result.take_profit:.2f}, Slippage {result.slippage_pct*100:.3f}%, "
-                    f"R/R 1:{result.rr_ratio:.2f}"
+                    f"TP ${result.take_profit:.2f}, Slippage {slippage_str}, "
+                    f"R/R {rr_str}"
                 )
                 
                 # Create mock alpaca order object for compatibility
