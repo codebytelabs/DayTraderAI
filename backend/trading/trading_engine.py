@@ -401,16 +401,15 @@ class TradingEngine:
                     now_ny = datetime.now(ny_tz)
                     
                     if (now_ny.hour > eod_hour or (now_ny.hour == eod_hour and now_ny.minute >= eod_minute)) and \
-                       now_ny.hour < 16 and \
+                       now_ny.hour <= 16 and \
                        not self.eod_triggered:
                         
-                        logger.warning(f"⏰ EOD FORCE CLOSE TRIGGERED at {now_ny.strftime('%H:%M:%S')}")
-                        self.position_manager.close_all_positions(reason="EOD Force Close")
+                        # SELECTIVE EOD CLOSE: Only close losing positions (>2% loss)
+                        # Keep winners overnight to capture gap-up potential
+                        logger.warning(f"⏰ EOD SELECTIVE CLOSE at {now_ny.strftime('%H:%M:%S')} - closing losers only")
+                        await self._close_losing_positions_eod(loss_threshold=2.0)
                         self.eod_triggered = True
-                        
-                        # Also cancel all open orders
-                        self.order_manager.cancel_all_orders()
-                        logger.info("🛑 All positions closed and orders canceled for EOD")
+                        logger.info("🌙 EOD complete - winners held overnight, losers closed")
                         
                 if not self.alpaca.is_market_open():
                     await asyncio.sleep(30)
@@ -1067,6 +1066,85 @@ class TradingEngine:
             'adjusted_symbols': list(adjusted.keys()),
             'config': self.momentum_config.to_dict()
         }
+    
+    async def _close_losing_positions_eod(self, loss_threshold: float = 2.0):
+        """
+        Selective EOD Close: Only close positions with losses > threshold.
+        Keep winners overnight to capture gap-up potential.
+        
+        Args:
+            loss_threshold: Close positions with loss greater than this % (default 2%)
+        """
+        try:
+            positions = self.alpaca.get_positions()
+            if not positions:
+                logger.info("🌙 No positions to evaluate for EOD close")
+                return
+            
+            closed_count = 0
+            kept_count = 0
+            
+            for position in positions:
+                try:
+                    symbol = position.symbol
+                    qty = float(position.qty)
+                    avg_entry = float(position.avg_entry_price)
+                    current_price = float(position.current_price)
+                    unrealized_pnl = float(position.unrealized_pl)
+                    
+                    # Calculate P&L percentage
+                    if qty > 0:  # Long position
+                        pnl_pct = ((current_price - avg_entry) / avg_entry) * 100
+                    else:  # Short position
+                        pnl_pct = ((avg_entry - current_price) / avg_entry) * 100
+                    
+                    # Close if loss exceeds threshold
+                    if pnl_pct < -loss_threshold:
+                        logger.warning(f"🔴 EOD CLOSE: {symbol} at {pnl_pct:.1f}% loss (${unrealized_pnl:.2f})")
+                        
+                        # Cancel any existing orders first
+                        try:
+                            orders = self.alpaca.get_orders(symbol=symbol, status='open')
+                            for order in orders:
+                                self.alpaca.cancel_order(order.id)
+                                logger.info(f"   Cancelled order {order.id} for {symbol}")
+                        except Exception as e:
+                            logger.warning(f"   Could not cancel orders for {symbol}: {e}")
+                        
+                        # Close the position
+                        try:
+                            self.alpaca.close_position(symbol)
+                            logger.info(f"   ✅ Position closed: {symbol}")
+                            closed_count += 1
+                            
+                            # Log to database
+                            if self.supabase:
+                                self.supabase.insert_trade({
+                                    'symbol': symbol,
+                                    'side': 'sell' if qty > 0 else 'buy',
+                                    'qty': abs(qty),
+                                    'price': current_price,
+                                    'reason': 'eod_loss_cut',
+                                    'pnl': unrealized_pnl
+                                })
+                        except Exception as e:
+                            logger.error(f"   Failed to close {symbol}: {e}")
+                    else:
+                        status = "🟢 WINNER" if pnl_pct > 0 else "🟡 SMALL LOSS"
+                        logger.info(f"{status} EOD KEEP: {symbol} at {pnl_pct:+.1f}% (${unrealized_pnl:+.2f}) - holding overnight")
+                        kept_count += 1
+                        
+                except Exception as e:
+                    logger.error(f"Error evaluating {position.symbol} for EOD close: {e}")
+            
+            # Summary
+            logger.info(f"📊 EOD Summary: Closed {closed_count} losers (>{loss_threshold}% loss), kept {kept_count} positions overnight")
+            
+            if kept_count > 0:
+                logger.info(f"💡 Overnight strategy: {kept_count} positions held to capture gap-up potential")
+                    
+        except Exception as e:
+            logger.error(f"Error in EOD selective close: {e}")
 
 
 # Global engine instance

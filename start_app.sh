@@ -42,7 +42,7 @@ BACKEND_PID=$!
 
 echo "Backend PID: $BACKEND_PID"
 echo "Waiting for backend to start..."
-sleep 5
+sleep 10
 
 # Check if backend is running
 if ! ps -p $BACKEND_PID > /dev/null; then
@@ -51,12 +51,30 @@ if ! ps -p $BACKEND_PID > /dev/null; then
     exit 1
 fi
 
-# Test backend
+# Test backend with retry logic
 echo "Testing backend connection..."
-if curl -s http://localhost:8006/health > /dev/null; then
-    echo "✅ Backend is running!"
-else
-    echo "❌ Backend not responding"
+MAX_RETRIES=6
+RETRY_COUNT=0
+BACKEND_READY=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s http://localhost:8006/health > /dev/null; then
+        echo "✅ Backend is running!"
+        BACKEND_READY=true
+        break
+    else
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "⏳ Backend not ready yet, retrying in 5 seconds... ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep 5
+        fi
+    fi
+done
+
+if [ "$BACKEND_READY" = false ]; then
+    echo "❌ Backend not responding after $MAX_RETRIES attempts"
+    echo "Last 50 lines of backend.log:"
+    tail -50 ../backend.log
     exit 1
 fi
 

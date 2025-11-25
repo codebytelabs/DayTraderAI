@@ -141,6 +141,56 @@ class PositionManager:
             logger.error(f"Failed to sync positions: {e}")
             return 0
     
+    def cleanup_tiny_positions(self, min_value: float = 1000.0):
+        """
+        Close positions that are too small to be meaningful.
+        This frees up position slots for better opportunities.
+        
+        Args:
+            min_value: Minimum position value in dollars (default $1000)
+        """
+        try:
+            positions = self.alpaca.get_positions()
+            if not positions:
+                return 0
+            
+            closed_count = 0
+            for position in positions:
+                symbol = position.symbol
+                market_value = abs(float(position.market_value))
+                
+                if market_value < min_value:
+                    logger.info(f"🧹 Closing tiny position {symbol}: ${market_value:.2f} < ${min_value:.0f} minimum")
+                    
+                    try:
+                        # Cancel any existing orders first
+                        open_orders = self.alpaca.get_orders(status='open')
+                        for order in open_orders:
+                            if order.symbol == symbol:
+                                self.alpaca.cancel_order(order.id)
+                        
+                        # Close the position
+                        self.alpaca.close_position(symbol)
+                        
+                        # Clean up state
+                        trading_state.remove_position(symbol)
+                        self.supabase.delete_position(symbol)
+                        
+                        closed_count += 1
+                        logger.info(f"✅ Closed tiny position {symbol}")
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to close tiny position {symbol}: {e}")
+            
+            if closed_count > 0:
+                logger.info(f"🧹 Cleaned up {closed_count} tiny positions (< ${min_value:.0f})")
+            
+            return closed_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up tiny positions: {e}")
+            return 0
+    
     def update_position_prices(self):
         """
         Update current prices for all positions.
@@ -281,15 +331,16 @@ class PositionManager:
         try:
             positions = trading_state.get_all_positions()
             
-            # Get ALL orders (not just open) to detect bracket legs
-            all_orders = self.alpaca.get_orders(status='all')
+            # Get OPEN orders to detect active bracket legs
+            # FIXED: Use status='open' to get all active orders including bracket legs
+            open_orders = self.alpaca.get_orders(status='open')
             
-            # Build comprehensive set of symbols with ANY orders
+            # Build comprehensive set of symbols with ANY active orders
             symbols_with_orders = set()
-            for order in all_orders:
-                # If order is from today and not filled/cancelled
-                if order.status.value in ['new', 'accepted', 'pending_new', 'held']:
-                    symbols_with_orders.add(order.symbol)
+            for order in open_orders:
+                # Any open order means this symbol has protection
+                symbols_with_orders.add(order.symbol)
+                logger.debug(f"   Found active order for {order.symbol}: {order.id} ({order.order_type}, {order.status})")
             
             logger.debug(f"🛡️  Symbols with active orders (skipping manual checks): {symbols_with_orders}")
             
@@ -360,6 +411,15 @@ class PositionManager:
             if reason in ['take_profit', 'stop_loss']:
                 logger.info(f"✓ {symbol} exiting via bracket order - not interfering")
                 return True
+            
+            # CRITICAL: Check if position has active bracket orders before emergency stop
+            # If brackets exist, they will handle the exit - don't interfere!
+            if reason == 'emergency_stop':
+                open_orders = self.alpaca.get_orders(status='open')
+                symbol_orders = [o for o in open_orders if o.symbol == symbol]
+                if symbol_orders:
+                    logger.info(f"✓ {symbol} has {len(symbol_orders)} active orders - brackets will handle exit, skipping emergency stop")
+                    return True
             
             # CRITICAL: NEVER cancel bracket orders unless it's a true emergency
             # Only cancel for emergency/manual closes, and even then preserve brackets
@@ -543,11 +603,37 @@ class PositionManager:
         try:
             logger.warning(f"🔧 Force cleaning up stuck position: {symbol}")
             
-            # Try one more time to cancel non-bracket orders
-            # CRITICAL: Even in force cleanup, preserve brackets
-            self._cancel_all_symbol_orders(symbol, preserve_brackets=True)
+            # FIRST: Check if position actually still exists in Alpaca
+            try:
+                alpaca_positions = self.alpaca.get_positions()
+                alpaca_symbols = {p.symbol for p in alpaca_positions}
+                
+                if symbol in alpaca_symbols:
+                    # Position still exists - check if it has bracket orders
+                    open_orders = self.alpaca.get_orders(status='open')
+                    symbol_orders = [o for o in open_orders if o.symbol == symbol]
+                    
+                    if symbol_orders:
+                        # Has active orders - DON'T clean up, let brackets handle it
+                        logger.warning(f"⚠️  {symbol} has {len(symbol_orders)} active orders - NOT cleaning up, letting brackets handle exit")
+                        return False
+                    else:
+                        # No orders but position exists - try to cancel and close
+                        self._cancel_all_symbol_orders(symbol, preserve_brackets=False)
+                        try:
+                            self.alpaca.close_position(symbol)
+                            logger.info(f"✅ Successfully closed {symbol} after order cleanup")
+                        except Exception as close_err:
+                            logger.error(f"Still can't close {symbol}: {close_err}")
+                            return False
+                else:
+                    # Position doesn't exist in Alpaca - safe to clean up state
+                    logger.info(f"✅ {symbol} already closed in Alpaca - cleaning up local state")
+            except Exception as check_err:
+                logger.error(f"Error checking Alpaca state for {symbol}: {check_err}")
+                return False
             
-            # Clean up state regardless
+            # Only clean up state if position is actually closed
             self._cleanup_position_state(symbol, position, reason)
             
             logger.info(f"✅ Force cleanup completed for {symbol}")
@@ -610,7 +696,18 @@ class PositionManager:
                 logger.warning(f"Cannot take partial profits for {symbol}: shares_to_sell = {shares_to_sell}")
                 return
             
-            logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R")
+            # CRITICAL: Check if remaining position would be too small
+            # For a $141K portfolio, minimum meaningful position is ~$1000 (0.7%)
+            remaining_qty = position.qty - shares_to_sell
+            remaining_value = remaining_qty * position.current_price
+            min_position_value = 1000  # $1000 minimum remaining position
+            
+            if remaining_value < min_position_value:
+                # Close entire position instead of leaving tiny remainder
+                logger.info(f"🎯 Closing FULL position {symbol}: remaining ${remaining_value:.0f} < ${min_position_value} minimum")
+                shares_to_sell = position.qty  # Sell all shares
+            else:
+                logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R (remaining: ${remaining_value:.0f})")
             
             # CRITICAL FIX: Cancel existing orders to free up shares
             # Otherwise we get "insufficient qty available" errors
@@ -646,29 +743,35 @@ class PositionManager:
                     )
                     
                     # Update position quantity
-                    remaining_qty = position.qty - shares_to_sell
-                    position.qty = remaining_qty
-                    trading_state.update_position(position)
+                    final_remaining_qty = position.qty - shares_to_sell
                     
-                    # Update database with full position data to avoid constraint violations
-                    self.supabase.upsert_position({
-                        'symbol': symbol,
-                        'qty': remaining_qty,
-                        'side': position.side,
-                        'avg_entry_price': position.avg_entry_price,
-                        'current_price': position.current_price,
-                        'unrealized_pl': position.unrealized_pl,
-                        'unrealized_pl_pct': position.unrealized_pl_pct,
-                        'market_value': position.market_value,
-                        'stop_loss': position.stop_loss,
-                        'take_profit': position.take_profit,
-                        'entry_time': position.entry_time.isoformat(),
-                        'take_profit': position.take_profit,
-                        'entry_time': position.entry_time.isoformat(),
-                        'updated_at': datetime.utcnow().isoformat()
-                    })
-                    
-                    logger.info(f"✓ Partial profits taken for {symbol}: {shares_to_sell} shares sold, {remaining_qty} remaining")
+                    if final_remaining_qty <= 0:
+                        # Full position closed - remove from state
+                        trading_state.remove_position(symbol)
+                        self.supabase.delete_position(symbol)
+                        logger.info(f"✓ Full position closed for {symbol}: {shares_to_sell} shares sold (was too small to keep remainder)")
+                    else:
+                        # Partial close - update position
+                        position.qty = final_remaining_qty
+                        trading_state.update_position(position)
+                        
+                        # Update database with full position data to avoid constraint violations
+                        self.supabase.upsert_position({
+                            'symbol': symbol,
+                            'qty': final_remaining_qty,
+                            'side': position.side,
+                            'avg_entry_price': position.avg_entry_price,
+                            'current_price': position.current_price,
+                            'unrealized_pl': position.unrealized_pl,
+                            'unrealized_pl_pct': position.unrealized_pl_pct,
+                            'market_value': position.market_value,
+                            'stop_loss': position.stop_loss,
+                            'take_profit': position.take_profit,
+                            'entry_time': position.entry_time.isoformat(),
+                            'updated_at': datetime.utcnow().isoformat()
+                        })
+                        
+                        logger.info(f"✓ Partial profits taken for {symbol}: {shares_to_sell} shares sold, {final_remaining_qty} remaining")
                     
                     # Calculate PnL for the partial trade
                     if position.side == 'buy':
