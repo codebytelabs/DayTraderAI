@@ -62,7 +62,11 @@ class StopLossProtectionManager:
                 
                 try:
                     # Check if position has active stop loss
-                    has_stop, stop_price, stop_order = self._has_active_stop_loss(symbol, all_orders)
+                    # HOTFIX APPLIED: Fixed tuple unpacking
+                    result = self._has_active_stop_loss(symbol, all_orders)
+                    has_stop = result[0]
+                    stop_price = result[1] if len(result) > 1 else None
+                    stop_order = result[2] if len(result) > 2 else None
                     
                     if has_stop:
                         # SELF-HEALING CHECK:

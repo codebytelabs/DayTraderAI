@@ -28,7 +28,8 @@ class DynamicPositionSizer:
         stop_distance: float,
         confidence: float,
         base_risk_pct: float = 0.01,
-        max_position_pct: float = 0.10
+        max_position_pct: float = 0.10,
+        regime_data: Optional[Dict[str, Any]] = None
     ) -> Tuple[int, str]:
         """
         Calculate optimal position size considering all constraints.
@@ -104,7 +105,7 @@ class DynamicPositionSizer:
             # 6. Generate reasoning
             reasoning = self._generate_reasoning(
                 symbol, price, final_qty, limiting_factor, 
-                available_bp, equity, confidence, constraints
+                available_bp, equity, confidence, constraints, regime_data
             )
             
             return final_qty, reasoning
@@ -115,7 +116,8 @@ class DynamicPositionSizer:
     
     def _generate_reasoning(
         self, symbol: str, price: float, qty: int, limiting_factor: str,
-        available_bp: float, equity: float, confidence: float, constraints: dict
+        available_bp: float, equity: float, confidence: float, constraints: dict,
+        regime_data: Optional[Dict[str, Any]] = None
     ) -> str:
         """Generate human-readable reasoning for position size."""
         
@@ -137,6 +139,11 @@ class DynamicPositionSizer:
             reasoning.append(f"Equity usage: {equity_usage:.1f}%")
         elif limiting_factor == 'risk':
             reasoning.append(f"Risk-based sizing")
+            
+        if regime_data:
+            regime_name = regime_data.get('regime', 'Unknown')
+            size_mult = regime_data.get('position_size_mult', 1.0)
+            reasoning.append(f"Regime: {regime_name} ({size_mult}x)")
         
         return " | ".join(reasoning)
     

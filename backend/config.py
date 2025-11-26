@@ -87,9 +87,12 @@ class Settings(BaseSettings):
     # trailing_stops_distance_r: float = 0.5  # Trail by 0.5R (0.5% for 1% risk positions)
     
     # Trade Frequency Limits (Quality over Quantity)
-    max_trades_per_day: int = 30  # Cap daily trades to prevent over-trading
+    # Research: 17 trades/day with 8 on META = churning = losses
+    # Hedge fund approach: fewer, higher-quality trades
+    max_trades_per_day: int = 15  # Reduced from 30 - quality over quantity
     max_trades_per_symbol_per_day: int = 2  # Max 2 entries per symbol per day
-    trade_cooldown_minutes: int = 15  # Minimum 15 minutes between trades in same symbol
+    trade_cooldown_minutes: int = 30  # Increased from 15 - prevent rapid re-entry churning
+    min_hold_time_minutes: int = 15  # Minimum time to hold position before manual exit (stops still work)
     
     # Sprint 5: Trailing Stops Configuration
     trailing_stops_enabled: bool = True  # ENABLED - Protect profits automatically

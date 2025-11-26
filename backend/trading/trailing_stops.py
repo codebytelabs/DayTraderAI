@@ -113,7 +113,8 @@ class TrailingStopManager:
         current_price: float,
         stop_loss: float,
         side: str,
-        atr: Optional[float] = None
+        atr: Optional[float] = None,
+        regime_params: Optional[Dict[str, Any]] = None
     ) -> float:
         """
         Calculate trailing stop price
@@ -137,9 +138,12 @@ class TrailingStopManager:
                 r = stop_loss - entry_price
             
             # Calculate trailing distance
-            if atr:
+            if regime_params and 'trailing_stop_r' in regime_params:
+                # Regime-based distance (Sprint 2)
+                trailing_distance = r * regime_params['trailing_stop_r']
+            elif atr:
                 # Use ATR-based distance (more dynamic)
-                trailing_distance = atr * 1.5  # 1.5x ATR
+                trailing_distance = atr * self.atr_multiplier  # Default 1.5x ATR
             else:
                 # Use R-based distance
                 trailing_distance = r * self.trailing_distance_r
@@ -171,7 +175,8 @@ class TrailingStopManager:
         current_price: float,
         current_stop: float,
         side: str,
-        atr: Optional[float] = None
+        atr: Optional[float] = None,
+        regime_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Update trailing stop for a position
@@ -213,7 +218,7 @@ class TrailingStopManager:
             
             # Calculate new trailing stop
             new_stop = self.calculate_trailing_stop(
-                symbol, entry_price, current_price, current_stop, side, atr
+                symbol, entry_price, current_price, current_stop, side, atr, regime_params
             )
             
             # Check if stop should be updated

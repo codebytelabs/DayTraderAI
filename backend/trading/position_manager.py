@@ -43,8 +43,17 @@ class PositionManager:
         # Initialize cooldown manager if not provided (Sprint 6)
         if self.cooldown_manager is None:
             from trading.symbol_cooldown import SymbolCooldownManager
+            from trading.symbol_cooldown import SymbolCooldownManager
             self.cooldown_manager = SymbolCooldownManager(supabase_client)
             logger.info("Symbol Cooldown Manager auto-initialized in Position Manager")
+            
+        # Regime Manager (Sprint 2)
+        self.regime_manager = None
+        
+    def set_regime_manager(self, regime_manager):
+        """Set the regime manager instance."""
+        self.regime_manager = regime_manager
+        logger.info("✅ Position Manager linked with Regime Manager")
     
     def sync_positions(self):
         """
@@ -255,6 +264,11 @@ class PositionManager:
             features = trading_state.get_features(position.symbol)
             atr = features.get('atr', None) if features else None
             
+            # Get regime parameters if available
+            regime_params = {}
+            if self.regime_manager:
+                regime_params = self.regime_manager.get_params()
+            
             # Update trailing stop
             result = self.trailing_stop_manager.update_trailing_stop(
                 symbol=position.symbol,
@@ -262,7 +276,8 @@ class PositionManager:
                 current_price=position.current_price,
                 current_stop=position.stop_loss,
                 side='long' if position.side == 'buy' else 'short',
-                atr=atr
+                atr=atr,
+                regime_params=regime_params
             )
             
             # If trailing stop was updated (and not in shadow mode), update the position
@@ -654,13 +669,19 @@ class PositionManager:
             if not self.profit_taker:
                 return
             
+            # Get regime parameters if available
+            regime_params = {}
+            if self.regime_manager:
+                regime_params = self.regime_manager.get_params()
+                
             # Check if should take partial profits
             result = self.profit_taker.should_take_partial_profits(
                 symbol=position.symbol,
                 entry_price=position.avg_entry_price,
                 current_price=position.current_price,
                 stop_loss=position.stop_loss,
-                side='long' if position.side == 'buy' else 'short'
+                side='long' if position.side == 'buy' else 'short',
+                regime_params=regime_params
             )
             
             # Log the check result for debugging

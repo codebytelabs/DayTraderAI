@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/profit_protection/intelligent_stop_manager.py
+# hypothesis_version: 6.148.2
+
+[0.01, 0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 100, 1000, 'breakeven_protection', 'long', 'move_to_breakeven', 'short', 'stop_adjustment', 'trailing_stop']

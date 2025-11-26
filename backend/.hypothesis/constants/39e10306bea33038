@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/profit_protection/profit_taking_engine.py
+# hypothesis_version: 6.148.2
+
+[0.0, 0.1, 0.25, 0.5, 2.0, 3.0, 4.0, 200, 1000, 'current_r_multiple', 'original_quantity', 'partial_exits', 'remaining_quantity', 'symbol', 'total_shares_sold']

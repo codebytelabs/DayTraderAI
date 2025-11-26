@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/profit_protection/profit_protection_manager.py
+# hypothesis_version: 6.148.2
+
+[0.98, 1.02, 'current_price', 'entry_price', 'long', 'open', 'original_quantity', 'profit_summary', 'protection_state', 'r_multiple', 'remaining_quantity', 'short', 'stop', 'stop_loss', 'symbol', 'unrealized_pl', 'unrealized_pl_pct']

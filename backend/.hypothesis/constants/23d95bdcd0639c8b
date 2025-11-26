@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/utils/logger.py
+# hypothesis_version: 6.148.2
+
+['%Y-%m-%d %H:%M:%S']

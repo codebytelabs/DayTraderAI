@@ -20,6 +20,13 @@ class OrderConfig:
     fill_timeout_seconds: int = 60  # Wait 60s for full fill
     min_rr_ratio: float = 2.0  # Minimum 1:2 risk/reward
     enable_extended_hours: bool = False  # Disable extended hours by default
+    
+    # Fill detection configuration
+    fill_initial_poll_interval: float = 0.5  # Start checking every 0.5s
+    fill_max_poll_interval: float = 2.0  # Max 2s between checks
+    fill_max_retries: int = 3  # Retry API calls up to 3 times
+    fill_enable_final_verification: bool = True  # Always do final check
+    fill_enable_multi_method: bool = True  # Use all 4 verification methods
 
 
 @dataclass
@@ -43,12 +50,29 @@ class SmartOrderExecutor:
     - Slippage protection
     - R/R validation
     - Extended hours handling
+    - BULLETPROOF fill detection
     """
     
     def __init__(self, alpaca_client, config: Optional[OrderConfig] = None):
         self.alpaca = alpaca_client
         self.config = config or OrderConfig()
-        logger.info("✅ Smart Order Executor initialized (industry standard)")
+        
+        # Initialize bulletproof fill detection engine
+        from .fill_detection_engine import FillDetectionEngine
+        from .fill_detection_config import FillDetectionConfig
+        
+        fill_config = FillDetectionConfig(
+            timeout_seconds=self.config.fill_timeout_seconds,
+            initial_poll_interval=self.config.fill_initial_poll_interval,
+            max_poll_interval=self.config.fill_max_poll_interval,
+            max_retries=self.config.fill_max_retries,
+            enable_final_verification=self.config.fill_enable_final_verification,
+            enable_multi_method_verification=self.config.fill_enable_multi_method
+        )
+        
+        self.fill_detector = FillDetectionEngine(alpaca_client, fill_config)
+        
+        logger.info("✅ Smart Order Executor initialized (industry standard + BULLETPROOF fill detection)")
 
     
     def execute_trade(
@@ -273,42 +297,36 @@ class SmartOrderExecutor:
     
     def _wait_for_fill(self, order_id: str, timeout: int) -> Optional[float]:
         """
-        Wait for order to be fully filled
+        Wait for order to be fully filled using BULLETPROOF fill detection
         Returns actual fill price or None if timeout/partial fill
+        
+        This method now uses the FillDetectionEngine which provides:
+        - Multi-method verification (4 independent checks)
+        - Graceful error recovery with retry logic
+        - Final verification check at timeout
+        - Cancel-race condition detection
+        - Comprehensive logging
         """
-        import time
+        logger.info(f"🔥 BULLETPROOF FILL DETECTOR: {order_id} (timeout: {timeout}s)")
         
-        logger.debug(f"Waiting for fill: {order_id} (timeout: {timeout}s)")
+        # Use the bulletproof fill detection engine
+        result = self.fill_detector.monitor_order_fill(order_id, timeout)
         
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                order = self.alpaca.get_order(order_id)
-                
-                # Check if filled
-                if order.status == 'filled':
-                    filled_price = float(order.filled_avg_price)
-                    logger.info(f"✅ Order filled: {order_id} @ ${filled_price:.2f}")
-                    return filled_price
-                
-                # Check if partially filled (reject)
-                if order.filled_qty and order.filled_qty < order.qty:
-                    logger.warning(f"⚠️  Partial fill detected: {order_id}")
-                    return None
-                
-                # Check if canceled or rejected
-                if order.status in ['canceled', 'rejected', 'expired']:
-                    logger.warning(f"⚠️  Order {order.status}: {order_id}")
-                    return None
-                
-                # Wait before next check
-                time.sleep(1)
-                
-            except Exception as e:
-                logger.error(f"Error checking order status: {e}")
-                return None
+        # Check result
+        if result.filled:
+            logger.info(
+                f"✅ Order filled: {order_id} @ ${result.fill_price:.2f} "
+                f"(detected by {result.detection_method.value if result.detection_method else 'unknown'}, "
+                f"{result.checks_performed} checks, {result.elapsed_time:.1f}s)"
+            )
+            return result.fill_price
         
-        logger.warning(f"⏱️  Order fill timeout: {order_id}")
+        # Not filled - log reason
+        logger.warning(
+            f"⚠️  Order not filled: {order_id} - {result.reason} "
+            f"({result.checks_performed} checks, {result.elapsed_time:.1f}s)"
+        )
+        
         return None
 
     def _calculate_dynamic_exits(

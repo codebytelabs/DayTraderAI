@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/config.py
+# hypothesis_version: 6.148.2
+
+[0.0002, 0.0005, 0.001, 0.005, 0.01, 0.015, 0.02, 0.05, 0.2, 0.5, 0.7, 1.0, 1.5, 2.0, 2.5, 3.5, 5.0, 80.0, 1000.0, 200, 800, 999, 8000, 15000, ',', '.env', '09:30', '15:58', 'INFO', 'ignore', 'openrouter', 'perplexity', 'perplexity/sonar', 'perplexity/sonar-pro', 'sonar-pro', 'utf-8']

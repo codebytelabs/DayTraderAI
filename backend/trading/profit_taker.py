@@ -117,7 +117,8 @@ class ProfitTaker:
         entry_price: float,
         current_price: float,
         stop_loss: float,
-        side: str
+        side: str,
+        regime_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Check if should take partial profits
@@ -160,15 +161,20 @@ class ProfitTaker:
                 r = stop_loss - entry_price
                 profit_r = (entry_price - current_price) / r if r > 0 else 0
             
+            # Determine target R
+            target_r = self.first_target_r
+            if regime_params and 'partial_profit_1_r' in regime_params:
+                target_r = regime_params['partial_profit_1_r']
+
             # Check if target reached
-            if profit_r >= self.first_target_r:
+            if profit_r >= target_r:
                 profit_amount = abs(current_price - entry_price) * self.profit_percentage
                 
                 # SHADOW MODE: Log what WOULD happen but don't execute
                 if self.shadow_mode_active:
                     logger.info(
                         f"[SHADOW] Would take partial profits for {symbol}: +{profit_r:.2f}R "
-                        f"(target: +{self.first_target_r}R, would sell {self.profit_percentage*100:.0f}%)"
+                        f"(target: +{target_r}R, would sell {self.profit_percentage*100:.0f}%)"
                     )
                     
                     # Track shadow prediction
@@ -177,7 +183,7 @@ class ProfitTaker:
                         'symbol': symbol,
                         'action': 'partial_profit_taking',
                         'profit_r': profit_r,
-                        'target_r': self.first_target_r,
+                        'target_r': target_r,
                         'percentage': self.profit_percentage,
                         'profit_amount': profit_amount,
                         'side': side
@@ -188,7 +194,7 @@ class ProfitTaker:
                         'shadow_mode': True,
                         'would_take': True,
                         'profit_r': profit_r,
-                        'target_r': self.first_target_r,
+                        'target_r': target_r,
                         'percentage': self.profit_percentage,
                         'profit_amount': profit_amount
                     }
@@ -196,24 +202,24 @@ class ProfitTaker:
                 # LIVE MODE: Actually take partial profits
                 logger.info(
                     f"✓ Partial profit target reached for {symbol}: +{profit_r:.2f}R "
-                    f"(target: +{self.first_target_r}R, selling {self.profit_percentage*100:.0f}%)"
+                    f"(target: +{target_r}R, selling {self.profit_percentage*100:.0f}%)"
                 )
                 
                 return {
                     'should_take': True,
                     'shadow_mode': False,
                     'profit_r': profit_r,
-                    'target_r': self.first_target_r,
+                    'target_r': target_r,
                     'percentage': self.profit_percentage,
                     'profit_amount': profit_amount
                 }
             
             return {
                 'should_take': False,
-                'reason': f'Target not reached (+{profit_r:.2f}R < +{self.first_target_r}R)',
+                'reason': f'Target not reached (+{profit_r:.2f}R < +{target_r}R)',
                 'shadow_mode': self.shadow_mode_active,
                 'profit_r': profit_r,
-                'target_r': self.first_target_r
+                'target_r': target_r
             }
             
         except Exception as e:

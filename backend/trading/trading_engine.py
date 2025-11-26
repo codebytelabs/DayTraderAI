@@ -96,10 +96,27 @@ class TradingEngine:
         self.protection_manager = get_protection_manager(alpaca_client)
         logger.info("✅ Stop Loss Protection Manager initialized (5-second checks)")
         
+        # Initialize Intelligent Profit Protection System (R-multiple based)
+        # This provides: Dynamic trailing stops, systematic profit taking at 2R/3R/4R
+        from trading.profit_protection import get_profit_protection_manager
+        self.profit_protection = get_profit_protection_manager(alpaca_client)
+        logger.info("✅ Intelligent Profit Protection initialized (R-multiple tracking, 2R/3R/4R profit taking)")
+        
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
         
-        # Trade frequency tracking (Quality over Quantity)
+        # Initialize Regime Manager (Sprint 2 - Regime Adaptive Strategy)
+        from trading.regime_manager import RegimeManager
+        self.regime_manager = RegimeManager()
+        logger.info("✅ Regime Manager initialized")
+        
+        # Pass regime manager to strategy if it supports it
+        if hasattr(self.strategy, 'set_regime_manager'):
+            self.strategy.set_regime_manager(self.regime_manager)
+            
+        # Pass regime manager to position manager (Sprint 2)
+        if hasattr(self.position_manager, 'set_regime_manager'):
+            self.position_manager.set_regime_manager(self.regime_manager)
         self.daily_trade_count = 0
         self.symbol_trade_counts = {}  # {symbol: count}
         self.last_reset_date = None
@@ -139,6 +156,13 @@ class TradingEngine:
         self.position_manager.verify_position_protection()
         logger.info("✅ Bracket order verification complete")
         
+        # Start Intelligent Profit Protection System
+        # Syncs existing positions and starts R-multiple tracking
+        logger.info("🚀 Starting Intelligent Profit Protection...")
+        self.profit_protection.sync_existing_positions()
+        self.profit_protection.start()
+        logger.info("✅ Profit protection active - R-multiple tracking, 2R/3R/4R profit taking enabled")
+        
         # Sprint 7: Refresh daily cache for new filters
         # NOW ENABLED with Twelve Data API (free tier)
         logger.info("🔄 Initializing Sprint 7 daily cache...")
@@ -160,6 +184,7 @@ class TradingEngine:
             self.strategy_loop(),
             self.position_monitor_loop(),
             self.metrics_loop(),
+            self.regime_update_loop(),  # New regime update loop
         ]
         
         # Add scanner loop if dynamic watchlist enabled
@@ -173,6 +198,12 @@ class TradingEngine:
         """Stop all trading loops."""
         logger.info("🛑 Stopping Trading Engine...")
         self.is_running = False
+        
+        # Stop profit protection monitoring
+        if hasattr(self, 'profit_protection') and self.profit_protection:
+            self.profit_protection.stop()
+            logger.info("⏹️  Profit protection stopped")
+        
         if self.streaming_enabled:
             await self._stop_streaming()
         await asyncio.sleep(2)  # Allow loops to finish
@@ -371,6 +402,7 @@ class TradingEngine:
         sync_counter = 0
         momentum_counter = 0
         protection_counter = 0
+        trailing_stop_counter = 0  # Aggressive trailing stops every 60 seconds
         
         # Parse EOD time
         try:
@@ -449,6 +481,13 @@ class TradingEngine:
                 if momentum_counter >= 3 and self.momentum_config.enabled:
                     await self._check_momentum_adjustments()
                     momentum_counter = 0
+                
+                # PROFESSIONAL TRAILING STOPS - every 60 seconds (6 iterations)
+                # Trails stops at 2.5% below current price for profitable positions (2%+ profit)
+                trailing_stop_counter += 1
+                if trailing_stop_counter >= 6:
+                    await self._update_aggressive_trailing_stops()
+                    trailing_stop_counter = 0
                 
                 # Check stops and targets (only for positions without bracket orders)
                 symbols_to_close = self.position_manager.check_stops_and_targets()
@@ -656,6 +695,32 @@ class TradingEngine:
                 
             except Exception as e:
                 logger.error(f"Error in metrics loop: {e}")
+                await asyncio.sleep(300)
+
+    async def regime_update_loop(self):
+        """
+        Regime update loop.
+        Updates market regime every hour (or as configured in RegimeManager).
+        """
+        logger.info("🌍 Regime update loop started")
+        
+        # Initial update
+        await self.regime_manager.update_regime()
+        
+        while self.is_running:
+            try:
+                # Update regime
+                regime = await self.regime_manager.update_regime()
+                
+                # Log current regime
+                params = self.regime_manager.get_params()
+                logger.info(f"🌍 Current Regime: {regime.value.upper()} | Target: {params['profit_target_r']}R | Size: {params['position_size_mult']}x")
+                
+                # Wait for next update (15 minutes check, manager handles caching)
+                await asyncio.sleep(900)
+                
+            except Exception as e:
+                logger.error(f"Error in regime update loop: {e}")
                 await asyncio.sleep(300)
     
     async def scanner_loop(self):
@@ -974,6 +1039,118 @@ class TradingEngine:
         
         except Exception as e:
             logger.error(f"Error checking momentum adjustments: {e}")
+    
+    async def _update_aggressive_trailing_stops(self):
+        """
+        PROFESSIONAL TRAILING STOPS - Lock in profits for BOTH long and short positions.
+        
+        Based on hedge fund research:
+        - Day traders use 2-5% trailing stops (not 1.5%)
+        - Only trail after meaningful profit (2%+)
+        - Prevents "death by thousand cuts" from too-tight stops
+        
+        Logic:
+        - For positions with 2%+ unrealized profit
+        - LONG: Trail stop at 2.5% below current price (raise stop as price rises)
+        - SHORT: Trail stop at 2.5% above current price (lower stop as price falls)
+        - Never move stop in wrong direction
+        - Ensures we lock in gains as price moves in our favor
+        """
+        try:
+            from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
+            from alpaca.trading.enums import QueryOrderStatus
+            
+            # PROFESSIONAL SETTINGS (based on hedge fund research)
+            TRAIL_PERCENT = 2.5  # Trail 2.5% from current price (was 1.5% - too tight!)
+            MIN_PROFIT_TO_TRAIL = 2.0  # Only trail if 2%+ in profit (was 1%)
+            
+            # Get positions directly from Alpaca for accurate current prices
+            positions = self.alpaca.get_positions()
+            if not positions:
+                return
+            
+            # Get open stop orders
+            orders = self.alpaca.trading_client.get_orders(
+                filter=GetOrdersRequest(status=QueryOrderStatus.OPEN)
+            )
+            
+            # Build stop order map by symbol (for BUY orders = short covers)
+            stop_orders = {}
+            for order in orders:
+                order_type = str(order.order_type).upper()
+                if 'STOP' in order_type and 'LIMIT' not in order_type:
+                    stop_orders[order.symbol] = order
+            
+            updated_count = 0
+            
+            for pos in positions:
+                symbol = pos.symbol
+                entry = float(pos.avg_entry_price)
+                current = float(pos.current_price)
+                qty = int(float(pos.qty))
+                pnl_pct = float(pos.unrealized_plpc) * 100
+                
+                # Skip if not enough profit
+                if pnl_pct < MIN_PROFIT_TO_TRAIL:
+                    continue
+                
+                stop_order = stop_orders.get(symbol)
+                if not stop_order:
+                    continue
+                
+                current_stop = float(stop_order.stop_price)
+                is_long = qty > 0
+                abs_qty = abs(qty)
+                
+                if is_long:
+                    # LONG position: trail stop BELOW current price, raise as price rises
+                    new_stop = round(current * (1 - TRAIL_PERCENT / 100), 2)
+                    
+                    # Ensure we're locking in profit (stop above entry)
+                    if new_stop <= entry:
+                        new_stop = round(entry * 1.005, 2)  # At minimum, 0.5% above entry
+                    
+                    # Only update if new stop is HIGHER than current (tightening)
+                    if new_stop <= current_stop:
+                        continue
+                    
+                    locked_pct = ((new_stop - entry) / entry) * 100
+                    direction = "raised"
+                else:
+                    # SHORT position: trail stop ABOVE current price, lower as price falls
+                    new_stop = round(current * (1 + TRAIL_PERCENT / 100), 2)
+                    
+                    # Ensure we're locking in profit (stop below entry for shorts)
+                    if new_stop >= entry:
+                        new_stop = round(entry * 0.995, 2)  # At minimum, 0.5% below entry
+                    
+                    # Only update if new stop is LOWER than current (tightening for shorts)
+                    if new_stop >= current_stop:
+                        continue
+                    
+                    locked_pct = ((entry - new_stop) / entry) * 100
+                    direction = "lowered"
+                
+                try:
+                    replace_request = ReplaceOrderRequest(
+                        qty=abs_qty,
+                        stop_price=new_stop
+                    )
+                    self.alpaca.trading_client.replace_order_by_id(stop_order.id, replace_request)
+                    updated_count += 1
+                    pos_type = "LONG" if is_long else "SHORT"
+                    logger.info(
+                        f"📈 {symbol} ({pos_type}): Trailing stop {direction} ${current_stop:.2f} → ${new_stop:.2f} "
+                        f"(locks {locked_pct:+.1f}% profit, P/L: {pnl_pct:+.1f}%)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update trailing stop for {symbol}: {e}")
+            
+            if updated_count > 0:
+                logger.info(f"🎯 Updated {updated_count} aggressive trailing stops")
+                
+        except Exception as e:
+            logger.error(f"Error updating aggressive trailing stops: {e}")
     
     def _fetch_market_data_for_momentum(self, symbol: str, bars: int = 60) -> Optional[Dict]:
         """Fetch market data for momentum evaluation - FIXED DataFrame handling"""

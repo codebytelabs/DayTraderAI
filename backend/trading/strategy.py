@@ -29,9 +29,10 @@ class EMAStrategy:
         self.stop_mult = settings.stop_loss_atr_mult
         self.target_mult = settings.take_profit_atr_mult
         
-        # Order cooldown tracking to prevent duplicates
+        # Order cooldown tracking to prevent churning (rapid re-entry)
+        # Research shows: 17 trades/day with 8 on META alone = churning = losses
         self.last_order_times = {}  # {symbol: timestamp}
-        self.order_cooldown_seconds = 180  # 3 minutes between orders for same symbol (day trading velocity)
+        self.order_cooldown_seconds = settings.trade_cooldown_minutes * 60  # Use config value (default 15 min)
         
         # Dynamic position sizer
         self.alpaca = order_manager.alpaca  # Get alpaca client from order manager
@@ -49,7 +50,14 @@ class EMAStrategy:
         except Exception as e:
             logger.warning(f"⚠️  Could not initialize sentiment aggregator: {e}")
             self.sentiment_aggregator = None
-    
+            
+        # Regime Manager (Sprint 2)
+        self.regime_manager = None
+
+    def set_regime_manager(self, regime_manager):
+        """Set the regime manager instance."""
+        self.regime_manager = regime_manager
+        logger.info("✅ Strategy linked with Regime Manager")
     def _get_sentiment_score(self) -> int:
         """
         Get current market sentiment score (0-100).
@@ -408,6 +416,17 @@ class EMAStrategy:
             metrics = trading_state.get_metrics()
             equity = metrics.equity
             
+            # Get regime parameters (Sprint 2)
+            regime_params = {}
+            target_mult = self.target_mult
+            size_mult = 1.0
+            
+            if self.regime_manager:
+                regime_params = self.regime_manager.get_params()
+                target_mult = regime_params.get('profit_target_r', self.target_mult)
+                size_mult = regime_params.get('position_size_mult', 1.0)
+                logger.info(f"🌍 Using Regime Params: Target {target_mult}R, Size {size_mult}x")
+            
             if equity <= 0:
                 logger.error("Invalid equity for position sizing")
                 return False
@@ -449,7 +468,7 @@ class EMAStrategy:
             atr = features['atr']
             
             stop_price = calculate_atr_stop(price, atr, self.stop_mult, signal)
-            target_price = calculate_atr_target(price, atr, self.target_mult, signal)
+            target_price = calculate_atr_target(price, atr, target_mult, signal)
             
             # CRITICAL FIX: Account for slippage in bracket calculations
             # Market orders can slip 0.1-0.3%, so we need wider brackets
@@ -463,7 +482,7 @@ class EMAStrategy:
             
             # Recalculate brackets from expected fill price
             stop_price = calculate_atr_stop(expected_fill_price, atr, self.stop_mult, signal)
-            target_price = calculate_atr_target(expected_fill_price, atr, self.target_mult, signal)
+            target_price = calculate_atr_target(expected_fill_price, atr, target_mult, signal)
             
             logger.info(
                 f"💰 Slippage-adjusted brackets for {symbol}: "
@@ -549,8 +568,8 @@ class EMAStrategy:
                 # Below 70% shouldn't reach here due to earlier filter
                 risk_multiplier = 0.8
             
-            adjusted_risk = base_risk * risk_multiplier
-            adjusted_risk = max(0.01, min(adjusted_risk, 0.02))  # Cap at 1.0-2.0%
+            adjusted_risk = base_risk * risk_multiplier * size_mult
+            adjusted_risk = max(0.01, min(adjusted_risk, 0.025))  # Cap at 1.0-2.5% (increased max for extreme regime)
             
             logger.info(
                 f"💰 Position sizing for {symbol}: Confidence {confidence:.1f}/100 → "
@@ -586,7 +605,8 @@ class EMAStrategy:
                 stop_distance=actual_stop_distance,
                 confidence=confidence,
                 base_risk_pct=adjusted_risk_with_time,
-                max_position_pct=settings.max_position_pct
+                max_position_pct=settings.max_position_pct,
+                regime_data=regime_params
             )
             
             logger.info(f"Dynamic position sizing for {symbol}: {sizing_reason}")
