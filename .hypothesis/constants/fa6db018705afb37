@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/optimization/models.py
+# hypothesis_version: 6.148.2
+
+[0.45, 0.5, 0.6, 0.65, 0.75, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 20.0, 35.0, 'adx_threshold', 'base_long_threshold', 'base_short_threshold', 'best_fitness', 'best_parameters', 'convergence_history', 'degradation_percent', 'evaluation_profit_r', 'fear_profit_target_r', 'fear_trailing_stop_r', 'in_sample_metrics', 'iterations_run', 'max_drawdown', 'metrics', 'out_sample_metrics', 'overfitting_detected', 'post_metrics', 'pre_metrics', 'profit_factor', 'sharpe_improvement', 'sharpe_ratio', 'timestamp', 'total_return', 'total_trades', 'trend_threshold', 'volume_threshold', 'win_rate', 'win_rate_improvement']

@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/optimization/validator.py
+# hypothesis_version: 6.148.2
+
+[0.0, 0.25, 0.7, 1.0, 'date']

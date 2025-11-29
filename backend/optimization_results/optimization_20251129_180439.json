@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-11-29T18:04:39.819945",
+  "baseline_metrics": {
+    "sharpe_ratio": 8.598344559547884,
+    "win_rate": 0.6666666666666666,
+    "profit_factor": 3.394401717257978,
+    "total_trades": 48,
+    "total_return": 0.6219983492691795,
+    "max_drawdown": 0.053470597455472876
+  },
+  "optimized_metrics": {
+    "sharpe_ratio": 10.370275119035064,
+    "win_rate": 0.7228915662650602,
+    "profit_factor": 4.519626032945191,
+    "total_trades": 83,
+    "total_return": 1.1705195880124466,
+    "max_drawdown": 0.027108498054052042
+  },
+  "parameter_values": {
+    "adx_threshold": 20.0,
+    "volume_threshold": 1.2557676639795858,
+    "trend_threshold": 0.8,
+    "atr_trailing_multiplier": 1.8684022696633278,
+    "evaluation_profit_r": 0.7561292876449541
+  },
+  "improvements": {
+    "sharpe_ratio": 1.7719305594871795,
+    "win_rate": 0.05622489959839361,
+    "profit_factor": 1.125224315687213
+  },
+  "validation": {
+    "in_sample_metrics": {
+      "sharpe_ratio": 11.778396500129356,
+      "win_rate": 0.75,
+      "profit_factor": 5.120886518644847,
+      "total_trades": 72,
+      "total_return": 1.223333146725175,
+      "max_drawdown": 0.03569457601591934
+    },
+    "out_sample_metrics": {
+      "sharpe_ratio": 8.597441136991655,
+      "win_rate": 0.7391304347826086,
+      "profit_factor": 3.4344183210746055,
+      "total_trades": 46,
+      "total_return": 0.5884453639799265,
+      "max_drawdown": 0.04924687864439101
+    },
+    "overfitting_detected": true,
+    "degradation_percent": 0.2700669283041003
+  }
+}

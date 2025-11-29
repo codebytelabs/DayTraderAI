@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/optimization/optimizer.py
+# hypothesis_version: 6.148.2
+
+[0.1, 0.5, 0.8, 100, 'GA', 'PSO', 'ValidationResult', '__iter__', 'inf']

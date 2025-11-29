@@ -1,0 +1,144 @@
+# Implementation Plan
+
+- [x] 1. Set up project structure and dependencies
+  - [x] 1.1 Install scikit-opt and hypothesis dependencies
+    - Add scikit-opt and hypothesis to requirements.txt
+    - Verify installation with import test
+    - _Requirements: 1.1_
+  - [x] 1.2 Create optimization module directory structure
+    - Create `backend/optimization/` directory
+    - Create `__init__.py`, `optimizer.py`, `validator.py`, `fitness.py`, `logger.py`
+    - _Requirements: 1.1_
+
+- [ ] 2. Implement core data models and parameter space
+  - [x] 2.1 Create data models for optimization results
+    - Implement OptimizationResult dataclass
+    - Implement ValidationResult dataclass
+    - Implement PerformanceMetrics dataclass
+    - _Requirements: 1.3, 2.3_
+  - [x] 2.2 Define parameter space with bounds
+    - Define REGIME_PARAMETERS with valid ranges
+    - Define MOMENTUM_PARAMETERS with valid ranges
+    - Add validation for parameter bounds
+    - _Requirements: 1.4, 4.1, 4.2, 4.3_
+  - [x] 2.3 Write property test for parameter bounds
+    - **Property 1: All optimized parameters within bounds**
+    - **Validates: Requirements 1.4, 4.1, 4.2, 4.3**
+
+- [ ] 3. Implement FitnessCalculator
+  - [x] 3.1 Implement Sharpe ratio calculation
+    - Calculate annualized Sharpe ratio from returns
+    - Handle edge cases (zero volatility, no trades)
+    - _Requirements: 1.2_
+  - [x] 3.2 Implement backtest fitness function
+    - Run simplified backtest with given parameters
+    - Return Sharpe ratio as fitness value
+    - _Requirements: 1.2_
+  - [x] 3.3 Write property test for fitness calculation
+    - **Property 2: Fitness function returns Sharpe ratio**
+    - **Validates: Requirements 1.2**
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 5. Implement WalkForwardValidator
+  - [x] 5.1 Implement data splitting logic
+    - Split data into 70% training, 30% validation
+    - Ensure chronological order is preserved
+    - _Requirements: 2.1_
+  - [x] 5.2 Write property test for data split
+    - **Property 3: Data split maintains proportions**
+    - **Validates: Requirements 2.1**
+  - [x] 5.3 Implement overfitting detection
+    - Compare in-sample vs out-of-sample metrics
+    - Flag if degradation exceeds 25%
+    - _Requirements: 2.4_
+  - [x] 5.4 Write property test for overfitting detection
+    - **Property 4: Overfitting detection threshold**
+    - **Validates: Requirements 2.4**
+  - [x] 5.5 Implement validation result reporting
+    - Return both in-sample and out-of-sample metrics
+    - Calculate degradation percentage
+    - _Requirements: 2.3_
+  - [x] 5.6 Write property test for validation results
+    - **Property 9: Validation reports both metric sets**
+    - **Validates: Requirements 2.3**
+
+- [ ] 6. Implement ParameterOptimizer
+  - [x] 6.1 Implement PSO optimization wrapper
+    - Wrap scikit-opt PSO with parameter bounds
+    - Configure population size and iterations
+    - _Requirements: 1.1_
+  - [x] 6.2 Implement regime parameter optimization
+    - Optimize profit_target_r for all 5 regimes
+    - Optimize trailing_stop_r for all 5 regimes
+    - Maintain logical relationships (partial < target)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+  - [x] 6.3 Write property test for regime parameters
+    - **Property 5: Regime parameters complete**
+    - **Property 6: Logical parameter relationships preserved**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
+  - [x] 6.4 Implement momentum parameter optimization
+    - Optimize ADX threshold (20-35)
+    - Optimize volume threshold (1.2-2.0)
+    - Optimize trend threshold (0.6-0.8)
+    - _Requirements: 4.1, 4.2, 4.3_
+
+- [x] 7. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 8. Implement ResultsLogger
+  - [x] 8.1 Implement results saving
+    - Save to timestamped JSON file
+    - Include baseline, optimized metrics, and parameters
+    - _Requirements: 5.1, 5.2_
+  - [x] 8.2 Write property test for results fields
+    - **Property 7: Results contain required fields**
+    - **Validates: Requirements 5.2**
+  - [x] 8.3 Implement performance comparison
+    - Calculate improvement in win rate, profit factor, Sharpe
+    - Generate comparison report
+    - _Requirements: 5.4_
+  - [x] 8.4 Write property test for improvement calculation
+    - **Property 10: Improvement calculation accuracy**
+    - **Validates: Requirements 5.4**
+
+- [ ] 9. Implement configuration management
+  - [x] 9.1 Implement config update on approval
+    - Update regime_manager.py with optimized regime params
+    - Update momentum/config.py with optimized momentum params
+    - _Requirements: 6.3_
+  - [x] 9.2 Implement config preservation on rejection
+    - Backup original config before optimization
+    - Restore on rejection
+    - _Requirements: 6.4_
+  - [x] 9.3 Write property test for config preservation
+    - **Property 8: Configuration unchanged on rejection**
+    - **Validates: Requirements 6.4**
+
+- [ ] 10. Implement CLI interface
+  - [x] 10.1 Create run_optimization.py script
+    - Single command to run full optimization
+    - Display progress and results summary
+    - _Requirements: 6.1, 6.2_
+  - [x] 10.2 Create verify_optimization.py script
+    - Compare pre/post optimization performance
+    - Generate verification report
+    - _Requirements: 5.3_
+
+- [ ] 11. Integration and deployment
+  - [ ] 11.1 Run full optimization on historical data
+    - Use 6 months of historical data
+    - Validate with walk-forward methodology
+    - _Requirements: 2.2_
+  - [ ] 11.2 Apply optimized parameters to live config
+    - Update config files with approved parameters
+    - Document baseline metrics for comparison
+    - _Requirements: 6.3_
+  - [x] 11.3 Create verification reminder
+    - Add TODO item for 2-day verification
+    - Document expected improvements
+    - _Requirements: 5.3_
+
+- [x] 12. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

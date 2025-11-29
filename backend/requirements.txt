@@ -19,3 +19,7 @@ lightgbm>=4.1.0
 optuna>=3.5.0
 scikit-learn>=1.4.0
 scipy>=1.11.0
+
+# Parameter Optimization (Sprint - Parameter Optimization)
+scikit-opt>=0.6.6
+hypothesis>=6.92.0

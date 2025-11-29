@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/optimization/logger.py
+# hypothesis_version: 6.148.2
+
+['%Y%m%d_%H%M%S', '=', 'baseline_metrics', 'improvements', 'optimization_*.json', 'optimization_results', 'optimized_metrics', 'parameter_values', 'profit_factor', 'r', 'sharpe_ratio', 'timestamp', 'validation', 'w', 'win_rate']
