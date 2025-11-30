@@ -1,0 +1,49 @@
+{
+  "summaries": {
+    "deepseek-v3.2-exp": {
+      "name": "DeepSeek V3.2 Experimental",
+      "model_id": "deepseek/deepseek-v3.2-exp",
+      "description": "Latest experimental model, strong reasoning",
+      "tests_passed": 5,
+      "tests_total": 5,
+      "avg_response_time": 15.299701261520386,
+      "avg_quality": 9.2,
+      "avg_accuracy": 8.4,
+      "avg_context": 6.8,
+      "avg_financial": 9,
+      "success_rate": 1.0,
+      "total_score": 7.52
+    },
+    "deepseek-chat-v3.1": {
+      "name": "DeepSeek Chat V3.1",
+      "model_id": "deepseek/deepseek-chat-v3.1",
+      "description": "Stable production model, reliable",
+      "tests_passed": 5,
+      "tests_total": 5,
+      "avg_response_time": 13.495833349227905,
+      "avg_quality": 9.2,
+      "avg_accuracy": 8.8,
+      "avg_context": 8,
+      "avg_financial": 9,
+      "success_rate": 1.0,
+      "total_score": 7.88
+    },
+    "perplexity-sonar": {
+      "name": "Perplexity Sonar Pro",
+      "model_id": "perplexity/sonar-pro",
+      "description": "Real-time web search, current market data",
+      "tests_passed": 5,
+      "tests_total": 5,
+      "avg_response_time": 14.83824601173401,
+      "avg_quality": 10,
+      "avg_accuracy": 8.6,
+      "avg_context": 7,
+      "avg_financial": 9.2,
+      "success_rate": 1.0,
+      "total_score": 7.82
+    }
+  },
+  "timestamp": "2025-12-01T00:09:39.200884",
+  "test_count": 5,
+  "model_count": 4
+}

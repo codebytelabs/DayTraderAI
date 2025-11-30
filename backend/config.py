@@ -26,23 +26,23 @@ class Settings(BaseSettings):
     # OpenRouter Configuration
     openrouter_api_key: str = ""
     openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
-    # Models for comparison/fallback
-    openrouter_model_sonar_pro: str = "perplexity/sonar-pro"
-    openrouter_model_sonar: str = "perplexity/sonar"
-    openrouter_model_deepseek: str = "deepseek/deepseek-chat"  # Verify exact ID
-    openrouter_model_gemini: str = "google/gemini-3-pro-preview" # User requested specific model
     
-    # Default models to use
-    openrouter_primary_model: str = "perplexity/sonar-reasoning" 
-    openrouter_secondary_model: str = "google/gemini-3-pro-preview"
-    openrouter_tertiary_model: str = "google/gemini-2.0-flash-exp:free" # Fast fallback
-    openrouter_backup_model: str = "deepseek/deepseek-chat" # Ultimate backup
-    openrouter_temperature: float = 0.7
+    # Default models to use (loaded from .env - DO NOT HARDCODE)
+    # These are fallback defaults only - actual values come from .env
+    # COST OPTIMIZED 2025-12-01: Grok models are FREE and high quality!
+    openrouter_primary_model: str = "x-ai/grok-4.1-fast:free"  # FREE, 100% JSON, Score 85
+    openrouter_secondary_model: str = "x-ai/grok-4-fast"  # $0.70/M, fast, reliable
+    openrouter_tertiary_model: str = "openai/gpt-oss-120b"  # $0.24/M, best value
+    openrouter_backup_model: str = "google/gemini-2.5-flash-lite"  # Fast, cheap fallback
+    openrouter_temperature: float = 0.3  # Lower temp for more consistent trading analysis
     
     # Perplexity Configuration
     perplexity_api_key: str = ""
     perplexity_api_base_url: str = "https://api.perplexity.ai"
     perplexity_default_model: str = "sonar-pro"
+    
+    # OpenRouter Perplexity Fallback (when native Perplexity API fails)
+    openrouter_perplexity_model: str = "perplexity/sonar-pro"
     
     # Twelve Data Configuration (Sprint 7 - Daily Cache)
     twelvedata_api_key: str = ""
@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     copilot_trade_execution: bool = False
 
     copilot_context_timeout_ms: int = 800
-    copilot_ai_timeout_ms: int = 15_000
+    copilot_ai_timeout_ms: int = 30_000  # Increased from 15s - free models can be slow
     copilot_cache_ttl_seconds: int = 60
 
     copilot_include_account: bool = True

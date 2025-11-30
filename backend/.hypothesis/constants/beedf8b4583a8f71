@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/momentum_confirmed_regime.py
+# hypothesis_version: 6.148.3
+
+[0.5, 0.7, 0.75, 0.8, 0.9, 1.0, 1.2, 1.5, 2.0, ' | ', 'adjusted_params', 'base_profit_target_r', 'base_trailing_stop_r', 'effective_multiplier', 'fear_greed_index', 'momentum_multiplier', 'momentum_strength', 'multiplier', 'position_multiplier', 'position_size_mult', 'profit_target_r', 'raw_multiplier', 'reasoning', 'regime', 'regime_multiplier', 'timestamp', 'trailing_stop_r', 'vix', 'vix_cap', 'vix_level']

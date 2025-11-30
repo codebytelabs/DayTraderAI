@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/vix_provider.py
+# hypothesis_version: 6.148.3
+
+[0.7, 0.9, 1.0, 1.2, 5.0, 15.0, 20.0, 25.0, 35.0, 100.0, '1Day', 'VIX', 'VIXY', '^VIX', 'api', 'cache', 'cap', 'classification', 'default', 'extreme', 'high', 'is_fresh', 'last_update', 'low', 'normal', 'source', 'timestamp', 'value', 'vix']

@@ -20,7 +20,7 @@ export const PortfolioSummary: React.FC = () => {
     const [chartData] = useState<any[]>([]);
 
     useWebSocket({
-        url: 'ws://localhost:8000/ws/stream',
+        url: 'ws://localhost:8006/ws/stream',
         onMessage: (data) => {
             if (data.type === 'snapshot') {
                 if (data.payload.metrics) {

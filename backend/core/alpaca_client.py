@@ -382,7 +382,7 @@ class AlpacaClient:
         Fetch portfolio equity history from Alpaca.
         
         Args:
-            timeframe: Button clicked in UI - "1D" or "All"
+            timeframe: Button clicked in UI - "1D", "1W", "1M", "3M", "1Y", "ALL"
             period: Not used, kept for compatibility
         
         Returns:
@@ -390,16 +390,22 @@ class AlpacaClient:
         """
         try:
             # Map UI timeframe to Alpaca API parameters
-            # "1D" = intraday view with 5-minute bars for last trading day
-            # "1W" = 1 week of hourly bars
-            # "All" = all available history with daily bars
             if timeframe == "1D":
                 api_period = "1D"
                 api_timeframe = "5Min"
             elif timeframe == "1W":
                 api_period = "1W"
                 api_timeframe = "1H"
-            else:  # "All" or any other value
+            elif timeframe == "1M":
+                api_period = "1M"
+                api_timeframe = "1D"
+            elif timeframe == "3M":
+                api_period = "3M"
+                api_timeframe = "1D"
+            elif timeframe == "1Y":
+                api_period = "1A"  # Alpaca uses "1A" for 1 year
+                api_timeframe = "1D"
+            else:  # "ALL" or any other value
                 api_period = "all"  # Get all available history
                 api_timeframe = "1D"
             

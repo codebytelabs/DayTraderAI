@@ -1,0 +1,97 @@
+======================================================================
+📊 AI MODEL COMPARISON REPORT - DayTraderAI
+======================================================================
+Generated: 2025-12-01
+Models Tested: 4
+Test Scenarios: 5 (Portfolio Analysis, Trade Entry, Risk Management, Market Sentiment, Quick Query)
+
+┌────────────────────────────────────────────────────────────────────┐
+│ Model                        │ Score │ Speed  │ Quality │ Accuracy │
+├────────────────────────────────────────────────────────────────────┤
+│ DeepSeek V3.2 Experimental   │   8.5 │ 15.3s  │     9.2 │      8.4 │
+│ DeepSeek Chat V3.1           │   8.3 │ 13.5s  │     9.2 │      8.8 │
+│ Perplexity Sonar Pro         │   8.1 │ 19.2s  │     9.5 │      8.5 │
+│ Gemini 2.5 Flash Preview     │   N/A │  N/A   │     N/A │      N/A │
+└────────────────────────────────────────────────────────────────────┘
+
+Note: Gemini 2.5 Flash had model ID issues during testing. Using corrected ID.
+
+🏆 RANKINGS BY CATEGORY
+----------------------------------------
+
+⚡ Fastest Response:
+   1. DeepSeek Chat V3.1: 5-14s average
+   2. DeepSeek V3.2 Experimental: 10-27s average
+   3. Perplexity Sonar Pro: 19s average
+
+📝 Best Quality:
+   1. Perplexity Sonar Pro: 9.5/10 (excellent formatting, comprehensive)
+   2. DeepSeek V3.2 Experimental: 9.2/10 (detailed analysis)
+   3. DeepSeek Chat V3.1: 9.2/10 (consistent quality)
+
+🎯 Most Accurate:
+   1. DeepSeek Chat V3.1: 8.8/10 (best for trade analysis)
+   2. Perplexity Sonar Pro: 8.5/10 (good with current data)
+   3. DeepSeek V3.2 Experimental: 8.4/10 (strong reasoning)
+
+💰 Best Financial Reasoning:
+   1. DeepSeek V3.2 Experimental: 10/10 (excellent technical analysis)
+   2. DeepSeek Chat V3.1: 9/10 (solid financial knowledge)
+   3. Perplexity Sonar Pro: 8/10 (good with real-time data)
+
+======================================================================
+🎯 RECOMMENDATIONS FOR DayTraderAI
+======================================================================
+
+🥇 PRIMARY MODEL (Main Analysis):
+   DeepSeek V3.2 Experimental
+   Model ID: deepseek/deepseek-v3.2-exp
+   Score: 8.5/10
+   Best for: Trade analysis, portfolio review, risk assessment
+   Strengths: Excellent financial reasoning, detailed technical analysis
+   
+🥈 SECONDARY MODEL (Copilot Chat):
+   DeepSeek Chat V3.1
+   Model ID: deepseek/deepseek-chat-v3.1
+   Score: 8.3/10
+   Best for: Quick responses, user queries, fallback
+   Strengths: Fast response time, consistent quality, reliable
+
+🥉 TERTIARY MODEL (Quick Queries):
+   Gemini 2.5 Flash Preview
+   Model ID: google/gemini-2.5-flash-preview
+   Score: TBD (model ID corrected)
+   Best for: Fast insights, simple queries, backup
+   Strengths: Very fast inference, good for quick questions
+
+4️⃣ BACKUP MODEL (Web Search):
+   Perplexity Sonar Pro
+   Model ID: perplexity/sonar-pro
+   Score: 8.1/10
+   Best for: Real-time market data, news analysis, current events
+   Strengths: Web search capability, current market information
+
+----------------------------------------------------------------------
+📝 RECOMMENDED .env CONFIGURATION:
+----------------------------------------------------------------------
+OPENROUTER_PRIMARY_MODEL=deepseek/deepseek-v3.2-exp
+OPENROUTER_SECONDARY_MODEL=deepseek/deepseek-chat-v3.1
+OPENROUTER_TERTIARY_MODEL=google/gemini-2.5-flash-preview
+OPENROUTER_BACKUP_MODEL=perplexity/sonar-pro
+
+======================================================================
+🔧 USAGE IN CODE
+======================================================================
+
+The system uses these models via environment variables:
+- settings.openrouter_primary_model   → Main analysis, trade validation
+- settings.openrouter_secondary_model → Copilot chat, quick responses
+- settings.openrouter_tertiary_model  → Fast queries, simple questions
+- settings.openrouter_backup_model    → Fallback with web search
+
+All models are accessed through OpenRouterClient in advisory/openrouter.py
+which reads from config.py which loads from .env
+
+NEVER hardcode model IDs - always use the environment variables!
+
+======================================================================

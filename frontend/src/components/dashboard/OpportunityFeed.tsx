@@ -1,72 +1,130 @@
-import React from 'react';
-import { GlassCard } from '../layout/GlassCard';
-import { Zap, ArrowRight, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Zap, ArrowRight, Clock, TrendingUp, Sparkles, Target } from 'lucide-react';
+import { PremiumCard } from '../ui/PremiumCard';
+import { LiveIndicator } from '../ui/StatusBadge';
 import type { Opportunity } from '../../hooks/useMarketData';
 
 interface OpportunityFeedProps {
     opportunities: Opportunity[];
 }
 
+function getScoreColor(score: number) {
+    if (score >= 80) return 'text-success bg-success/10 border-success/30';
+    if (score >= 60) return 'text-primary bg-primary/10 border-primary/30';
+    if (score >= 40) return 'text-warning bg-warning/10 border-warning/30';
+    return 'text-text-secondary bg-surface border-glass-border';
+}
+
+function getTypeIcon(type: string) {
+    switch (type.toLowerCase()) {
+        case 'momentum':
+            return <TrendingUp className="w-4 h-4" />;
+        case 'breakout':
+            return <Zap className="w-4 h-4" />;
+        case 'reversal':
+            return <Target className="w-4 h-4" />;
+        default:
+            return <Sparkles className="w-4 h-4" />;
+    }
+}
+
 export function OpportunityFeed({ opportunities }: OpportunityFeedProps) {
     return (
-        <GlassCard className="p-6 h-full">
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-2">
-                    <div className="p-2 bg-accent/10 rounded-lg text-accent">
-                        <Zap className="w-5 h-5" />
-                    </div>
-                    <h2 className="text-lg font-semibold text-glass-text-primary">AI Opportunities</h2>
-                </div>
-                <span className="text-xs font-medium px-2 py-1 bg-glass-surface rounded-full text-glass-text-secondary">
-                    Live Feed
-                </span>
-            </div>
-
-            <div className="space-y-4">
-                {opportunities.length === 0 ? (
-                    <div className="text-center py-8 text-glass-text-secondary">
-                        No opportunities found
-                    </div>
-                ) : (
-                    opportunities.map((opp, index) => (
-                        <div key={index} className="p-4 rounded-xl bg-glass-surface/30 border border-glass-border hover:bg-glass-surface/50 transition-all cursor-pointer group">
-                            <div className="flex justify-between items-start mb-3">
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 rounded-lg bg-glass-surface flex items-center justify-center font-bold text-glass-text-primary">
-                                        {opp.symbol}
+        <PremiumCard
+            title="AI Opportunities"
+            icon={<Zap className="w-5 h-5" />}
+            action={<LiveIndicator />}
+            className="h-full"
+        >
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 -mr-2">
+                <AnimatePresence mode="popLayout">
+                    {opportunities.length === 0 ? (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex flex-col items-center justify-center py-12 text-center"
+                        >
+                            <div className="w-16 h-16 rounded-2xl bg-surface flex items-center justify-center mb-4">
+                                <Sparkles className="w-8 h-8 text-text-muted" />
+                            </div>
+                            <p className="text-text-secondary font-medium mb-1">No opportunities found</p>
+                            <p className="text-text-muted text-sm">AI is scanning the market...</p>
+                        </motion.div>
+                    ) : (
+                        opportunities.map((opp, index) => (
+                            <motion.div
+                                key={`${opp.symbol}-${opp.timestamp}`}
+                                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                                transition={{ delay: index * 0.05 }}
+                                className="group relative p-4 rounded-xl bg-surface/50 border border-glass-border hover:border-primary/30 hover:bg-surface/80 transition-all cursor-pointer"
+                                whileHover={{ scale: 1.01, y: -2 }}
+                            >
+                                {/* Glow effect on hover */}
+                                <div className="absolute inset-0 rounded-xl bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                
+                                <div className="relative">
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                                                <span className="text-sm font-bold text-white">{opp.symbol.slice(0, 4)}</span>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-semibold text-white">{opp.symbol}</span>
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${getScoreColor(opp.score)}`}>
+                                                        {getTypeIcon(opp.type)}
+                                                        {opp.score.toFixed(0)}%
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-xs text-text-muted capitalize">{opp.type}</span>
+                                                    <span className="text-text-muted">•</span>
+                                                    <span className="text-xs text-text-muted flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        {new Date(opp.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-white">${opp.price.toFixed(2)}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center space-x-2">
-                                            <span className="font-semibold text-glass-text-primary">{opp.type}</span>
-                                            <span className="text-xs px-1.5 py-0.5 rounded bg-success/10 text-success font-medium">
-                                                {opp.score.toFixed(0)}% Match
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center text-xs text-glass-text-secondary mt-0.5">
-                                            <Clock className="w-3 h-3 mr-1" />
-                                            {new Date(opp.timestamp).toLocaleTimeString()}
-                                        </div>
+
+                                    <div className="flex items-center justify-between pt-3 border-t border-glass-border/30">
+                                        <span className="text-xs text-text-muted font-medium px-2 py-1 bg-surface rounded-md">
+                                            {opp.source}
+                                        </span>
+                                        <motion.button
+                                            className="flex items-center gap-1 text-xs font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                                            whileHover={{ x: 3 }}
+                                        >
+                                            Analyze <ArrowRight className="w-3 h-3" />
+                                        </motion.button>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-medium text-glass-text-primary">
-                                        ${opp.price.toFixed(2)}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-glass-border/50">
-                                <span className="text-xs text-glass-text-secondary font-medium">
-                                    {opp.source}
-                                </span>
-                                <button className="text-xs font-medium text-accent flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Analyze <ArrowRight className="w-3 h-3 ml-1" />
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                )}
+                            </motion.div>
+                        ))
+                    )}
+                </AnimatePresence>
             </div>
-        </GlassCard>
+
+            {opportunities.length > 0 && (
+                <motion.div
+                    className="mt-4 pt-4 border-t border-glass-border"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                >
+                    <button className="w-full btn-secondary text-sm flex items-center justify-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        View All Opportunities
+                    </button>
+                </motion.div>
+            )}
+        </PremiumCard>
     );
 }

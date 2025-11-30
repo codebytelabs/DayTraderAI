@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/momentum_strength.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.5, 0.7, 0.8, 1.0, 1.5, 2.0, 2.5, 3.0, 10.0, 25.0, 50.0, 100.0, 'adx', 'adx_confirmed', 'confirmed_count', 'data_fresh', 'is_strong', 'is_weak', 'score', 'trend_confirmed', 'trend_strength', 'volume_confirmed', 'volume_ratio']

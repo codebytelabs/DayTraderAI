@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/momentum/validator.py
+# hypothesis_version: 6.148.3
+
+[', ', 'Weak momentum: ', 'close', 'current_price', 'entry_price', 'high', 'low', 'stop_loss', 'symbol', 'timestamp', 'volume']

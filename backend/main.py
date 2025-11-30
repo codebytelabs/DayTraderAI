@@ -16,6 +16,7 @@ from copilot.action_classifier import ActionClassifier, ActionIntent
 from copilot.action_executor import ActionExecutor, ExecutionResult
 from copilot.response_formatter import ResponseFormatter, CopilotResponse
 from copilot.command_handler import CommandHandler
+from copilot.prompts import get_system_prompt, get_perplexity_prompt
 from advisory.openrouter import OpenRouterClient
 from advisory.perplexity import PerplexityClient
 from core.alpaca_client import AlpacaClient
@@ -307,7 +308,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[settings.frontend_url, "http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -393,6 +394,7 @@ class ChatRequestPayload(BaseModel):
     message: str
     history: List[ChatMessagePayload] = []
     trace_id: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
 
 
 def _history_to_messages(history: List[ChatMessagePayload]) -> List[Dict[str, str]]:
@@ -476,6 +478,109 @@ def _serialize_route(route: QueryRoute) -> Dict[str, Any]:
         "symbols": route.symbols,
         "notes": route.notes,
     }
+
+
+def _detect_query_type(message: str) -> str:
+    """Detect the type of query for better prompt selection."""
+    message_lower = message.lower()
+    
+    # Portfolio/performance queries
+    if any(kw in message_lower for kw in ["portfolio", "performance", "how am i doing", "how is my", "last month", "last week", "returns", "p/l", "pnl"]):
+        if any(kw in message_lower for kw in ["month", "week", "history", "historical"]):
+            return "historical_performance"
+        return "portfolio_analysis"
+    
+    # Status queries
+    if any(kw in message_lower for kw in ["status", "summary", "account", "balance", "equity"]):
+        return "status"
+    
+    # Opportunities queries
+    if any(kw in message_lower for kw in ["opportunities", "opportunity", "ideas", "signals", "setups", "trades", "what to buy", "what should i"]):
+        return "opportunities"
+    
+    # Trade analysis
+    if any(kw in message_lower for kw in ["should i buy", "should i sell", "analyze", "analysis", "entry", "exit"]):
+        return "trade_analysis"
+    
+    # Quick queries (short questions)
+    if len(message.split()) < 10:
+        return "quick_query"
+    
+    return "default"
+
+
+def _format_account_summary(context: Dict[str, Any]) -> str:
+    """Format a clean account summary response."""
+    account = context.get("account", {})
+    positions = context.get("positions", [])
+    performance = context.get("performance", {})
+    risk = context.get("risk", {})
+    
+    equity = account.get("equity", 0)
+    cash = account.get("cash", 0)
+    buying_power = account.get("buying_power", 0)
+    daily_pl = account.get("daily_pl", 0)
+    daily_pl_pct = account.get("daily_pl_pct", 0)
+    
+    pl_emoji = "📈" if daily_pl >= 0 else "📉"
+    pl_sign = "+" if daily_pl >= 0 else ""
+    
+    lines = [
+        f"{pl_emoji} **Account Summary**",
+        f"- Equity: ${equity:,.2f}",
+        f"- Cash: ${cash:,.2f}",
+        f"- Buying Power: ${buying_power:,.2f}",
+        f"- Daily P/L: {pl_sign}${daily_pl:,.2f} ({pl_sign}{daily_pl_pct:.2f}%)",
+        f"- Open Positions: {len(positions)}/{risk.get('max_positions', 20)}",
+        f"- Win Rate: {performance.get('win_rate', 0)*100:.1f}%",
+        f"- Profit Factor: {performance.get('profit_factor', 0):.2f}",
+        f"- Circuit Breaker: {'⚠️ ACTIVE' if risk.get('circuit_breaker_triggered') else '✓ Clear'}",
+    ]
+    
+    # Add top positions
+    if positions:
+        winners = [p for p in positions if p.get("unrealized_pl", 0) > 0]
+        losers = [p for p in positions if p.get("unrealized_pl", 0) < 0]
+        
+        if winners:
+            winners.sort(key=lambda x: x.get("unrealized_pl", 0), reverse=True)
+            lines.append("\n📈 **Top Winners**")
+            for p in winners[:3]:
+                pl = p.get("unrealized_pl", 0)
+                lines.append(f"- {p['symbol']}: +${pl:,.2f} (+{p.get('unrealized_pl_pct', 0):.1f}%)")
+        
+        if losers:
+            losers.sort(key=lambda x: x.get("unrealized_pl", 0))
+            lines.append("\n📉 **Underperformers**")
+            for p in losers[:3]:
+                pl = p.get("unrealized_pl", 0)
+                lines.append(f"- {p['symbol']}: ${pl:,.2f} ({p.get('unrealized_pl_pct', 0):.1f}%)")
+    
+    return "\n".join(lines)
+
+
+def _clean_ai_response(response: str) -> str:
+    """Clean up AI response to remove verbose disclaimers and limitations."""
+    # Remove common verbose patterns
+    patterns_to_remove = [
+        r"I appreciate the detailed request.*?limitations.*?\n\n",
+        r"## Current Data Limitations.*?(?=##|\Z)",
+        r"I need to be transparent about.*?\n\n",
+        r"The search results provided contain.*?\n\n",
+        r"Based on the available data.*?(?=\n\n|\Z)",
+        r"Would you like me to.*?\Z",
+        r"For the level of analysis.*?\Z",
+    ]
+    
+    import re
+    cleaned = response
+    for pattern in patterns_to_remove:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove excessive newlines
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    
+    return cleaned.strip()
 
 
 def _build_perplexity_prompt(context: Dict[str, Any], message: str, route: Optional[QueryRoute] = None) -> str:
@@ -1028,8 +1133,20 @@ async def chat(request: ChatRequestPayload):
     if not copilot_context_builder or not copilot_router:
         raise HTTPException(status_code=503, detail="Copilot not initialized.")
 
-    # Build context
+    # Build context from backend
     context_result: ContextResult = await copilot_context_builder.build_context(request.message)
+    
+    # Merge frontend-provided context if available (for real-time data)
+    if request.context:
+        frontend_ctx = request.context
+        if frontend_ctx.get("account"):
+            context_result.context.setdefault("account", {}).update(frontend_ctx["account"])
+        if frontend_ctx.get("positions"):
+            context_result.context["positions"] = frontend_ctx["positions"]
+        if frontend_ctx.get("market_status"):
+            context_result.context.setdefault("market", {})["status"] = frontend_ctx["market_status"]
+        if frontend_ctx.get("opportunities"):
+            context_result.context["opportunities"] = frontend_ctx["opportunities"]
     
     # NEW: Classify action intent (if enabled)
     if (
@@ -1152,6 +1269,28 @@ async def chat(request: ChatRequestPayload):
         else:
             notes.append("Perplexity API key missing; skipping news routing.")
 
+    # Detect query type for better prompt selection
+    query_type = _detect_query_type(request.message)
+    
+    # Handle simple status/portfolio queries directly without AI
+    if query_type == "status" and not "perplexity" in route.targets:
+        # Return formatted account summary directly
+        summary_content = _format_account_summary(context_result.context)
+        return {
+            "success": True,
+            "content": summary_content,
+            "provider": "Local Context",
+            "route": _serialize_route(route),
+            "context_summary": context_result.summary,
+            "highlights": context_result.highlights,
+            "citations": [],
+            "notes": ["Direct status query - no AI needed"],
+            "confidence": 0.95,
+            "symbols": route.symbols,
+            "timestamp": datetime.utcnow().isoformat(),
+            "trace_id": request.trace_id,
+        }
+
     # Primary OpenRouter analysis
     openrouter_reply = None
     if "openrouter" in route.targets:
@@ -1164,70 +1303,19 @@ async def chat(request: ChatRequestPayload):
             if is_deep_analysis and sections:
                 # Enhanced prompt for deep analysis
                 symbols_str = ", ".join(route.symbols) if route.symbols else "symbol(s)"
-                system_prompt = (
-                    f"You are a professional stock analyst providing DEEP-DIVE ANALYSIS for {symbols_str}.\n\n"
-                    "You have received comprehensive research from Perplexity. Your job is to:\n\n"
-                    "1. **Synthesize** the research into a clear, well-formatted report\n"
-                    "2. **Structure** the response with these sections:\n"
-                    "   - Executive Summary (rating, key catalyst, quick verdict)\n"
-                    "   - Technical Analysis (price action, indicators, patterns, momentum)\n"
-                    "   - Fundamental Analysis (valuation, financials, growth)\n"
-                    "   - Sentiment & News (headlines, ratings, social)\n"
-                    "   - Options Analysis (flow, IV, notable trades)\n"
-                    "   - Insider & Institutional (recent activity, holdings)\n"
-                    "   - Earnings Analysis (next date, estimates, history)\n"
-                    "   - Competitive Analysis (peers, market share, advantages)\n"
-                    "   - Risk Assessment (metrics, factors)\n"
-                    "   - Trade Setup (bullish/bearish scenarios with SPECIFIC prices)\n"
-                    "   - Bottom Line (rating, confidence, next action)\n\n"
-                    "3. **Provide SPECIFIC NUMBERS:**\n"
-                    "   - Exact entry prices, stop losses, targets\n"
-                    "   - Position sizes based on 1% risk rule\n"
-                    "   - Risk/reward ratios\n\n"
-                    "4. **Format beautifully:**\n"
-                    "   - Use markdown headers (##, ###)\n"
-                    "   - Use emojis for visual appeal (📊, 📈, 💰, ⚠️, ✅, 🔴, 🟢)\n"
-                    "   - Use tables for comparisons\n"
-                    "   - Use bullet points for lists\n"
-                    "   - Use bold for emphasis\n\n"
-                    "5. **Include actionable commands:**\n"
-                    "   - `#buy SYMBOL XX @ PRICE`\n"
-                    "   - `#watch SYMBOL`\n"
-                    "   - `#alert SYMBOL > PRICE`\n\n"
-                    "6. **Be comprehensive but concise** - cover all sections but keep each focused.\n\n"
-                    "7. **Cite sources** - mention where data came from.\n\n"
-                    "Make it look professional and actionable. This should be a report a trader can immediately act on."
-                )
+                system_prompt = get_system_prompt("trade_analysis")
             elif is_opportunities and sections:
                 # Enhanced prompt for opportunities with market research
-                system_prompt = (
-                    "You are DayTraderAI, a professional trading strategist. "
-                    "You have been provided with comprehensive market research from Perplexity. "
-                    "Your job is to:\n"
-                    "1. Analyze the research and validate the opportunities\n"
-                    "2. Prioritize them based on the user's portfolio context\n"
-                    "3. Provide specific, actionable trade recommendations\n"
-                    "4. Include exact entry prices, stop losses, and take profit targets\n"
-                    "5. Calculate position sizes based on 1% risk per trade\n"
-                    "6. Explain how each opportunity complements the existing portfolio\n"
-                    "7. Highlight any risks or concerns\n\n"
-                    "Format your response with:\n"
-                    "- **High Priority Opportunities** (best risk/reward, immediate action)\n"
-                    "- **Medium Priority Opportunities** (good setups, watch for entry)\n"
-                    "- **Defensive/Hedge Positions** (portfolio protection)\n"
-                    "- **Options Strategies** (if applicable)\n\n"
-                    "Always emphasize risk management and position sizing."
-                )
+                system_prompt = get_system_prompt("opportunities")
+            elif query_type == "portfolio_analysis":
+                system_prompt = get_system_prompt("portfolio_analysis")
+            elif query_type == "historical_performance":
+                system_prompt = get_system_prompt("historical_performance")
+            elif query_type == "quick_query":
+                system_prompt = get_system_prompt("quick_query")
             else:
-                # Original prompt for other queries
-                system_prompt = (
-                    "You are DayTraderAI, a professional day-trading copilot. "
-                    "Use the provided trading system context to deliver actionable advice. "
-                    "Always emphasise risk management, circuit breakers, and open exposure. "
-                    "When asked about opportunities or trade ideas, provide specific symbols with entry points, "
-                    "stop losses, take profits, and risk/reward ratios. "
-                    "Respond with concise bullet points and clear next steps."
-                )
+                # Default prompt
+                system_prompt = get_system_prompt("default")
 
             user_prompt = (
                 f"User question:\n{request.message.strip()}\n\n"
@@ -1249,17 +1337,19 @@ async def chat(request: ChatRequestPayload):
             messages.append({"role": "user", "content": user_prompt})
 
             try:
+                # Use secondary model for copilot (faster) unless deep analysis
+                copilot_model = settings.openrouter_secondary_model if not is_deep_analysis else settings.openrouter_primary_model
                 openrouter_task = asyncio.wait_for(
                     openrouter_client.chat_completion(
                         messages=messages,
-                        model=settings.openrouter_primary_model,
+                        model=copilot_model,
                         temperature=settings.openrouter_temperature,
                     ),
                     timeout=ai_timeout,
                 )
                 openrouter_reply = await openrouter_task
                 if openrouter_reply:
-                    provider_labels.append(f"OpenRouter ({settings.openrouter_primary_model})")
+                    provider_labels.append(f"OpenRouter ({copilot_model})")
                     sections.append(
                         {
                             "title": "Strategy Guidance",
@@ -1289,7 +1379,9 @@ async def chat(request: ChatRequestPayload):
     # Format content with markdown
     formatted_sections = []
     for section in sections:
-        formatted_sections.append(f"**{section['title']}**\n\n{section['content']}")
+        # Clean up verbose AI responses
+        cleaned_content = _clean_ai_response(section['content'])
+        formatted_sections.append(f"**{section['title']}**\n\n{cleaned_content}")
     
     content = "\n\n".join(formatted_sections)
     provider_display = ", ".join(provider_labels)
@@ -1391,6 +1483,36 @@ async def get_config():
         "max_options_positions": settings.max_options_positions,
         "options_risk_per_trade_pct": settings.options_risk_per_trade_pct,
     }
+
+
+@app.get("/regime/status")
+async def get_regime_status():
+    """Get current market regime status with momentum confirmation."""
+    try:
+        from trading.regime_manager import RegimeManager
+        
+        regime_manager = RegimeManager()
+        await regime_manager.update_regime()
+        
+        # Get basic regime summary
+        summary = regime_manager.get_regime_summary()
+        
+        # Try to get momentum-confirmed data
+        momentum_manager = regime_manager.get_momentum_confirmed_manager()
+        if momentum_manager:
+            # Use neutral momentum for summary (actual momentum calculated per-trade)
+            momentum_summary = momentum_manager.get_summary(momentum_strength=0.5)
+            summary["momentum_confirmed"] = momentum_summary
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Error getting regime status: {e}")
+        return {
+            "regime": "neutral",
+            "index_value": 50,
+            "error": str(e)
+        }
 
 
 @app.get("/watchlist")
@@ -1583,6 +1705,100 @@ async def get_performance_history(timeframe: str = "1D", limit: int = 500):
     except Exception as e:
         logger.error(f"Failed to get performance history: {e}")
         return []
+
+
+@app.get("/performance/summary")
+async def get_performance_summary(period: str = "1M"):
+    """Get performance summary for a specific period (1D, 1W, 1M, 3M, YTD, 1Y)."""
+    try:
+        # Map period to Alpaca timeframe
+        period_map = {
+            "1D": ("1D", "5Min"),
+            "1W": ("1W", "1H"),
+            "1M": ("1M", "1D"),
+            "3M": ("3M", "1D"),
+            "YTD": ("1A", "1D"),
+            "1Y": ("1A", "1D"),
+        }
+        
+        alpaca_period, timeframe = period_map.get(period, ("1M", "1D"))
+        
+        # Get portfolio history
+        history = alpaca_client.get_portfolio_history(period=alpaca_period, timeframe=timeframe)
+        
+        if not history or len(history) < 2:
+            return {
+                "period": period,
+                "start_equity": 0,
+                "end_equity": 0,
+                "total_return": 0,
+                "total_return_pct": 0,
+                "high": 0,
+                "low": 0,
+                "max_drawdown": 0,
+                "data_points": 0,
+            }
+        
+        start_equity = history[0].get("equity", 0)
+        end_equity = history[-1].get("equity", 0)
+        total_return = end_equity - start_equity
+        total_return_pct = (total_return / start_equity * 100) if start_equity > 0 else 0
+        
+        equities = [h.get("equity", 0) for h in history]
+        high = max(equities)
+        low = min(equities)
+        
+        # Calculate max drawdown
+        peak = equities[0]
+        max_drawdown = 0
+        for eq in equities:
+            if eq > peak:
+                peak = eq
+            drawdown = (peak - eq) / peak * 100 if peak > 0 else 0
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        # Get trade statistics from Supabase
+        trades = []
+        if supabase_client:
+            try:
+                trades = supabase_client.get_trades(limit=500)
+            except:
+                pass
+        
+        wins = [t for t in trades if float(t.get("pnl", 0) or 0) > 0]
+        losses = [t for t in trades if float(t.get("pnl", 0) or 0) < 0]
+        
+        win_rate = len(wins) / len(trades) * 100 if trades else 0
+        avg_win = sum(float(t.get("pnl", 0) or 0) for t in wins) / len(wins) if wins else 0
+        avg_loss = abs(sum(float(t.get("pnl", 0) or 0) for t in losses) / len(losses)) if losses else 0
+        profit_factor = (sum(float(t.get("pnl", 0) or 0) for t in wins) / 
+                        abs(sum(float(t.get("pnl", 0) or 0) for t in losses))) if losses and sum(float(t.get("pnl", 0) or 0) for t in losses) != 0 else 0
+        
+        return {
+            "period": period,
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "total_return": total_return,
+            "total_return_pct": total_return_pct,
+            "high": high,
+            "low": low,
+            "max_drawdown": max_drawdown,
+            "data_points": len(history),
+            "total_trades": len(trades),
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": win_rate,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "profit_factor": profit_factor,
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get performance summary: {e}")
+        return {
+            "period": period,
+            "error": str(e),
+        }
 
 
 def transform_portfolio_to_ohlc(

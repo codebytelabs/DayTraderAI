@@ -15,13 +15,13 @@ class OpenRouterClient:
     def __init__(self):
         self.api_key = settings.openrouter_api_key
         self.base_url = settings.openrouter_api_base_url
-        # Default fallback model with strong reasoning or search
-        self.model = settings.openrouter_model_sonar_pro 
+        # Use primary model from .env (Grok 4.1 Fast FREE - excellent for analysis)
+        self.model = settings.openrouter_primary_model
         
         if not self.api_key:
             logger.warning("OpenRouter API key not configured")
         else:
-            logger.info(f"OpenRouter initialized with fallback model: {self.model}")
+            logger.info(f"OpenRouter initialized with model: {self.model}")
     
     async def search(
         self,

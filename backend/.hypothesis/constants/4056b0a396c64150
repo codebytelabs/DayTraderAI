@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/indicators/fear_greed_scraper.py
+# hypothesis_version: 6.148.3
+
+[100, '%Y-%m-%d', 'User-Agent', '__main__', 'all_scores', 'classification', 'cnn_api', 'cnn_graphdata', 'consensus', 'default_neutral', 'extreme_fear', 'extreme_greed', 'fear', 'fear_and_greed', 'feargreedindex_org', 'greed', 'macromicro', 'neutral', 'score', 'source', 'sources_used', 'success', 'timestamp', 'y']

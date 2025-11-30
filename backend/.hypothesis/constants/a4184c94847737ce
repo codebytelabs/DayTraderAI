@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/core/alpaca_client.py
+# hypothesis_version: 6.148.3
+
+['1A', '1D', '1H', '1M', '1W', '1Y', '3M', '40410000', '5Min', 'all', 'ask', 'bid', 'buy', 'client_order_id', 'closed', 'df', 'equity', 'limit_price', 'mid', 'open', 'order_class', 'position not found', 'qty', 'side', 'spread', 'stop_price', 'symbol', 'timestamp', 'trail', 'value']

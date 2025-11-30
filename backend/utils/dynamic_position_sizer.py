@@ -1,8 +1,11 @@
 """
 Dynamic Position Sizer - Adapts to available buying power and market conditions.
+
+Updated Dec 2025: Now supports momentum-confirmed regime sizing for professional
+intraday trading approach.
 """
 
-from typing import Tuple
+from typing import Tuple, Dict, Any, Optional
 from core.alpaca_client import AlpacaClient
 from utils.logger import setup_logger
 
@@ -18,8 +21,9 @@ class DynamicPositionSizer:
     4. Existing positions
     """
     
-    def __init__(self, alpaca_client: AlpacaClient):
+    def __init__(self, alpaca_client: AlpacaClient, regime_manager=None):
         self.alpaca = alpaca_client
+        self._regime_manager = regime_manager
         
     def calculate_optimal_size(
         self,
@@ -29,7 +33,8 @@ class DynamicPositionSizer:
         confidence: float,
         base_risk_pct: float = 0.01,
         max_position_pct: float = 0.10,
-        regime_data: Optional[Dict[str, Any]] = None
+        regime_data: Optional[Dict[str, Any]] = None,
+        momentum_strength: Optional[float] = None
     ) -> Tuple[int, str]:
         """
         Calculate optimal position size considering all constraints.
@@ -41,6 +46,8 @@ class DynamicPositionSizer:
             confidence: Signal confidence (0-100)
             base_risk_pct: Base risk percentage of equity
             max_position_pct: Maximum position size as % of equity
+            regime_data: Optional regime data dictionary
+            momentum_strength: Optional momentum strength (0-1) for momentum-confirmed sizing
         
         Returns:
             (quantity, reasoning)
@@ -68,8 +75,23 @@ class DynamicPositionSizer:
             # Do NOT apply confidence scaling again here!
             risk_amount = equity * base_risk_pct
             
+            # Apply momentum-confirmed multiplier if available
+            momentum_mult = 1.0
+            if momentum_strength is not None and self._regime_manager is not None:
+                try:
+                    momentum_mult = self._regime_manager.get_momentum_confirmed_multiplier(
+                        momentum_strength, confidence
+                    )
+                    logger.info(f"Momentum-confirmed multiplier for {symbol}: {momentum_mult:.2f}x (momentum={momentum_strength:.2f})")
+                except Exception as e:
+                    logger.warning(f"Failed to get momentum multiplier: {e}, using 1.0x")
+                    momentum_mult = 1.0
+            
+            # Apply multiplier to risk amount
+            adjusted_risk_amount = risk_amount * momentum_mult
+            
             # Use actual stop distance from strategy (no assumptions!)
-            risk_based_qty = int(risk_amount / stop_distance)
+            risk_based_qty = int(adjusted_risk_amount / stop_distance)
             
             # 2. Calculate buying power constraint (with 20% buffer)
             bp_buffer = 0.8
@@ -92,7 +114,7 @@ class DynamicPositionSizer:
             
             # DEBUG: Log all constraints
             logger.info(f"Position sizing for {symbol}: risk={risk_based_qty}, bp={max_bp_qty}, equity={max_equity_qty}, final={final_qty}, limiting={limiting_factor}")
-            logger.info(f"  Risk calc: ${risk_amount:.2f} / ${stop_distance:.2f} = {risk_based_qty} shares")
+            logger.info(f"  Risk calc: ${adjusted_risk_amount:.2f} / ${stop_distance:.2f} = {risk_based_qty} shares (momentum_mult={momentum_mult:.2f})")
             
             # 5. Ensure minimum viable size (0.5% of equity minimum for meaningful positions)
             min_position_value = equity * 0.005  # 0.5% of equity minimum
@@ -143,7 +165,11 @@ class DynamicPositionSizer:
         if regime_data:
             regime_name = regime_data.get('regime', 'Unknown')
             size_mult = regime_data.get('position_size_mult', 1.0)
-            reasoning.append(f"Regime: {regime_name} ({size_mult}x)")
+            momentum_str = regime_data.get('momentum_strength')
+            if momentum_str is not None:
+                reasoning.append(f"Regime: {regime_name} ({size_mult:.2f}x, momentum={momentum_str:.2f})")
+            else:
+                reasoning.append(f"Regime: {regime_name} ({size_mult}x)")
         
         return " | ".join(reasoning)
     

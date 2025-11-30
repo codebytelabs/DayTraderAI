@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/indicators/vwap.py
+# hypothesis_version: 6.148.3
+
+[0.001, 'close', 'high', 'low', 'volume']

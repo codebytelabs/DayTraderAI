@@ -6,6 +6,44 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+# Model cost tiers (approximate cost per 1M tokens)
+MODEL_COSTS = {
+    "deepseek/deepseek-chat": {"input": 0.14, "output": 0.28, "tier": "budget"},
+    "deepseek/deepseek-v3.2-exp": {"input": 0.50, "output": 1.00, "tier": "standard"},
+    "google/gemini-2.5-flash-preview": {"input": 0.0, "output": 0.0, "tier": "free"},
+    "google/gemini-2.5-flash-preview:free": {"input": 0.0, "output": 0.0, "tier": "free"},
+    "perplexity/sonar-pro": {"input": 3.0, "output": 15.0, "tier": "premium"},
+    "perplexity/sonar": {"input": 1.0, "output": 1.0, "tier": "standard"},
+}
+
+
+def estimate_query_complexity(query: str, max_tokens: int = 500) -> str:
+    """
+    Estimate query complexity to select appropriate model tier.
+    
+    Returns: 'simple', 'medium', or 'complex'
+    """
+    query_lower = query.lower()
+    
+    # Simple queries - use free/budget models
+    simple_patterns = [
+        "status", "balance", "equity", "positions", "how much",
+        "what is", "show me", "list", "current", "today"
+    ]
+    if any(p in query_lower for p in simple_patterns) and len(query) < 100:
+        return "simple"
+    
+    # Complex queries - use quality models
+    complex_patterns = [
+        "analyze", "analysis", "strategy", "recommend", "should i",
+        "opportunities", "deep dive", "compare", "evaluate", "risk assessment"
+    ]
+    if any(p in query_lower for p in complex_patterns) or max_tokens > 1000:
+        return "complex"
+    
+    return "medium"
+
+
 class OpenRouterClient:
     """
     OpenRouter LLM client for trading analysis and copilot.
@@ -34,59 +72,80 @@ class OpenRouterClient:
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: Optional[float] = None,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        use_fallback: bool = True
     ) -> Optional[str]:
         """
-        Send chat completion request to OpenRouter.
+        Send chat completion request to OpenRouter with automatic fallback.
         
         Args:
             messages: List of message dicts with 'role' and 'content'
             model: Override default model (uses primary if not specified)
             temperature: Override default temperature
             max_tokens: Maximum tokens in response
+            use_fallback: If True, try fallback models on failure
         
         Returns:
-            Response content or None if failed
+            Response content or None if all models failed
         """
         if not self.api_key:
             logger.error("OpenRouter API key not configured")
             return None
         
-        model = model or self.primary_model
+        # Build model fallback chain from .env configuration
+        models_to_try = []
+        if model:
+            models_to_try.append(model)
+        else:
+            models_to_try.append(self.primary_model)
+        
+        if use_fallback:
+            # Add fallback models from .env (not hardcoded!)
+            for fallback in [self.secondary_model, self.tertiary_model, self.backup_model]:
+                if fallback and fallback not in models_to_try:
+                    models_to_try.append(fallback)
+        
         temperature = temperature if temperature is not None else self.temperature
         
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "max_tokens": max_tokens,
-                    }
-                )
+        for i, current_model in enumerate(models_to_try):
+            try:
+                timeout = 30.0 if i == 0 else 20.0  # Shorter timeout for fallbacks
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data.get("choices", [{}])[0].get("message", {}).get("content")
-                    if content:
-                        logger.info(f"OpenRouter response received (model: {model})")
-                        return content
-                    else:
-                        logger.error("No content in OpenRouter response")
-                        return None
-                else:
-                    logger.error(f"OpenRouter API error: {response.status_code} - {response.text}")
-                    return None
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": current_model,
+                            "messages": messages,
+                            "temperature": temperature,
+                            "max_tokens": max_tokens,
+                        }
+                    )
                     
-        except Exception as e:
-            logger.error(f"OpenRouter request failed: {e}")
-            return None
+                    if response.status_code == 200:
+                        data = response.json()
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+                        if content:
+                            if i > 0:
+                                logger.info(f"OpenRouter fallback success (model: {current_model})")
+                            else:
+                                logger.info(f"OpenRouter response received (model: {current_model})")
+                            return content
+                        else:
+                            logger.warning(f"No content from {current_model}, trying fallback...")
+                    else:
+                        logger.warning(f"Model {current_model} failed: {response.status_code}")
+                        
+            except Exception as e:
+                logger.warning(f"Model {current_model} error: {e}")
+                continue
+        
+        logger.error("All OpenRouter models failed")
+        return None
     
     async def analyze_trade(
         self,

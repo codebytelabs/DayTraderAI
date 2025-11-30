@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/momentum/config.py
+# hypothesis_version: 6.148.3
+
+[0.5, 0.6, 0.7, 0.75, 0.8, 1.2, 1.5, 1.8, 2.0, 3.0, 20.0, 25.0, 30.0, 35.0, '; ', 'MomentumConfig']
