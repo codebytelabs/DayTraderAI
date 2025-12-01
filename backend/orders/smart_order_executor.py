@@ -17,7 +17,8 @@ class OrderConfig:
     max_slippage_pct: float = 0.001  # 0.10% max acceptable slippage
     limit_buffer_regular: float = 0.0005  # 0.05% buffer for regular hours
     limit_buffer_extended: float = 0.0002  # 0.02% buffer for extended hours
-    fill_timeout_seconds: int = 60  # Wait 60s for full fill
+    fill_timeout_seconds: int = 30  # Wait 30s for regular hours
+    fill_timeout_extended: int = 90  # Wait 90s for extended hours (slower fills)
     min_rr_ratio: float = 2.0  # Minimum 1:2 risk/reward
     enable_extended_hours: bool = False  # Disable extended hours by default
     
@@ -135,12 +136,29 @@ class SmartOrderExecutor:
 
         
         # Step 4: Wait for full fill (with timeout)
-        filled_price = self._wait_for_fill(order_id, timeout=self.config.fill_timeout_seconds)
+        # Use longer timeout for extended hours
+        timeout = self._get_fill_timeout()
+        filled_price = self._wait_for_fill(order_id, timeout=timeout)
         
         if filled_price is None:
-            logger.warning(f"⚠️  Order {order_id} not filled within {self.config.fill_timeout_seconds}s, canceling")
-            self._cancel_order(order_id)
-            return OrderResult(success=False, reason="Fill timeout")
+            # CRITICAL: Final check - query order status directly before giving up
+            logger.warning(f"⚠️  Fill detection timed out, doing final order status check...")
+            final_price = self._final_fill_check(order_id)
+            if final_price:
+                logger.info(f"✅ Final check found fill @ ${final_price:.2f}")
+                filled_price = final_price
+            else:
+                logger.warning(f"⚠️  Order {order_id} not filled within {timeout}s, canceling")
+                cancel_result = self._cancel_order(order_id)
+                # Check if cancel failed because order was already filled
+                if not cancel_result:
+                    final_price = self._final_fill_check(order_id)
+                    if final_price:
+                        logger.info(f"✅ Order filled during cancel attempt @ ${final_price:.2f}")
+                        filled_price = final_price
+                
+                if filled_price is None:
+                    return OrderResult(success=False, reason="Fill timeout")
         
         logger.info(f"✓ Order filled: {quantity} {symbol} @ ${filled_price:.2f}")
         
@@ -248,6 +266,41 @@ class SmartOrderExecutor:
             logger.debug("Extended hours trading disabled")
         
         return is_regular_hours
+    
+    def _is_extended_hours(self) -> bool:
+        """Check if we're in extended hours trading"""
+        import pytz
+        now = datetime.now(tz=pytz.timezone('US/Eastern')).time()
+        market_open = time(9, 30)
+        market_close = time(16, 0)
+        return not (market_open <= now <= market_close)
+    
+    def _get_fill_timeout(self) -> int:
+        """Get appropriate fill timeout based on market hours"""
+        if self._is_extended_hours():
+            logger.info(f"📊 Extended hours - using {self.config.fill_timeout_extended}s timeout")
+            return self.config.fill_timeout_extended
+        return self.config.fill_timeout_seconds
+    
+    def _final_fill_check(self, order_id: str) -> Optional[float]:
+        """
+        Final direct check of order status before giving up.
+        This catches fills that happened but weren't detected by the monitoring loop.
+        """
+        try:
+            order = self.alpaca.get_order(order_id)
+            if order and hasattr(order, 'status'):
+                status = str(order.status).lower()
+                if 'filled' in status or status == 'fill':
+                    # Order was filled!
+                    if hasattr(order, 'filled_avg_price') and order.filled_avg_price:
+                        return float(order.filled_avg_price)
+                    elif hasattr(order, 'limit_price') and order.limit_price:
+                        return float(order.limit_price)
+            return None
+        except Exception as e:
+            logger.warning(f"Final fill check failed: {e}")
+            return None
 
     
     def _calculate_limit_price(self, signal_price: float, side: str) -> float:
