@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/trailing_stops.py
+# hypothesis_version: 6.148.3
+
+[100, '*', 'ENABLED', 'SHADOW MODE', 'Stop already optimal', 'action', 'activated', 'activated_at', 'activation_threshold', 'at_limit', 'avg_benefit', 'config', 'current_stop', 'enabled', 'error', 'exit_benefit', 'exit_type', 'healthy', 'initial_stop', 'issues', 'last_update', 'latest_predictions', 'long', 'max_positions', 'message', 'most_active_symbols', 'new_stop', 'old_stop', 'position_exits', 'predictions', 'profit_protected', 'profit_protected_pct', 'profits_protected', 'protection_rate', 'reason', 'shadow_mode', 'shadow_predictions', 'side', 'status', 'symbol', 'symbols_tracked', 'timestamp', 'total_benefit', 'total_predictions', 'total_trailing_exits', 'trailing_distance_r', 'trailing_stop', 'trailing_stop_r', 'unhealthy', 'update_trailing_stop', 'updated', 'updates', 'updates_count', 'use_atr', 'warnings', 'would_update']

@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/position_manager.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.015, 0.5, 0.97, 0.975, 0.985, 0.99, 1.01, 1.015, 1.025, 1.03, 1000.0, 100, 1000, 'EMA_Crossover', 'Manual close', 'SPY', 'accepted', 'all', 'atr', 'avg_entry_price', 'bracket', 'buy', 'current_price', 'does not exist', 'ema', 'emergency_stop', 'entry_price', 'entry_time', 'exit_price', 'exit_time', 'held', 'legs', 'limit', 'long', 'manual_close', 'market_value', 'new', 'new_stop', 'open', 'order_class', 'part_prof', 'pending_new', 'percentage', 'pnl', 'pnl_pct', 'position not found', 'profit_amount', 'profit_r', 'qty', 'r_multiple', 'reason', 'risk_limit', 'sell', 'shadow_mode', 'short', 'should_take', 'side', 'stop', 'stop_loss', 'strategy', 'symbol', 'take_profit', 'trailing_stop', 'unrealized_pl', 'unrealized_pl_pct', 'updated', 'updated_at', '🔴', '🟢']

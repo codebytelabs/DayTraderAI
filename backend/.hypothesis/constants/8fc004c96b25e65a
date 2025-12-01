@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/indicators/market_regime.py
+# hypothesis_version: 6.148.3
+
+[0.25, 0.5, 0.67, 0.7, 0.75, 1.0, 1.5, 2.0, 20.0, 100, 'DIA', 'IWM', 'QQQ', 'SPY', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLV', 'advancing', 'adx', 'bearish', 'breadth', 'breadth_score', 'broad_bearish', 'broad_bullish', 'broad_neutral', 'bullish', 'choppy', 'declining', 'details', 'direction', 'ema21', 'ema9', 'high', 'level', 'low', 'narrow_bearish', 'narrow_bullish', 'neutral', 'normal', 'ratio', 'regime', 'score', 'should_trade', 'strength', 'trend', 'trend_strength', 'vix', 'volatility', 'volatility_level']

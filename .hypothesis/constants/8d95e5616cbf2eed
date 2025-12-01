@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/scanner/momentum_models.py
+# hypothesis_version: 6.148.3
+
+[0.0, 50.0, 100, 'acceptable', 'developing', 'excellent', 'extended', 'fresh', 'good', 'hold', 'ideal', 'limited', 'long', 'low', 'poor', 'some']

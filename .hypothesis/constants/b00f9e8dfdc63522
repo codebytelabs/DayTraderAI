@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/scanner/momentum_scanner.py
+# hypothesis_version: 6.148.3
+
+[0.02, 1.0, 1.5, 2.0, 3.0, 5.0, 100, '1Min', 'AAPL', 'ABBV', 'ADBE', 'AMD', 'AMZN', 'AVGO', 'BA', 'BAC', 'C', 'CAT', 'COP', 'COST', 'CRM', 'CSCO', 'CVX', 'DIA', 'GE', 'GOOGL', 'GS', 'HD', 'HON', 'INTC', 'IWM', 'JNJ', 'JPM', 'LLY', 'MCD', 'META', 'MMM', 'MRK', 'MS', 'MSFT', 'NFLX', 'NKE', 'NVDA', 'ORCL', 'PFE', 'QQQ', 'SLB', 'SPY', 'TSLA', 'UNH', 'UPS', 'WFC', 'WMT', 'XOM', 'bars', 'change_pct', 'close', 'df', 'down', 'get_bars', 'high', 'low', 'open', 'price', 'symbol', 'timestamp', 'up', 'volume', 'volume_ratio']

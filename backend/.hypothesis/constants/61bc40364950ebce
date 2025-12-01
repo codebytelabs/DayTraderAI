@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/data/daily_cache.py
+# hypothesis_version: 6.148.3
+
+[0.0, 200, '1day', 'Daily cache cleared', 'TWELVEDATA_API_KEY', 'apikey', 'bars_count', 'bearish', 'bullish', 'cache_date', 'close', 'ema_200', 'ema_21', 'ema_9', 'error', 'interval', 'is_valid', 'message', 'outputsize', 'price', 'rate limit', 'status', 'symbol', 'symbols_cached', 'trend', 'updated_at', 'values']

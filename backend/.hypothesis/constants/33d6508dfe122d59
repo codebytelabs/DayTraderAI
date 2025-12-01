@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/config.py
+# hypothesis_version: 6.148.3
+
+[0.0005, 0.001, 0.002, 0.005, 0.01, 0.015, 0.02, 0.05, 0.1, 0.15, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 2.5, 3.5, 5.0, 60.0, 65.0, 70.0, 80.0, 85.0, 90.0, 1000.0, 120, 200, 300, 800, 999, 8000, 30000, ',', '.env', '09:30', '15:55', 'INFO', 'ignore', 'openai/gpt-oss-120b', 'openrouter', 'perplexity', 'perplexity/sonar-pro', 'sonar-pro', 'utf-8', 'x-ai/grok-4-fast']

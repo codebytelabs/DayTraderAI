@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/advisory/openrouter.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.14, 0.28, 0.5, 1.0, 3.0, 15.0, 20.0, 30.0, 100, 200, 500, 1000, 2000, 'Authorization', 'Content-Type', 'analysis', 'analyze', 'application/json', 'balance', 'budget', 'choices', 'compare', 'complex', 'content', 'current', 'deep dive', 'equity', 'evaluate', 'free', 'how much', 'input', 'list', 'max_tokens', 'medium', 'message', 'messages', 'model', 'opportunities', 'output', 'perplexity/sonar', 'perplexity/sonar-pro', 'positions', 'premium', 'recommend', 'risk assessment', 'role', 'should i', 'show me', 'simple', 'standard', 'status', 'strategy', 'system', 'temperature', 'tier', 'today', 'user', 'what is']

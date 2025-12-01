@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/risk_manager.py
+# hypothesis_version: 6.148.3
+
+[0.01, 0.015, 0.02, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.8, 0.85, 0.9, 1.0, 1.1, 1.2, 1.5, 2.0, 2.5, 100, 'All positions closed', 'Approved', 'Invalid quantity', 'Market is closed', 'Trading is disabled', 'US/Eastern', 'adjusted_risk_pct', 'adx', 'atr', 'bear', 'bearish', 'bullish', 'buy', 'choppy', 'combined_multiplier', 'confidence', 'consecutive_losses', 'cooldown_hours', 'counter_trend', 'daily_trend', 'ema_200', 'ema_trend', 'high', 'in_cooldown', 'long', 'loss', 'neutral', 'normal', 'position_pct', 'position_size_mult', 'price', 'qty', 'regime', 'score', 'sell', 'short', 'side', 'symbol', 'symbol_win_rate', 'trending', 'unknown', 'volatility_level', 'volume_ratio', 'win']

@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/profit_taker.py
+# hypothesis_version: 6.148.3
+
+[100, '*', 'ENABLED', 'SHADOW MODE', 'action', 'at_limit', 'avg_benefit', 'avg_profit_amount', 'avg_profit_r', 'config', 'enabled', 'entry_time', 'error', 'exit_price', 'exit_type', 'first_target_r', 'healthy', 'improvement_rate', 'issues', 'latest_predictions', 'long', 'max_positions', 'message', 'most_active_symbols', 'partial_profit', 'partial_profit_1_r', 'percentage', 'positions', 'predictions', 'price', 'profit_amount', 'profit_percentage', 'profit_r', 'qty', 'reason', 'second_target_r', 'shadow_mode', 'shadow_predictions', 'shares_sold', 'should_take', 'side', 'status', 'symbol', 'symbol, entry_time', 'symbols_tracked', 'target_r', 'timestamp', 'total_benefit', 'total_partial_trades', 'total_predictions', 'trades', 'unhealthy', 'use_trailing', 'warnings', 'would_take']

@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/ai_trade_validator.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.4, 1.0, 3.5, 25.0, 100, ', ', '- None', 'AI no response', 'NO', 'approvals', 'avg_validation_time', 'confidence', 'consecutive_losses', 'content', 'cooldown_hours', 'counter-trend', 'counter_trend', 'daily_trend', 'errors', 'in_cooldown', 'position_pct', 'price', 'rejection_rate', 'rejections', 'role', 'symbol_win_rate', 'system', 'total_validations', 'unknown', 'user']

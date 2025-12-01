@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/utils/confidence_sizer.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.02, 0.08, 0.1, 0.12, 0.15, 25.0, 'high', 'label', 'low', 'max_pct', 'medium', 'min_confidence', 'ultra_high']
