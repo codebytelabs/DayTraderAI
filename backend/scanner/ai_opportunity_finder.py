@@ -155,20 +155,21 @@ class AIOpportunityFinder:
                     logger.warning("OpenRouter Perplexity returned no content")
                     primary_failed = True
                 else:
-                    # Check if Perplexity returned a "can't help" response
-                    content_lower = result['content'].lower()
-                    cant_help_indicators = [
-                        "i need to be transparent",
-                        "i cannot provide",
-                        "i can't provide",
-                        "current limitations",
-                        "do not include",
-                        "unable to access",
-                        "no real-time",
-                    ]
-                    if any(indicator in content_lower for indicator in cant_help_indicators):
-                        logger.warning("⚠️ OpenRouter Perplexity returned a 'can't help' response - trying native fallback")
+                    # Quick check if response has any stock symbols
+                    # Even if Perplexity adds disclaimers, we can still extract symbols
+                    content = result['content']
+                    quick_symbols = re.findall(r'\b([A-Z]{2,5})\b', content)
+                    # Filter out common non-stock words
+                    non_stocks = {'THE', 'AND', 'FOR', 'WITH', 'FROM', 'THIS', 'THAT', 'HAVE', 'ARE', 'NOT', 
+                                  'BUT', 'CAN', 'ALL', 'HAS', 'HAD', 'WAS', 'WILL', 'MAY', 'FDA', 'CEO', 
+                                  'IPO', 'ETF', 'NYSE', 'SEC', 'AI', 'ML', 'API', 'USA', 'USD', 'EPS'}
+                    valid_symbols = [s for s in quick_symbols if s not in non_stocks and len(s) >= 2]
+                    
+                    if len(valid_symbols) < 3:
+                        logger.warning(f"⚠️ OpenRouter Perplexity returned only {len(valid_symbols)} symbols - trying native fallback")
                         primary_failed = True
+                    else:
+                        logger.info(f"✅ OpenRouter Perplexity found {len(valid_symbols)} potential symbols")
                     
             except Exception as e:
                 logger.error(f"OpenRouter Perplexity failed: {e}")
@@ -184,22 +185,19 @@ class AIOpportunityFinder:
                         logger.error("Native Perplexity also failed")
                         return self._get_fallback_symbols()
                     
-                    # Check for "can't help" response from native too
-                    content_lower = result['content'].lower()
-                    cant_help_indicators = [
-                        "i need to be transparent",
-                        "i cannot provide",
-                        "i can't provide",
-                        "current limitations",
-                        "do not include",
-                        "unable to access",
-                        "no real-time",
-                    ]
-                    if any(indicator in content_lower for indicator in cant_help_indicators):
-                        logger.warning("⚠️ Native Perplexity also returned 'can't help' - using fallback symbols")
+                    # Quick check if response has any stock symbols
+                    content = result['content']
+                    quick_symbols = re.findall(r'\b([A-Z]{2,5})\b', content)
+                    non_stocks = {'THE', 'AND', 'FOR', 'WITH', 'FROM', 'THIS', 'THAT', 'HAVE', 'ARE', 'NOT', 
+                                  'BUT', 'CAN', 'ALL', 'HAS', 'HAD', 'WAS', 'WILL', 'MAY', 'FDA', 'CEO', 
+                                  'IPO', 'ETF', 'NYSE', 'SEC', 'AI', 'ML', 'API', 'USA', 'USD', 'EPS'}
+                    valid_symbols = [s for s in quick_symbols if s not in non_stocks and len(s) >= 2]
+                    
+                    if len(valid_symbols) < 3:
+                        logger.warning(f"⚠️ Native Perplexity returned only {len(valid_symbols)} symbols - using fallback")
                         return self._get_fallback_symbols()
                         
-                    logger.info("✅ Fallback successful via Native Perplexity")
+                    logger.info(f"✅ Native Perplexity found {len(valid_symbols)} potential symbols")
                     
                 except Exception as e:
                     logger.error(f"Native Perplexity failed: {e}")
@@ -244,212 +242,60 @@ class AIOpportunityFinder:
             return self._get_fallback_symbols()
     
     def _build_discovery_query(self, allowed_caps: Dict = None) -> str:
-        """Build institutional-grade discovery query based on professional trading methodology."""
+        """Build a simple, effective discovery query that Perplexity can actually answer."""
         
         from datetime import datetime
         import pytz
         
-        # Get current ET time for market session awareness
+        # Get current ET time
         et_tz = pytz.timezone('US/Eastern')
         current_dt = datetime.now(et_tz)
-        current_time = current_dt.strftime("%B %d, %Y at %I:%M %p ET")
-        hour = current_dt.hour
-        minute = current_dt.minute
-        
-        # Determine market session and strategy
-        if 9 <= hour < 10:
-            session = "OPENING_BELL"
-            session_strategy = "Gap plays, earnings reactions, overnight catalysts. High volatility expected."
-        elif 10 <= hour < 11:
-            session = "MORNING_MOMENTUM"
-            session_strategy = "Trend continuation, breakout confirmations, institutional accumulation."
-        elif 11 <= hour < 14:
-            session = "MIDDAY_CONSOLIDATION"
-            session_strategy = "Range-bound plays, mean reversion, lower volume expected."
-        elif 14 <= hour < 15:
-            session = "AFTERNOON_SETUP"
-            session_strategy = "Position for power hour, institutional rebalancing, sector rotation."
-        elif 15 <= hour < 16:
-            session = "POWER_HOUR"
-            session_strategy = "High volume momentum, closing auction impacts, end-of-day positioning."
-        else:
-            session = "EXTENDED_HOURS"
-            session_strategy = "After-hours catalysts, earnings reactions, overnight positioning."
-        
-        # Professional sector rotation with catalyst awareness
-        sector_rotations = [
-            {
-                "primary": "Technology, Semiconductors, AI/ML",
-                "secondary": "Software, Cloud Computing, Cybersecurity",
-                "catalysts": "Earnings, chip demand, AI adoption, cloud growth"
-            },
-            {
-                "primary": "Financial Services, Banking, Insurance",
-                "secondary": "REITs, Payment Processors, Fintech",
-                "catalysts": "Interest rate changes, loan growth, regulatory updates"
-            },
-            {
-                "primary": "Healthcare, Biotechnology, Pharmaceuticals",
-                "secondary": "Medical Devices, Health Insurance, Diagnostics",
-                "catalysts": "FDA approvals, clinical trials, drug pricing, M&A"
-            },
-            {
-                "primary": "Energy, Oil & Gas, Renewables",
-                "secondary": "Utilities, Pipeline, Energy Storage",
-                "catalysts": "Oil prices, production cuts, renewable adoption"
-            },
-            {
-                "primary": "Consumer Discretionary, Retail",
-                "secondary": "E-commerce, Automotive, Luxury Goods",
-                "catalysts": "Consumer spending, earnings, inventory levels"
-            },
-            {
-                "primary": "Industrials, Aerospace, Defense",
-                "secondary": "Transportation, Construction, Manufacturing",
-                "catalysts": "Government contracts, infrastructure spending"
-            },
-            {
-                "primary": "Materials, Metals, Mining",
-                "secondary": "Chemicals, Steel, Precious Metals",
-                "catalysts": "Commodity prices, China demand, infrastructure"
-            },
-            {
-                "primary": "Communications, Media, Telecom",
-                "secondary": "Streaming, Social Media, 5G Infrastructure",
-                "catalysts": "Subscriber growth, content costs, spectrum auctions"
-            }
-        ]
-        
-        # Rotate sector focus (changes every 2 hours)
-        rotation_index = (hour // 2) % len(sector_rotations)
-        current_rotation = sector_rotations[rotation_index]
-        
-        sector_focus = f"""**SECTOR ROTATION FOCUS**:
-- **PRIMARY**: {current_rotation['primary']}
-- **SECONDARY**: {current_rotation['secondary']}
-- **KEY CATALYSTS**: {current_rotation['catalysts']}
-- **DIVERSIFICATION**: Include 3-4 other sectors for portfolio balance"""
         
         # Default: allow all caps
         if allowed_caps is None:
             allowed_caps = {'large_caps': True, 'mid_caps': True, 'small_caps': True}
         
-        # Build market cap sections based on what's allowed
-        cap_sections = []
-        
+        # Build cap requirements
+        cap_types = []
         if allowed_caps.get('large_caps', True):
-            cap_sections.append("""
-**LARGE-CAP STOCKS** (>$10B market cap):
-- High volume (>5M shares today)
-- Search across ALL sectors: Tech, Finance, Healthcare, Energy, Consumer, Industrial, etc.
-- Include unusual movers and breakout candidates, not just mega-caps
-- Find 10-15 DIVERSE opportunities""")
-        
+            cap_types.append("large-cap (>$10B)")
         if allowed_caps.get('mid_caps', True):
-            cap_sections.append("""
-**MID-CAP STOCKS** ($2B-$10B market cap):
-- High volume (>1M shares today)  
-- Search across ALL sectors and industries
-- Include growth stocks, value plays, and momentum names
-- Find 10-15 DIVERSE opportunities""")
-        
+            cap_types.append("mid-cap ($2B-$10B)")
         if allowed_caps.get('small_caps', True):
-            cap_sections.append("""
-**SMALL-CAP STOCKS** ($300M-$2B, price $5-$50):
-- High volume (>1M shares today)
-- Must have news catalyst or unusual activity
-- Search across ALL sectors - biotech, tech, retail, energy, etc.
-- Find 5-10 DIVERSE opportunities with real catalysts""")
+            cap_types.append("small-cap ($500M-$2B)")
         
-        # If no caps allowed (shouldn't happen), default to large-caps
-        if not cap_sections:
-            cap_sections.append("""
-**LARGE-CAP STOCKS** (>$10B market cap):
-- High volume (>5M shares today)
-- Search across ALL sectors and industries
-- Find 10-15 DIVERSE opportunities""")
+        caps_str = ", ".join(cap_types) if cap_types else "large-cap"
         
-        caps_text = "\n".join(cap_sections)
-        
-        # INSTITUTIONAL-GRADE DISCOVERY QUERY based on professional research
-        query = f"""PROFESSIONAL TRADING OPPORTUNITY ANALYSIS for {current_time}
+        # Simple, direct query that Perplexity can answer
+        query = f"""List stocks with unusual trading activity or news catalysts.
 
-**PART 1: MARKET REGIME ANALYSIS**
-Search current market data and provide:
-- **Fear & Greed Index**: Score (0-100) from CNN Fear & Greed Index
-- **Market Regime**: Risk-On/Risk-Off/Transitional/Choppy
-- **VIX Level**: Current volatility environment
-- **Sector Rotation**: Which sectors are leading/lagging TODAY
+Search for:
+1. Stocks with high pre-market/after-hours volume
+2. Stocks with recent news (earnings, FDA, upgrades/downgrades, M&A)
+3. Stocks making significant moves (gaps, breakouts)
 
-**PART 2: INSTITUTIONAL-GRADE OPPORTUNITY DISCOVERY**
-**MARKET SESSION**: {session} ({current_time})
-**SESSION STRATEGY**: {session_strategy}
+Focus on {caps_str} stocks.
 
-{sector_focus}
+For each stock, provide:
+- Ticker symbol
+- Brief reason (catalyst or why it's moving)
+- Direction (bullish or bearish)
 
-**DISCOVERY METHODOLOGY** - Use ALL of these professional screening vectors:
-
-**1. CATALYST SCREENING** (Highest Priority - Search TODAY's News):
-   - **Earnings surprises**: >5% beat/miss with guidance changes happening TODAY
-   - **FDA approvals**: Clinical trial results, regulatory decisions announced TODAY
-   - **Analyst actions**: Upgrades/downgrades from tier-1 firms (Goldman, Morgan Stanley, JPM) TODAY
-   - **M&A activity**: Merger rumors, activist positions, insider buying announced TODAY
-   - **Economic catalysts**: Sector-specific impacts from data releases TODAY
-   
-**2. TECHNICAL VALIDATION** (Confirm with Real-Time Data):
-   - **Volume anomalies**: 2-3x average volume SUSTAINED for 2-5 bars (not one-off spikes)
-   - **Breakout patterns**: Multi-week consolidations breaking key levels with volume
-   - **Relative strength**: Stocks outperforming sector by >5% TODAY
-   - **Gap analysis**: Overnight gaps >3% with follow-through potential
-   - **Momentum confirmation**: Price action aligned with volume (no divergences)
-
-**3. QUANTITATIVE FILTERS** (Apply These Standards):
-   - **Minimum liquidity**: >500K shares/day average volume (>1M for large-caps)
-   - **Price range**: $5-$500 (avoid penny stocks and extreme high-priced)
-   - **Market cap**: >$300M minimum for small-caps, >$2B for mid-caps, >$10B for large-caps
-   - **Risk/Reward**: Minimum 2:1 ratio (prefer 3:1+) with clear technical levels
-   - **Volatility**: ATR movement >1.5-2x normal range
-
-**4. MARKET MICROSTRUCTURE** (Institutional Flow Signals):
-   - **Options flow**: Unusual call/put activity, large block trades TODAY
-   - **Dark pool activity**: Institutional accumulation/distribution signals
-   - **Short interest**: Squeeze potential or heavy short covering
-   - **Smart Money Concepts**: Liquidity grabs, break of structure patterns
-
-**CRITICAL QUALITY REQUIREMENTS**:
-✅ Each opportunity MUST have a SPECIFIC catalyst happening TODAY (not generic "technical setup")
-✅ Include stocks from at least 5 DIFFERENT sectors (avoid sector concentration)
-✅ Prioritize UNUSUAL volume (2x+ average) with directional conviction
-✅ Avoid obvious/overtraded mega-caps - find hidden gems with real catalysts
-✅ Focus on actionable setups for the next 2-4 hours of trading
-✅ Provide DIVERSE symbols - DO NOT repeat the same stocks from previous scans
-
-{caps_text}
-
-**PROFESSIONAL OUTPUT FORMAT** (For Each Opportunity):
-SYMBOL ($price) | CATALYST: [Specific event TODAY] | TECHNICAL: [Entry level, pattern] | VOLUME: Xx avg | STOP: $X | TARGET: $X | TIMEFRAME: Xh
-
-**EXAMPLE FORMAT**:
+Format your response as:
 **LARGE-CAP LONG:**
-1. NVDA ($145.20) | CATALYST: Beat earnings by 8%, raised guidance | TECHNICAL: Breaking $145 resistance, volume 3.2x | STOP: $142 | TARGET: $152 | TIMEFRAME: 2-3h
-2. [Continue with 8-12 diverse opportunities]
+1. TICKER - reason
+2. TICKER - reason
 
 **LARGE-CAP SHORT:**
-1. SYMBOL ($price) | CATALYST: [Specific negative event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
+1. TICKER - reason
 
 **MID-CAP LONG:**
-1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
-
-**MID-CAP SHORT:**
-1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
+1. TICKER - reason
 
 **SMALL-CAP LONG:**
-1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
+1. TICKER - reason
 
-**SMALL-CAP SHORT:**
-1. SYMBOL ($price) | CATALYST: [Specific event] | TECHNICAL: [Setup] | VOLUME: Xx | STOP: $X | TARGET: $X | TIMEFRAME: Xh
-
-SEARCH REQUIREMENT: You MUST search current market data, news, earnings calendars, and real-time stock movements to find opportunities with ACTUAL catalysts happening TODAY. Do not provide generic lists or historical examples."""
+List 10-20 stocks total across categories. Include the ticker symbols clearly."""
 
         return query
     
