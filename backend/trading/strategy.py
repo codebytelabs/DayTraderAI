@@ -591,7 +591,7 @@ class EMAStrategy:
                 risk_multiplier = 0.8
             
             adjusted_risk = base_risk * risk_multiplier * size_mult
-            adjusted_risk = max(0.01, min(adjusted_risk, 0.025))  # Cap at 1.0-2.5% (increased max for extreme regime)
+            adjusted_risk = max(0.01, min(adjusted_risk, 0.035))  # Cap at 1.0-3.5% (increased from 2.5% for better capital deployment)
             
             logger.info(
                 f"💰 Position sizing for {symbol}: Confidence {confidence:.1f}/100 → "
@@ -600,15 +600,16 @@ class EMAStrategy:
             )
             
             # Apply time-of-day position sizing multiplier
+            # UPDATED: Less aggressive reduction to deploy more capital
             time_passed, time_session = self._is_optimal_trading_time()
             time_multiplier = 1.0
             
             if time_session == "morning_session":
                 time_multiplier = 1.0  # Full size (9:30-11:00 AM)
             elif time_session == "midday_session":
-                time_multiplier = 0.7  # 70% size (11:00 AM-2:00 PM)
+                time_multiplier = 0.85  # 85% size (was 70% - too conservative)
             elif time_session == "closing_session":
-                time_multiplier = 0.5  # 50% size (2:00-3:30 PM)
+                time_multiplier = 0.7  # 70% size (was 50% - too conservative)
             
             adjusted_risk_with_time = adjusted_risk * time_multiplier
             

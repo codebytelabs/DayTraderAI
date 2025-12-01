@@ -51,9 +51,9 @@ class Settings(BaseSettings):
     # Strategy
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
     max_positions: int = 25  # Increased from 20 (Phase 2a: Conservative rollout) ✅
-    risk_per_trade_pct: float = 0.01
-    max_position_pct: float = 0.10  # Base 10% per position (conservative default)
-    max_position_pct_scaled: float = 0.15  # Max 15% for high-confidence uptrends
+    risk_per_trade_pct: float = 0.015  # Increased from 1% to 1.5% for better capital utilization
+    max_position_pct: float = 0.15  # Increased from 10% to 15% per position (deploy more capital)
+    max_position_pct_scaled: float = 0.20  # Increased from 15% to 20% for high-confidence trades
     min_stop_distance_pct: float = 0.015  # Min 1.5% stop distance (was 1.0% - caused TDG bug!)
     circuit_breaker_pct: float = 0.05
     ema_short: int = 9
