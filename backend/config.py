@@ -180,9 +180,12 @@ class Settings(BaseSettings):
     daily_trend_ema_period: int = 200
     cache_refresh_time: str = "09:30"  # Market open
     
-    # EOD Risk Management (Sprint 8)
+    # EOD Risk Management (Sprint 8) - CRITICAL FOR DAY TRADING
+    # Overnight gaps can destroy profits (e.g., COIN -$1,098 overnight gap)
     force_eod_exit: bool = True  # Force close all positions before market close
-    eod_exit_time: str = "15:58"  # 2 minutes before market close (ET)
+    eod_exit_time: str = "15:55"  # 5 minutes before market close (ET) - gives time for fills
+    eod_close_all: bool = True  # True = close ALL positions, False = only close losers
+    eod_loss_threshold: float = 2.0  # If eod_close_all=False, close positions with >X% loss
     
     class Config:
         env_file = ".env"

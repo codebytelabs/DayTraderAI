@@ -436,12 +436,23 @@ class TradingEngine:
                        now_ny.hour <= 16 and \
                        not self.eod_triggered:
                         
-                        # SELECTIVE EOD CLOSE: Only close losing positions (>2% loss)
-                        # Keep winners overnight to capture gap-up potential
-                        logger.warning(f"⏰ EOD SELECTIVE CLOSE at {now_ny.strftime('%H:%M:%S')} - closing losers only")
-                        await self._close_losing_positions_eod(loss_threshold=2.0)
-                        self.eod_triggered = True
-                        logger.info("🌙 EOD complete - winners held overnight, losers closed")
+                        # Check if we should close ALL positions or just losers
+                        eod_close_all = getattr(settings, 'eod_close_all', True)
+                        
+                        if eod_close_all:
+                            # TRUE DAY TRADING: Close ALL positions before market close
+                            # Prevents overnight gap risk (e.g., COIN -$1,098 overnight)
+                            logger.warning(f"⏰ EOD FORCE CLOSE ALL at {now_ny.strftime('%H:%M:%S')} - closing ALL positions")
+                            await self._close_all_positions_eod()
+                            self.eod_triggered = True
+                            logger.info("🌙 EOD complete - ALL positions closed, starting fresh tomorrow")
+                        else:
+                            # SELECTIVE: Only close losing positions (>X% loss)
+                            loss_threshold = getattr(settings, 'eod_loss_threshold', 2.0)
+                            logger.warning(f"⏰ EOD SELECTIVE CLOSE at {now_ny.strftime('%H:%M:%S')} - closing losers only")
+                            await self._close_losing_positions_eod(loss_threshold=loss_threshold)
+                            self.eod_triggered = True
+                            logger.info("🌙 EOD complete - winners held overnight, losers closed")
                         
                 if not self.alpaca.is_market_open():
                     await asyncio.sleep(30)
@@ -1243,6 +1254,90 @@ class TradingEngine:
             'adjusted_symbols': list(adjusted.keys()),
             'config': self.momentum_config.to_dict()
         }
+    
+    async def _close_all_positions_eod(self):
+        """
+        TRUE DAY TRADING: Close ALL positions before market close.
+        Prevents overnight gap risk which can destroy profits.
+        
+        Example: COIN dropped -$1,098 (-3.90%) overnight - no stop loss can protect against gaps!
+        """
+        try:
+            positions = self.alpaca.get_positions()
+            if not positions:
+                logger.info("🌙 No positions to close for EOD")
+                return
+            
+            total_pnl = 0.0
+            closed_count = 0
+            failed_count = 0
+            
+            logger.info(f"🔴 EOD FORCE CLOSE: Closing {len(positions)} positions...")
+            
+            for position in positions:
+                try:
+                    symbol = position.symbol
+                    qty = float(position.qty)
+                    avg_entry = float(position.avg_entry_price)
+                    current_price = float(position.current_price)
+                    unrealized_pnl = float(position.unrealized_pl)
+                    pnl_pct = float(position.unrealized_plpc) * 100
+                    
+                    total_pnl += unrealized_pnl
+                    
+                    status = "🟢" if unrealized_pnl >= 0 else "🔴"
+                    logger.info(f"{status} Closing {symbol}: {qty} shares @ ${current_price:.2f} | P/L: ${unrealized_pnl:+.2f} ({pnl_pct:+.1f}%)")
+                    
+                    # Cancel any existing orders first
+                    try:
+                        orders = self.alpaca.get_orders(symbol=symbol, status='open')
+                        for order in orders:
+                            self.alpaca.cancel_order(order.id)
+                            logger.debug(f"   Cancelled order {order.id} for {symbol}")
+                    except Exception as e:
+                        logger.warning(f"   Could not cancel orders for {symbol}: {e}")
+                    
+                    # Close the position
+                    try:
+                        self.alpaca.close_position(symbol)
+                        closed_count += 1
+                        
+                        # Log to database
+                        if self.supabase:
+                            self.supabase.insert_trade({
+                                'symbol': symbol,
+                                'side': 'sell' if qty > 0 else 'buy',
+                                'qty': abs(qty),
+                                'price': current_price,
+                                'reason': 'eod_force_close',
+                                'pnl': unrealized_pnl
+                            })
+                            
+                        # Clean up momentum tracking
+                        self.momentum_engine.remove_position_tracking(symbol)
+                        
+                    except Exception as e:
+                        logger.error(f"   Failed to close {symbol}: {e}")
+                        failed_count += 1
+                        
+                except Exception as e:
+                    logger.error(f"Error closing {position.symbol}: {e}")
+                    failed_count += 1
+            
+            # Summary
+            status_emoji = "🟢" if total_pnl >= 0 else "🔴"
+            logger.info(f"")
+            logger.info(f"{'='*60}")
+            logger.info(f"📊 EOD CLOSE SUMMARY")
+            logger.info(f"{'='*60}")
+            logger.info(f"   Positions Closed: {closed_count}")
+            logger.info(f"   Failed to Close: {failed_count}")
+            logger.info(f"   {status_emoji} Day's P/L: ${total_pnl:+.2f}")
+            logger.info(f"{'='*60}")
+            logger.info(f"🌙 Starting fresh tomorrow - no overnight risk!")
+            
+        except Exception as e:
+            logger.error(f"Error in EOD force close all: {e}")
     
     async def _close_losing_positions_eod(self, loss_threshold: float = 2.0):
         """
