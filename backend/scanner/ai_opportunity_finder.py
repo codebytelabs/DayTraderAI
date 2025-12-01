@@ -242,60 +242,48 @@ class AIOpportunityFinder:
             return self._get_fallback_symbols()
     
     def _build_discovery_query(self, allowed_caps: Dict = None) -> str:
-        """Build a simple, effective discovery query that Perplexity can actually answer."""
+        """Build optimized discovery query based on prompt testing results.
         
-        from datetime import datetime
-        import pytz
+        TESTED RESULTS (2025-12-01):
+        - v3_news_focused: 51 symbols (BEST) - asks about earnings calendar
+        - v4_momentum: 35 symbols - asks about pre-market movers
+        - v1_simple: 7 symbols - too vague
         
-        # Get current ET time
-        et_tz = pytz.timezone('US/Eastern')
-        current_dt = datetime.now(et_tz)
+        Key insight: Ask for things Perplexity HAS data for (earnings calendar, news)
+        NOT things it doesn't have (real-time prices, exact volume)
+        """
         
         # Default: allow all caps
         if allowed_caps is None:
             allowed_caps = {'large_caps': True, 'mid_caps': True, 'small_caps': True}
         
-        # Build cap requirements
-        cap_types = []
+        # Build cap filter text
+        cap_focus = []
         if allowed_caps.get('large_caps', True):
-            cap_types.append("large-cap (>$10B)")
+            cap_focus.append("large-cap")
         if allowed_caps.get('mid_caps', True):
-            cap_types.append("mid-cap ($2B-$10B)")
+            cap_focus.append("mid-cap")
         if allowed_caps.get('small_caps', True):
-            cap_types.append("small-cap ($500M-$2B)")
+            cap_focus.append("small-cap")
+        caps_str = " and ".join(cap_focus) if cap_focus else "all"
         
-        caps_str = ", ".join(cap_types) if cap_types else "large-cap"
-        
-        # Simple, direct query that Perplexity can answer
-        query = f"""List stocks with unusual trading activity or news catalysts.
+        # WINNING PROMPT - based on v3_news_focused which got 51 symbols
+        # This works because it asks for CONCRETE data Perplexity can search for
+        query = f"""What stocks are in the news today? Search for:
 
-Search for:
-1. Stocks with high pre-market/after-hours volume
-2. Stocks with recent news (earnings, FDA, upgrades/downgrades, M&A)
-3. Stocks making significant moves (gaps, breakouts)
+1. Stocks with earnings releases this week
+2. Stocks with analyst rating changes
+3. Stocks with FDA/regulatory news
+4. Stocks with unusual volume or price moves
+5. Stocks mentioned in financial news headlines
+6. Pre-market top gainers and losers
 
 Focus on {caps_str} stocks.
 
-For each stock, provide:
-- Ticker symbol
-- Brief reason (catalyst or why it's moving)
-- Direction (bullish or bearish)
+List each stock as:
+TICKER: reason it's newsworthy
 
-Format your response as:
-**LARGE-CAP LONG:**
-1. TICKER - reason
-2. TICKER - reason
-
-**LARGE-CAP SHORT:**
-1. TICKER - reason
-
-**MID-CAP LONG:**
-1. TICKER - reason
-
-**SMALL-CAP LONG:**
-1. TICKER - reason
-
-List 10-20 stocks total across categories. Include the ticker symbols clearly."""
+Provide at least 15 different stock tickers."""
 
         return query
     

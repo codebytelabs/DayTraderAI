@@ -1,202 +1,285 @@
 #!/usr/bin/env python3
 """
-Test module to debug Perplexity opportunity discovery.
+Test module to optimize Perplexity opportunity discovery prompts.
 Run: python test_perplexity_discovery.py
 """
 
 import asyncio
 import os
-import sys
+import re
 
 # Ensure we're in the backend directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 from config import settings
 from advisory.openrouter_client import OpenRouterClient
-from advisory.perplexity import PerplexityClient
 
 
-async def test_simple_query():
-    """Test with a simple query to verify APIs work."""
-    print("\n" + "="*80)
-    print("TEST 1: Simple Query (verify API connectivity)")
-    print("="*80)
-    
-    simple_query = "What are the top 5 stocks moving today in pre-market? Just list the tickers."
-    
-    # Test OpenRouter Perplexity
-    print("\n📡 Testing OpenRouter Perplexity (perplexity/sonar-pro)...")
-    try:
-        client = OpenRouterClient()
-        client.model = settings.openrouter_perplexity_model
-        result = await client.search(simple_query)
-        if result:
-            print(f"✅ OpenRouter Perplexity responded: {len(result['content'])} chars")
-            print(f"   Preview: {result['content'][:300]}...")
-        else:
-            print("❌ OpenRouter Perplexity returned None")
-    except Exception as e:
-        print(f"❌ OpenRouter Perplexity error: {e}")
-    
-    # Test Native Perplexity
-    print("\n📡 Testing Native Perplexity (sonar-pro)...")
-    try:
-        client = PerplexityClient()
-        result = await client.search(simple_query)
-        if result:
-            print(f"✅ Native Perplexity responded: {len(result['content'])} chars")
-            print(f"   Preview: {result['content'][:300]}...")
-        else:
-            print("❌ Native Perplexity returned None")
-    except Exception as e:
-        print(f"❌ Native Perplexity error: {e}")
+# ============================================================================
+# PROMPT VARIATIONS TO TEST
+# ============================================================================
 
+PROMPTS = {
+    "v1_simple": """List 15 stocks with unusual trading activity or news today.
 
-async def test_trading_query():
-    """Test with a trading-focused query."""
-    print("\n" + "="*80)
-    print("TEST 2: Trading Query (what we actually need)")
-    print("="*80)
-    
-    trading_query = """Find 5 large-cap stocks with unusual volume or news catalysts today.
-For each stock provide:
-- Ticker symbol
-- Current price
-- Why it's moving (catalyst)
-- Direction (bullish/bearish)
+For each stock provide: TICKER - brief reason (catalyst)
 
-Format: TICKER ($PRICE) - CATALYST - DIRECTION"""
-    
-    # Test OpenRouter Perplexity
-    print("\n📡 Testing OpenRouter Perplexity...")
-    try:
-        client = OpenRouterClient()
-        client.model = settings.openrouter_perplexity_model
-        result = await client.search(trading_query)
-        if result:
-            content = result['content']
-            print(f"✅ Response: {len(content)} chars")
-            print("-" * 40)
-            print(content[:1000])
-            print("-" * 40)
-            
-            # Check for "can't help" indicators
-            cant_help = ["i need to be transparent", "i cannot provide", "current limitations"]
-            if any(ind in content.lower() for ind in cant_help):
-                print("⚠️  DETECTED 'CAN'T HELP' RESPONSE!")
-            else:
-                print("✅ Response looks actionable!")
-        else:
-            print("❌ Returned None")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-    
-    # Test Native Perplexity
-    print("\n📡 Testing Native Perplexity...")
-    try:
-        client = PerplexityClient()
-        result = await client.search(trading_query)
-        if result:
-            content = result['content']
-            print(f"✅ Response: {len(content)} chars")
-            print("-" * 40)
-            print(content[:1000])
-            print("-" * 40)
-            
-            # Check for "can't help" indicators
-            cant_help = ["i need to be transparent", "i cannot provide", "current limitations"]
-            if any(ind in content.lower() for ind in cant_help):
-                print("⚠️  DETECTED 'CAN'T HELP' RESPONSE!")
-            else:
-                print("✅ Response looks actionable!")
-        else:
-            print("❌ Returned None")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-
-async def test_full_discovery_query():
-    """Test with the actual discovery query (simplified)."""
-    print("\n" + "="*80)
-    print("TEST 3: NEW Simplified Discovery Query")
-    print("="*80)
-    
-    # New simplified query that Perplexity can actually answer
-    discovery_query = """List stocks with unusual trading activity or news catalysts.
-
-Search for:
-1. Stocks with high pre-market/after-hours volume
-2. Stocks with recent news (earnings, FDA, upgrades/downgrades, M&A)
-3. Stocks making significant moves (gaps, breakouts)
-
-Focus on large-cap (>$10B), mid-cap ($2B-$10B) stocks.
-
-For each stock, provide:
-- Ticker symbol
-- Brief reason (catalyst or why it's moving)
-- Direction (bullish or bearish)
-
-Format your response as:
-**LARGE-CAP LONG:**
+Format:
+**LONG:**
 1. TICKER - reason
 2. TICKER - reason
 
-**LARGE-CAP SHORT:**
+**SHORT:**
 1. TICKER - reason
+
+Focus on large-cap and mid-cap stocks with real catalysts.""",
+
+    "v2_structured": """Search for stocks moving today with catalysts.
+
+Find stocks with:
+- Earnings surprises
+- Analyst upgrades/downgrades  
+- FDA news
+- M&A activity
+- Unusual options activity
+- High volume movers
+
+List 15-20 stocks in this format:
+
+**LARGE-CAP LONG:**
+1. TICKER - catalyst reason - BULLISH
+2. TICKER - catalyst reason - BULLISH
+
+**LARGE-CAP SHORT:**
+1. TICKER - catalyst reason - BEARISH
 
 **MID-CAP LONG:**
-1. TICKER - reason
+1. TICKER - catalyst reason - BULLISH
 
-List 10-20 stocks total across categories. Include the ticker symbols clearly."""
+Include the stock ticker symbols clearly.""",
 
-    print("\n📡 Testing OpenRouter Perplexity with discovery query...")
+    "v3_news_focused": """What stocks are in the news today? Search for:
+
+1. Stocks with earnings releases this week
+2. Stocks with analyst rating changes
+3. Stocks with FDA/regulatory news
+4. Stocks with unusual volume or price moves
+5. Stocks mentioned in financial news headlines
+
+List each stock as:
+TICKER: reason it's newsworthy
+
+Provide at least 15 different stock tickers.""",
+
+    "v4_momentum": """Find momentum stocks for day trading.
+
+Search for stocks with:
+- Pre-market gainers/losers
+- High relative volume
+- Breaking news catalysts
+- Technical breakouts
+- Options flow signals
+
+Output format:
+**BULLISH MOMENTUM:**
+- TICKER: catalyst
+- TICKER: catalyst
+
+**BEARISH MOMENTUM:**
+- TICKER: catalyst
+
+List 15+ stocks with clear ticker symbols.""",
+
+    "v5_institutional": """Search for institutional-quality trading opportunities.
+
+Look for:
+1. Stocks with heavy institutional buying/selling
+2. Unusual options activity (large call/put purchases)
+3. Analyst upgrades from Goldman, Morgan Stanley, JPM
+4. Earnings beats/misses with guidance changes
+5. Sector rotation plays
+
+Format each as:
+TICKER ($approx_price) - CATALYST - DIRECTION (long/short)
+
+Provide 15-20 opportunities across sectors.""",
+
+    "v6_direct": """List stock tickers moving today.
+
+Search financial news and market data for:
+- Top gainers and losers
+- Stocks with news catalysts
+- High volume stocks
+- Stocks with analyst actions
+
+Just list the tickers with brief reasons:
+
+AAPL - reason
+NVDA - reason
+TSLA - reason
+(continue for 15-20 stocks)
+
+Include both bullish and bearish opportunities.""",
+}
+
+
+async def test_prompt(name: str, prompt: str):
+    """Test a single prompt and analyze results."""
+    print(f"\n{'='*80}")
+    print(f"TESTING: {name}")
+    print(f"{'='*80}")
+    print(f"Prompt length: {len(prompt)} chars")
+    
     try:
         client = OpenRouterClient()
         client.model = settings.openrouter_perplexity_model
-        result = await client.search(discovery_query)
-        if result:
-            content = result['content']
-            print(f"✅ Response: {len(content)} chars")
-            print("-" * 40)
-            print(content[:1500])
-            print("-" * 40)
-            
-            # Check for symbols
-            import re
-            symbols = re.findall(r'\b([A-Z]{2,5})\b', content)
-            unique_symbols = list(set(symbols))
-            print(f"\n📊 Found {len(unique_symbols)} potential symbols: {unique_symbols[:20]}")
-            
-            # Check for "can't help" indicators
-            cant_help = ["i need to be transparent", "i cannot provide", "current limitations", "unable to access"]
-            if any(ind in content.lower() for ind in cant_help):
-                print("⚠️  DETECTED 'CAN'T HELP' RESPONSE!")
-            else:
-                print("✅ Response looks actionable!")
-        else:
-            print("❌ Returned None")
+        result = await client.search(prompt)
+        
+        if not result or not result.get('content'):
+            print("❌ No response")
+            return {'name': name, 'symbols': 0, 'quality': 0}
+        
+        content = result['content']
+        print(f"Response length: {len(content)} chars")
+        
+        # Extract symbols
+        all_caps = re.findall(r'\b([A-Z]{2,5})\b', content)
+        non_stocks = {'THE', 'AND', 'FOR', 'WITH', 'FROM', 'THIS', 'THAT', 'HAVE', 'ARE', 'NOT', 
+                      'BUT', 'CAN', 'ALL', 'HAS', 'HAD', 'WAS', 'WILL', 'MAY', 'FDA', 'CEO', 
+                      'IPO', 'ETF', 'NYSE', 'SEC', 'AI', 'ML', 'API', 'USA', 'USD', 'EPS',
+                      'LONG', 'SHORT', 'CAP', 'MID', 'LARGE', 'SMALL', 'MAP', 'TPU', 'DOE'}
+        symbols = list(set([s for s in all_caps if s not in non_stocks]))
+        
+        # Quality indicators
+        has_structure = any(x in content for x in ['**LONG', '**SHORT', '**BULL', '**BEAR', 'LARGE-CAP', 'MID-CAP'])
+        has_catalysts = any(x in content.lower() for x in ['earnings', 'upgrade', 'fda', 'analyst', 'volume'])
+        has_directions = any(x in content.lower() for x in ['bullish', 'bearish', 'long', 'short'])
+        no_disclaimer = 'transparent' not in content.lower() and 'cannot provide' not in content.lower()
+        
+        quality_score = len(symbols) * 2
+        if has_structure: quality_score += 10
+        if has_catalysts: quality_score += 10
+        if has_directions: quality_score += 5
+        if no_disclaimer: quality_score += 15
+        
+        print(f"\n📊 RESULTS:")
+        print(f"   Symbols found: {len(symbols)}")
+        print(f"   Has structure: {'✅' if has_structure else '❌'}")
+        print(f"   Has catalysts: {'✅' if has_catalysts else '❌'}")
+        print(f"   Has directions: {'✅' if has_directions else '❌'}")
+        print(f"   No disclaimer: {'✅' if no_disclaimer else '❌'}")
+        print(f"   Quality score: {quality_score}")
+        print(f"\n   Symbols: {symbols[:15]}...")
+        
+        print(f"\n📝 RESPONSE PREVIEW:")
+        print("-" * 40)
+        print(content[:1200])
+        print("-" * 40)
+        
+        return {
+            'name': name,
+            'symbols': len(symbols),
+            'quality': quality_score,
+            'has_structure': has_structure,
+            'has_catalysts': has_catalysts,
+            'no_disclaimer': no_disclaimer,
+            'content': content
+        }
+        
     except Exception as e:
         print(f"❌ Error: {e}")
+        return {'name': name, 'symbols': 0, 'quality': 0}
 
 
 async def main():
     print("="*80)
-    print("🔍 PERPLEXITY OPPORTUNITY DISCOVERY TEST")
+    print("🔍 PERPLEXITY PROMPT OPTIMIZATION TEST")
     print("="*80)
-    print(f"\nConfiguration:")
-    print(f"  OpenRouter Perplexity Model: {settings.openrouter_perplexity_model}")
-    print(f"  Native Perplexity Model: {settings.perplexity_default_model}")
-    print(f"  OpenRouter API Key: {settings.openrouter_api_key[:20]}...")
-    print(f"  Perplexity API Key: {settings.perplexity_api_key[:20]}...")
+    print(f"\nModel: {settings.openrouter_perplexity_model}")
+    print(f"Testing {len(PROMPTS)} prompt variations...\n")
     
-    await test_simple_query()
-    await test_trading_query()
-    await test_full_discovery_query()
+    results = []
     
+    for name, prompt in PROMPTS.items():
+        result = await test_prompt(name, prompt)
+        results.append(result)
+        await asyncio.sleep(2)  # Rate limiting
+    
+    # Summary
     print("\n" + "="*80)
-    print("🏁 TEST COMPLETE")
+    print("📊 SUMMARY - RANKED BY QUALITY SCORE")
     print("="*80)
+    
+    results.sort(key=lambda x: x['quality'], reverse=True)
+    
+    for i, r in enumerate(results, 1):
+        print(f"\n{i}. {r['name']}")
+        print(f"   Quality: {r['quality']} | Symbols: {r['symbols']} | Structure: {'✅' if r.get('has_structure') else '❌'} | No Disclaimer: {'✅' if r.get('no_disclaimer') else '❌'}")
+    
+    # Best prompt
+    best = results[0]
+    print(f"\n{'='*80}")
+    print(f"🏆 BEST PROMPT: {best['name']} (Score: {best['quality']})")
+    print(f"{'='*80}")
+    
+    # Show the winning prompt
+    print(f"\nWinning prompt:\n{PROMPTS[best['name']]}")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+
+async def test_optimized_prompt():
+    """Test the final optimized prompt."""
+    print("\n" + "="*80)
+    print("🚀 TESTING OPTIMIZED PRODUCTION PROMPT")
+    print("="*80)
+    
+    # Import the actual query builder
+    from scanner.ai_opportunity_finder import AIOpportunityFinder
+    
+    finder = AIOpportunityFinder()
+    query = finder._build_discovery_query(allowed_caps={'large_caps': True, 'mid_caps': True, 'small_caps': False})
+    
+    print(f"\nQuery ({len(query)} chars):")
+    print("-" * 40)
+    print(query)
+    print("-" * 40)
+    
+    # Test it
+    client = OpenRouterClient()
+    client.model = settings.openrouter_perplexity_model
+    result = await client.search(query)
+    
+    if result and result.get('content'):
+        content = result['content']
+        print(f"\n✅ Response: {len(content)} chars")
+        
+        # Extract symbols
+        all_caps = re.findall(r'\b([A-Z]{2,5})\b', content)
+        non_stocks = {'THE', 'AND', 'FOR', 'WITH', 'FROM', 'THIS', 'THAT', 'HAVE', 'ARE', 'NOT', 
+                      'BUT', 'CAN', 'ALL', 'HAS', 'HAD', 'WAS', 'WILL', 'MAY', 'FDA', 'CEO', 
+                      'IPO', 'ETF', 'NYSE', 'SEC', 'AI', 'ML', 'API', 'USA', 'USD', 'EPS',
+                      'LONG', 'SHORT', 'CAP', 'MID', 'LARGE', 'SMALL', 'MAP', 'TPU', 'DOE',
+                      'BULLISH', 'BEARISH', 'NEWS', 'WEEK', 'TODAY'}
+        symbols = list(set([s for s in all_caps if s not in non_stocks]))
+        
+        print(f"📊 Symbols found: {len(symbols)}")
+        print(f"   {symbols[:20]}...")
+        
+        print(f"\n📝 Response:")
+        print("-" * 40)
+        print(content[:2000])
+        print("-" * 40)
+    else:
+        print("❌ No response")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--optimized":
+        asyncio.run(test_optimized_prompt())
+    else:
+        asyncio.run(main())
