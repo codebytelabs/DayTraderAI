@@ -969,9 +969,81 @@ class PositionManager:
                 logger.error(f"⚠️  {len(unprotected_stops)} positions without stop loss: {', '.join(unprotected_stops)}")
                 # Auto-fix unprotected positions
                 self.check_and_fix_held_orders()
+                
+                # CRITICAL: Auto-create emergency stop losses for unprotected positions
+                for symbol in unprotected_stops:
+                    position = trading_state.get_position(symbol)
+                    if position:
+                        self._create_emergency_stop_loss(position)
             
         except Exception as e:
             logger.error(f"Error verifying position protection: {e}")
+    
+    def _create_emergency_stop_loss(self, position):
+        """
+        Create emergency stop loss for an unprotected position.
+        Uses 3% stop for safety - better to have wide stop than no stop!
+        """
+        try:
+            from alpaca.trading.requests import StopOrderRequest
+            from alpaca.trading.enums import OrderSide, TimeInForce
+            
+            symbol = position.symbol
+            entry = position.avg_entry_price
+            current = position.current_price
+            qty = position.qty
+            
+            # Calculate emergency stop based on position side
+            if position.side == 'buy':
+                # LONG: stop 3% below entry (or current if losing)
+                base_price = min(entry, current)  # Use lower of entry/current
+                emergency_stop = base_price * 0.97  # 3% stop
+                exit_side = OrderSide.SELL
+            else:
+                # SHORT: stop 3% above entry (or current if losing)
+                base_price = max(entry, current)  # Use higher of entry/current
+                emergency_stop = base_price * 1.03  # 3% stop
+                exit_side = OrderSide.BUY
+            
+            logger.warning(f"🚨 Creating EMERGENCY stop loss for {symbol} at ${emergency_stop:.2f}")
+            
+            stop_request = StopOrderRequest(
+                symbol=symbol,
+                qty=abs(qty),
+                side=exit_side,
+                time_in_force=TimeInForce.GTC,
+                stop_price=round(emergency_stop, 2)
+            )
+            
+            order = self.alpaca.submit_order_request(stop_request)
+            
+            if order:
+                logger.info(f"✅ Emergency stop loss created for {symbol}: ${emergency_stop:.2f}")
+                
+                # Update position with new stop
+                position.stop_loss = emergency_stop
+                trading_state.update_position(position)
+                
+                # Update database
+                self.supabase.upsert_position({
+                    'symbol': symbol,
+                    'qty': qty,
+                    'side': position.side,
+                    'avg_entry_price': entry,
+                    'current_price': current,
+                    'unrealized_pl': position.unrealized_pl,
+                    'unrealized_pl_pct': position.unrealized_pl_pct,
+                    'market_value': position.market_value,
+                    'stop_loss': emergency_stop,
+                    'take_profit': position.take_profit,
+                    'entry_time': position.entry_time.isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                })
+            else:
+                logger.error(f"❌ Failed to create emergency stop for {symbol}")
+                
+        except Exception as e:
+            logger.error(f"Error creating emergency stop loss for {position.symbol}: {e}")
     
     def _recreate_take_profit(self, position):
         """

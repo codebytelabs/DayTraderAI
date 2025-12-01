@@ -223,6 +223,20 @@ class AIOpportunityFinder:
                 logger.warning("No symbols extracted from AI response")
                 return self._get_fallback_symbols()
             
+            # CRITICAL: If AI returns too few symbols, merge with fallback
+            # We want at least 15 symbols for proper opportunity scanning
+            MIN_SYMBOLS = 15
+            if len(symbols) < MIN_SYMBOLS:
+                logger.warning(f"⚠️ AI returned only {len(symbols)} symbols - merging with fallback to reach {MIN_SYMBOLS}")
+                fallback = self._get_fallback_symbols()
+                # Add fallback symbols that aren't already in the list
+                for fb_symbol in fallback:
+                    if fb_symbol not in symbols:
+                        symbols.append(fb_symbol)
+                    if len(symbols) >= max_symbols:
+                        break
+                logger.info(f"✅ Merged to {len(symbols)} symbols (AI + fallback)")
+            
             # Limit to max symbols
             symbols = symbols[:max_symbols]
             
@@ -242,15 +256,12 @@ class AIOpportunityFinder:
             return self._get_fallback_symbols()
     
     def _build_discovery_query(self, allowed_caps: Dict = None) -> str:
-        """Build optimized discovery query based on prompt testing results.
+        """Build optimized discovery query that works with Perplexity's capabilities.
         
-        TESTED RESULTS (2025-12-01):
-        - v3_news_focused: 51 symbols (BEST) - asks about earnings calendar
-        - v4_momentum: 35 symbols - asks about pre-market movers
-        - v1_simple: 7 symbols - too vague
-        
-        Key insight: Ask for things Perplexity HAS data for (earnings calendar, news)
-        NOT things it doesn't have (real-time prices, exact volume)
+        OPTIMIZED 2025-12-01:
+        - Focus on NEWS and CATALYSTS (what Perplexity excels at)
+        - Don't ask for real-time prices/volume (Perplexity doesn't have this)
+        - Simple format that gets more symbols extracted
         """
         
         # Default: allow all caps
@@ -267,8 +278,8 @@ class AIOpportunityFinder:
             cap_focus.append("small-cap")
         caps_str = " and ".join(cap_focus) if cap_focus else "all"
         
-        # WINNING PROMPT - based on v3_news_focused which got 51 symbols
-        # This works because it asks for CONCRETE data Perplexity can search for
+        # NEWS-FOCUSED PROMPT - asks for concrete data Perplexity can find
+        # This version got 51 symbols in testing
         query = f"""What stocks are in the news today? Search for:
 
 1. Stocks with earnings releases this week
@@ -283,7 +294,7 @@ Focus on {caps_str} stocks.
 List each stock as:
 TICKER: reason it's newsworthy
 
-Provide at least 15 different stock tickers."""
+Provide at least 20 different stock tickers."""
 
         return query
     
@@ -579,7 +590,7 @@ Provide at least 15 different stock tickers."""
     def _is_valid_symbol(self, symbol: str) -> bool:
         """Check if symbol looks valid."""
         
-        # Common false positives to exclude
+        # Common false positives to exclude - EXPANDED to catch more garbage
         excluded = {
             'AI', 'US', 'ET', 'AM', 'PM', 'CEO', 'CFO', 'IPO', 'ETF',
             'NYSE', 'NASDAQ', 'SEC', 'FDA', 'API', 'USD', 'GDP', 'CPI',
@@ -592,7 +603,24 @@ Provide at least 15 different stock tickers."""
             'ARR', 'EST', 'OUT', 'LOW', 'HIGH', 'AVG', 'VOL', 'TARGET', 'CATALYST',
             'TECHNICAL', 'VOLUME', 'TIMEFRAME', 'PRIMARY', 'SECONDARY', 'KEY',
             'SECTOR', 'ROTATION', 'MARKET', 'SESSION', 'STRATEGY', 'ANALYSIS',
-            'REGIME', 'RISK', 'LEVEL', 'DEFENSIVE', 'OFF', 'ON'
+            'REGIME', 'RISK', 'LEVEL', 'DEFENSIVE', 'OFF', 'ON',
+            # NEW: Common multi-word company name fragments that get extracted incorrectly
+            'ROYAL', 'BANK', 'FOODS', 'STOCK', 'SHARE', 'SHARES', 'CORP', 'INC',
+            'GROUP', 'TRUST', 'FUND', 'INDEX', 'WEEK', 'NEWS', 'PRICE', 'MOVE',
+            'GAIN', 'LOSS', 'EARN', 'REPORT', 'QUARTER', 'YEAR', 'MONTH', 'DAY',
+            'MAJOR', 'MINOR', 'BASED', 'RATED', 'RATED', 'WATCH', 'ALERT',
+            'TECH', 'ENERGY', 'HEALTH', 'FINANCE', 'RETAIL', 'AUTO', 'PHARMA',
+            'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+            'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DEC', 'JAN',
+            'FEB', 'MAR', 'APR', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV',
+            'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'MON', 'TUE',
+            'WED', 'THU', 'FRI', 'SAT', 'SUN', 'WEEK', 'DAILY', 'WEEKLY',
+            'BASED', 'ABOVE', 'BELOW', 'NEAR', 'OVER', 'UNDER', 'INTO', 'ONTO',
+            'ALSO', 'JUST', 'ONLY', 'EVEN', 'STILL', 'MUCH', 'MORE', 'MOST',
+            'SOME', 'MANY', 'SUCH', 'EACH', 'EVERY', 'OTHER', 'BOTH', 'FEW',
+            'AFTER', 'BEFORE', 'DURING', 'SINCE', 'UNTIL', 'WHILE', 'WHEN',
+            'WHERE', 'WHICH', 'WHAT', 'WHO', 'HOW', 'WHY', 'THAN', 'THEN',
+            'COULD', 'SHOULD', 'MIGHT', 'MUST', 'SHALL', 'BEING', 'DOES', 'DONE'
         }
         
         if symbol in excluded:
@@ -829,11 +857,11 @@ Provide concise, actionable insights for day traders."""
         
         # Analyze content quality
         quality_indicators = {
-            'has_catalysts': any(word in content.lower() for word in ['catalyst', 'earnings', 'news', 'announcement', 'beat', 'guidance']),
-            'has_technical': any(word in content.lower() for word in ['breakout', 'support', 'resistance', 'volume', 'momentum', 'setup']),
-            'has_prices': any(word in content.lower() for word in ['$', 'price', 'target']),
-            'has_tiers': any(word in content.lower() for word in ['large-cap', 'mid-cap', 'small-cap', 'tier']),
-            'has_directions': any(word in content.lower() for word in ['long', 'short', 'buy', 'sell'])
+            'has_catalysts': any(word in content.lower() for word in ['catalyst', 'earnings', 'news', 'announcement', 'beat', 'guidance', 'upgrade', 'downgrade', 'fda', 'approval']),
+            'has_technical': any(word in content.lower() for word in ['breakout', 'support', 'resistance', 'volume', 'momentum', 'setup', 'trend', 'moving average']),
+            'has_prices': any(word in content.lower() for word in ['$$', 'price', 'target']),
+            'has_tiers': any(word in content.lower() for word in ['large-cap', 'mid-cap', 'small-cap', 'tier', 'large cap', 'mid cap', 'small cap']),
+            'has_directions': any(word in content.lower() for word in ['long', 'short', 'buy', 'sell', 'bullish', 'bearish', 'upside', 'downside'])
         }
         
         logger.info("Quality Indicators:")

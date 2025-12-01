@@ -75,8 +75,8 @@ class Settings(BaseSettings):
     # Phase 2: Opportunity Scanner
     use_dynamic_watchlist: bool = True  # Enable dynamic watchlist - FIXED: was False
     scanner_interval_hours: int = 1  # Scan every hour
-    scanner_min_score: float = 80.0  # Minimum A- grade (was 60.0 - too permissive)
-    scanner_watchlist_size: int = 20  # Number of stocks in dynamic watchlist
+    scanner_min_score: float = 65.0  # Balanced threshold (was 80.0 - too restrictive, 60.0 - too permissive)
+    scanner_watchlist_size: int = 21  # Number of stocks in dynamic watchlist
     
     # Trading Mode Configuration
     long_only_mode: bool = False  # Allow both long and short positions
@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     # Hedge fund approach: fewer, higher-quality trades
     max_trades_per_day: int = 15  # Reduced from 30 - quality over quantity
     max_trades_per_symbol_per_day: int = 2  # Max 2 entries per symbol per day
-    trade_cooldown_minutes: int = 30  # Increased from 15 - prevent rapid re-entry churning
+    trade_cooldown_minutes: int = 15  # Reduced from 30 - better for day trading momentum
     min_hold_time_minutes: int = 15  # Minimum time to hold position before manual exit (stops still work)
     
     # Sprint 5: Trailing Stops Configuration
