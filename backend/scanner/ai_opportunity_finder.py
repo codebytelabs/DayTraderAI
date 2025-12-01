@@ -149,6 +149,21 @@ class AIOpportunityFinder:
                 if not result or not result.get('content'):
                     logger.warning("Native Perplexity returned no content")
                     primary_failed = True
+                else:
+                    # Check if Perplexity returned a "can't help" response
+                    content_lower = result['content'].lower()
+                    cant_help_indicators = [
+                        "i need to be transparent",
+                        "i cannot provide",
+                        "i can't provide",
+                        "current limitations",
+                        "do not include",
+                        "unable to access",
+                        "no real-time",
+                    ]
+                    if any(indicator in content_lower for indicator in cant_help_indicators):
+                        logger.warning("⚠️ Perplexity returned a 'can't help' response - trying fallback")
+                        primary_failed = True
                     
             except Exception as e:
                 logger.error(f"Native Perplexity failed: {e}")
