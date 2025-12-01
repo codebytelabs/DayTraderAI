@@ -126,7 +126,7 @@ class AIOpportunityFinder:
                 logger.info(f"🔄 Using cached opportunities ({len(self.last_opportunities)} symbols)")
                 return self.last_opportunities[:max_symbols]
             
-            logger.info(f"🤖 AI discovering trading opportunities using {settings.ai_primary_provider.upper()}...")
+            logger.info("🤖 AI discovering trading opportunities (Perplexity for real-time web search)...")
             
             # Build comprehensive research query with market cap filtering
             query = self._build_discovery_query(allowed_caps=allowed_caps)
@@ -134,46 +134,47 @@ class AIOpportunityFinder:
             result = None
             primary_failed = False
             
-            # PRIMARY PROVIDER ATTEMPT
+            # OPPORTUNITY DISCOVERY ALWAYS USES PERPLEXITY (real-time web search)
+            # Primary: Native Perplexity API (sonar-pro)
+            # Fallback: Perplexity via OpenRouter (perplexity/sonar-pro)
+            #
+            # NOTE: OpenRouter's Grok/GPT models do NOT have real-time data access
+            # Only Perplexity has web search capability for finding current catalysts
+            
+            # PRIMARY: Native Perplexity API
             try:
-                if settings.ai_primary_provider == "openrouter":
-                    # Lazy load OpenRouter
-                    if not hasattr(self, 'openrouter'):
-                        from advisory.openrouter_client import OpenRouterClient
-                        self.openrouter = OpenRouterClient()
-                    result = await self.openrouter.search(query)
-                else:
-                    # Default to Perplexity
-                    result = await self.perplexity.search(query)
+                logger.info("🤖 AI discovering trading opportunities using PERPLEXITY...")
+                result = await self.perplexity.search(query)
                     
                 if not result or not result.get('content'):
-                    logger.warning(f"Primary provider {settings.ai_primary_provider} returned no content")
+                    logger.warning("Native Perplexity returned no content")
                     primary_failed = True
                     
             except Exception as e:
-                logger.error(f"Primary provider {settings.ai_primary_provider} failed: {e}")
+                logger.error(f"Native Perplexity failed: {e}")
                 primary_failed = True
             
-            # SECONDARY PROVIDER FALLBACK
+            # FALLBACK: Perplexity via OpenRouter
             if primary_failed:
-                logger.info(f"🔄 Attempting fallback via {settings.ai_secondary_provider.upper()}...")
+                logger.info("🔄 Attempting fallback via PERPLEXITY on OPENROUTER...")
                 try:
-                    if settings.ai_secondary_provider == "openrouter":
-                        if not hasattr(self, 'openrouter'):
-                            from advisory.openrouter_client import OpenRouterClient
-                            self.openrouter = OpenRouterClient()
-                        result = await self.openrouter.search(query)
-                    elif settings.ai_secondary_provider == "perplexity":
-                        result = await self.perplexity.search(query)
+                    # Use Perplexity model via OpenRouter (has web search)
+                    from advisory.openrouter_client import OpenRouterClient
+                    perplexity_model = getattr(settings, 'openrouter_perplexity_model', 'perplexity/sonar-pro')
+                    openrouter_perplexity = OpenRouterClient()
+                    # Override model for this request to use Perplexity's sonar-pro
+                    openrouter_perplexity.model = perplexity_model
+                    logger.info(f"🔄 Using model: {perplexity_model} (overriding default)")
+                    result = await openrouter_perplexity.search(query)
                         
                     if not result or not result.get('content'):
-                        logger.error("Secondary provider also failed")
+                        logger.error("Perplexity via OpenRouter also failed")
                         return self._get_fallback_symbols()
                         
-                    logger.info(f"✅ Fallback successful via {settings.ai_secondary_provider}")
+                    logger.info("✅ Fallback successful via Perplexity on OpenRouter")
                     
                 except Exception as e:
-                    logger.error(f"Secondary provider {settings.ai_secondary_provider} failed: {e}")
+                    logger.error(f"Perplexity via OpenRouter failed: {e}")
                     return self._get_fallback_symbols()
             
             logger.info(f"✅ Got AI response: {len(result['content'])} chars")
