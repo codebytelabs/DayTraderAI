@@ -144,10 +144,52 @@ class PositionManager:
                 self.supabase.delete_position(symbol)
             
             logger.info(f"Synced {len(alpaca_positions)} positions from Alpaca")
+            
+            # Clean up orphaned orders (orders for symbols we don't have positions in)
+            self.cleanup_orphan_orders(alpaca_symbols)
+            
             return len(alpaca_positions)
             
         except Exception as e:
             logger.error(f"Failed to sync positions: {e}")
+            return 0
+    
+    def cleanup_orphan_orders(self, current_position_symbols: set = None):
+        """
+        Cancel orders for symbols we no longer have positions in.
+        This prevents wash trade errors and keeps Alpaca in sync.
+        
+        ALWAYS trusts Alpaca API as source of truth, not DB.
+        """
+        try:
+            # Get current positions from Alpaca (source of truth)
+            if current_position_symbols is None:
+                alpaca_positions = self.alpaca.get_positions()
+                current_position_symbols = {p.symbol for p in alpaca_positions}
+            
+            # Get all open orders from Alpaca
+            open_orders = self.alpaca.get_orders(status='open')
+            if not open_orders:
+                return 0
+            
+            # Find orphaned orders (orders for symbols without positions)
+            orphan_count = 0
+            for order in open_orders:
+                if order.symbol not in current_position_symbols:
+                    try:
+                        self.alpaca.cancel_order(order.id)
+                        orphan_count += 1
+                        logger.info(f"🧹 Cancelled orphan order: {order.symbol} {order.side} {order.qty} @ {order.type}")
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel orphan order {order.symbol}: {e}")
+            
+            if orphan_count > 0:
+                logger.info(f"🧹 Cleaned up {orphan_count} orphan orders (no matching positions)")
+            
+            return orphan_count
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up orphan orders: {e}")
             return 0
     
     def cleanup_tiny_positions(self, min_value: float = 1000.0):
