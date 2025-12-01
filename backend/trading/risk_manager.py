@@ -14,7 +14,20 @@ class RiskManager:
     """
     Pre-trade risk checks. Every order MUST pass through here.
     No direct order submission allowed.
+    
+    Enhanced for Momentum Wave Rider strategy with:
+    - Minimum stop distance enforcement (1.5%)
+    - Max risk per trade limit (1%)
+    - Daily loss circuit breaker (2%)
+    - Consecutive loss size reduction
     """
+    
+    # Momentum Wave Rider risk constants
+    MIN_STOP_DISTANCE_PCT = 0.015  # 1.5% minimum stop distance
+    MAX_RISK_PER_TRADE_PCT = 0.01  # 1% max risk per trade
+    DAILY_LOSS_CIRCUIT_BREAKER_PCT = 0.02  # 2% daily loss triggers circuit breaker
+    CONSECUTIVE_LOSS_REDUCTION = 0.5  # 50% size reduction after 3 consecutive losses
+    MAX_CONSECUTIVE_LOSSES = 3  # Threshold for size reduction
     
     def __init__(self, alpaca_client: AlpacaClient, sentiment_aggregator=None):
         self.alpaca = alpaca_client
@@ -24,6 +37,10 @@ class RiskManager:
         self.regime_detector = get_regime_detector(alpaca_client)
         self.sentiment_aggregator = sentiment_aggregator
         self.current_regime = None
+        
+        # Consecutive loss tracking for momentum trades
+        self.consecutive_losses = 0
+        self.last_trade_result = None  # 'win' or 'loss'
         
         # Daily cache for enhanced risk management (Sprint 7+)
         try:
@@ -63,15 +80,21 @@ class RiskManager:
         if not trading_state.is_trading_allowed():
             return False, "Trading is disabled"
         
-        # 2. Check circuit breaker
+        # 2. Check circuit breaker (enhanced for momentum trading)
         metrics = trading_state.get_metrics()
         if metrics.circuit_breaker_triggered:
             return False, "Circuit breaker triggered"
         
-        if metrics.daily_pl_pct < -self.circuit_breaker_pct * 100:
+        # Use stricter 2% daily loss circuit breaker for momentum trading
+        daily_loss_threshold = min(
+            self.circuit_breaker_pct * 100,
+            self.DAILY_LOSS_CIRCUIT_BREAKER_PCT * 100
+        )
+        
+        if metrics.daily_pl_pct < -daily_loss_threshold:
             trading_state.update_metrics(circuit_breaker_triggered=True)
-            logger.error(f"CIRCUIT BREAKER TRIGGERED: Daily loss {metrics.daily_pl_pct:.2f}%")
-            return False, "Circuit breaker triggered by daily loss"
+            logger.error(f"CIRCUIT BREAKER TRIGGERED: Daily loss {metrics.daily_pl_pct:.2f}% exceeds {daily_loss_threshold:.1f}% limit")
+            return False, f"Circuit breaker triggered by daily loss ({metrics.daily_pl_pct:.2f}%)"
         
         # 3. Check market is open
         if not self.alpaca.is_market_open():
@@ -118,10 +141,12 @@ class RiskManager:
             if order_value > buying_power:
                 return False, f"Insufficient day trading buying power: need ${order_value:.2f}, have ${buying_power:.2f}"
             
-            # Check max position size as % of equity
-            max_position_value = equity * settings.max_position_pct
+            # Check max position size as % of equity - use SCALED max for high-confidence trades
+            # Dynamic sizing allows up to 15% for high-confidence trades
+            scaled_max_pct = getattr(settings, 'max_position_pct_scaled', 0.15)
+            max_position_value = equity * scaled_max_pct
             if order_value > max_position_value:
-                return False, f"Position too large: ${order_value:.2f} exceeds max ${max_position_value:.2f} ({settings.max_position_pct*100}% of equity)"
+                return False, f"Position too large: ${order_value:.2f} exceeds max ${max_position_value:.2f} ({scaled_max_pct*100}% of equity)"
         
         except Exception as e:
             logger.error(f"Failed to check buying power: {e}")
@@ -181,6 +206,37 @@ class RiskManager:
         if features and 'atr' in features:
             atr = features['atr']
             
+            # MOMENTUM WAVE RIDER: Enforce minimum stop distance (1.5%)
+            min_stop_distance = price * self.MIN_STOP_DISTANCE_PCT
+            atr_stop_distance = atr * settings.stop_loss_atr_mult
+            
+            # Use the larger of ATR-based stop or minimum 1.5%
+            stop_distance = max(atr_stop_distance, min_stop_distance)
+            
+            if atr_stop_distance < min_stop_distance:
+                logger.info(
+                    f"Stop distance adjusted: ATR-based ${atr_stop_distance:.2f} < "
+                    f"minimum ${min_stop_distance:.2f} (1.5% of ${price:.2f})"
+                )
+            
+            # MOMENTUM WAVE RIDER: Enforce max 1% risk per trade
+            max_risk_pct = min(adjusted_risk_pct, self.MAX_RISK_PER_TRADE_PCT)
+            if adjusted_risk_pct > self.MAX_RISK_PER_TRADE_PCT:
+                logger.info(
+                    f"Risk per trade capped: {adjusted_risk_pct*100:.2f}% -> "
+                    f"{self.MAX_RISK_PER_TRADE_PCT*100:.1f}% (max allowed)"
+                )
+            
+            # MOMENTUM WAVE RIDER: Apply consecutive loss reduction
+            if self.consecutive_losses >= self.MAX_CONSECUTIVE_LOSSES:
+                max_risk_pct *= self.CONSECUTIVE_LOSS_REDUCTION
+                logger.warning(
+                    f"Position size reduced by {(1-self.CONSECUTIVE_LOSS_REDUCTION)*100:.0f}% "
+                    f"due to {self.consecutive_losses} consecutive losses"
+                )
+            
+            max_risk_amount = equity * max_risk_pct
+            
             # Adaptive volatility filter - ADX threshold varies by market regime
             adx = features.get('adx', 25)
             
@@ -206,30 +262,38 @@ class RiskManager:
             et_time = datetime.now(tz=pytz.timezone('US/Eastern'))
             hour = et_time.hour
             
-            # Time-based volume adjustment (volume drops midday)
-            if 11 <= hour <= 14:  # Midday lull
-                time_volume_mult = 0.6
-            elif hour >= 15:  # Afternoon pickup
-                time_volume_mult = 0.8
-            else:  # Morning
-                time_volume_mult = 1.0
+            # Check if market is open (9:30 AM - 4:00 PM ET)
+            is_market_hours = 9 <= hour < 16 or (hour == 9 and et_time.minute >= 30)
             
-            if regime['regime'] == 'choppy':
-                volume_threshold = 0.4 * time_volume_mult
-            elif regime['volatility_level'] == 'high':
-                volume_threshold = 0.6 * time_volume_mult
+            # SKIP volume filter outside market hours - volume is naturally low
+            if not is_market_hours:
+                logger.debug(f"Volume filter skipped for {symbol}: Outside market hours ({hour}:{et_time.minute:02d} ET)")
             else:
-                volume_threshold = 0.7 * time_volume_mult
+                # Time-based volume adjustment (volume drops midday)
+                if 11 <= hour <= 14:  # Midday lull
+                    time_volume_mult = 0.5  # Reduced from 0.6
+                elif hour >= 15:  # Afternoon pickup
+                    time_volume_mult = 0.6  # Reduced from 0.8
+                else:  # Morning
+                    time_volume_mult = 0.8  # Reduced from 1.0
+                
+                # Lower thresholds - 1-minute bars have naturally lower volume ratios
+                if regime['regime'] == 'choppy':
+                    volume_threshold = 0.2 * time_volume_mult  # Reduced from 0.4
+                elif regime['volatility_level'] == 'high':
+                    volume_threshold = 0.3 * time_volume_mult  # Reduced from 0.6
+                else:
+                    volume_threshold = 0.4 * time_volume_mult  # Reduced from 0.7
+                
+                if volume_ratio < volume_threshold:
+                    return False, f"Low volume rejected: {volume_ratio:.2f}x < {volume_threshold:.1f}x (regime: {regime['regime']})"
             
-            if volume_ratio < volume_threshold:
-                return False, f"Low volume rejected: {volume_ratio:.2f}x < {volume_threshold:.1f}x (regime: {regime['regime']})"
-            
-            stop_distance = atr * settings.stop_loss_atr_mult
+            # stop_distance already calculated above with minimum enforcement
             risk_per_share = stop_distance
             max_qty = int(max_risk_amount / risk_per_share)
             
             if qty > max_qty:
-                return False, f"Position size too large: max {max_qty} shares for {adjusted_risk_pct*100:.2f}% risk"
+                return False, f"Position size too large: max {max_qty} shares for {max_risk_pct*100:.2f}% risk (stop ${stop_distance:.2f})"
         
         # 8. Basic sanity checks
         if qty <= 0:
@@ -600,3 +664,141 @@ class RiskManager:
             logger.info("All positions closed")
         except Exception as e:
             logger.error(f"Failed to close positions during emergency stop: {e}")
+    
+    # ==================== MOMENTUM WAVE RIDER ENHANCEMENTS ====================
+    
+    def record_trade_result(self, is_win: bool):
+        """
+        Record trade result for consecutive loss tracking.
+        
+        Args:
+            is_win: True if trade was profitable, False if loss
+        """
+        if is_win:
+            self.consecutive_losses = 0
+            self.last_trade_result = 'win'
+            logger.info("Trade result: WIN - consecutive loss counter reset")
+        else:
+            self.consecutive_losses += 1
+            self.last_trade_result = 'loss'
+            logger.warning(f"Trade result: LOSS - consecutive losses: {self.consecutive_losses}")
+            
+            if self.consecutive_losses >= self.MAX_CONSECUTIVE_LOSSES:
+                logger.warning(
+                    f"⚠️ {self.consecutive_losses} consecutive losses - "
+                    f"position sizes will be reduced by {(1-self.CONSECUTIVE_LOSS_REDUCTION)*100:.0f}%"
+                )
+    
+    def get_consecutive_losses(self) -> int:
+        """Get current consecutive loss count."""
+        return self.consecutive_losses
+    
+    def reset_consecutive_losses(self):
+        """Manually reset consecutive loss counter."""
+        self.consecutive_losses = 0
+        logger.info("Consecutive loss counter manually reset")
+    
+    def calculate_stop_price(self, entry_price: float, side: str, atr: float) -> float:
+        """
+        Calculate stop loss price with minimum distance enforcement.
+        
+        Args:
+            entry_price: Entry price
+            side: 'buy' or 'sell'
+            atr: Average True Range
+            
+        Returns:
+            Stop loss price (guaranteed to be at least 1.5% away)
+        """
+        # Calculate ATR-based stop distance
+        atr_stop_distance = atr * settings.stop_loss_atr_mult
+        
+        # Enforce minimum 1.5% stop distance
+        min_stop_distance = entry_price * self.MIN_STOP_DISTANCE_PCT
+        stop_distance = max(atr_stop_distance, min_stop_distance)
+        
+        if side.lower() in ['buy', 'long']:
+            stop_price = entry_price - stop_distance
+        else:
+            stop_price = entry_price + stop_distance
+        
+        logger.debug(
+            f"Stop calculated: entry=${entry_price:.2f}, "
+            f"distance=${stop_distance:.2f} ({stop_distance/entry_price*100:.2f}%), "
+            f"stop=${stop_price:.2f}"
+        )
+        
+        return stop_price
+    
+    def validate_stop_distance(self, entry_price: float, stop_price: float) -> tuple[bool, str]:
+        """
+        Validate that stop distance meets minimum requirements.
+        
+        Args:
+            entry_price: Entry price
+            stop_price: Proposed stop price
+            
+        Returns:
+            Tuple of (is_valid, reason)
+        """
+        stop_distance = abs(entry_price - stop_price)
+        stop_distance_pct = stop_distance / entry_price
+        
+        if stop_distance_pct < self.MIN_STOP_DISTANCE_PCT:
+            return False, (
+                f"Stop distance {stop_distance_pct*100:.2f}% is below "
+                f"minimum {self.MIN_STOP_DISTANCE_PCT*100:.1f}%"
+            )
+        
+        return True, f"Stop distance {stop_distance_pct*100:.2f}% is valid"
+    
+    def get_max_position_size(
+        self, 
+        entry_price: float, 
+        stop_price: float, 
+        equity: float
+    ) -> int:
+        """
+        Calculate maximum position size based on risk limits.
+        
+        Args:
+            entry_price: Entry price
+            stop_price: Stop loss price
+            equity: Account equity
+            
+        Returns:
+            Maximum number of shares
+        """
+        stop_distance = abs(entry_price - stop_price)
+        
+        # Enforce minimum stop distance
+        min_stop_distance = entry_price * self.MIN_STOP_DISTANCE_PCT
+        stop_distance = max(stop_distance, min_stop_distance)
+        
+        # Calculate max risk amount (1% of equity)
+        max_risk_pct = self.MAX_RISK_PER_TRADE_PCT
+        
+        # Apply consecutive loss reduction if needed
+        if self.consecutive_losses >= self.MAX_CONSECUTIVE_LOSSES:
+            max_risk_pct *= self.CONSECUTIVE_LOSS_REDUCTION
+        
+        max_risk_amount = equity * max_risk_pct
+        
+        # Calculate max shares
+        max_shares = int(max_risk_amount / stop_distance)
+        
+        return max(1, max_shares)  # At least 1 share
+    
+    def is_daily_loss_limit_reached(self) -> tuple[bool, float]:
+        """
+        Check if daily loss limit has been reached.
+        
+        Returns:
+            Tuple of (is_reached, current_daily_pnl_pct)
+        """
+        metrics = trading_state.get_metrics()
+        daily_pnl_pct = metrics.daily_pl_pct / 100  # Convert to decimal
+        
+        is_reached = daily_pnl_pct <= -self.DAILY_LOSS_CIRCUIT_BREAKER_PCT
+        
+        return is_reached, daily_pnl_pct

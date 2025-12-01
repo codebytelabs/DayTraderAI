@@ -21,8 +21,8 @@ class FillDetectionConfig:
     """
     
     # Timeout settings
-    timeout_seconds: int = 60
-    """Maximum time to wait for order fill before timeout"""
+    timeout_seconds: int = 120
+    """Maximum time to wait for order fill before timeout (increased for reliability)"""
     
     # Polling settings
     initial_poll_interval: float = 0.5

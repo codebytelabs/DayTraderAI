@@ -602,9 +602,12 @@ class PositionManager:
         return False
     
     def _cleanup_position_state(self, symbol: str, position: Position, reason: str):
-        """Clean up position from state and database, record trade"""
+        """Clean up position from state and database, record trade with R-multiple tracking"""
         try:
-            # Record trade in database
+            # Calculate R-multiple for performance tracking
+            r_multiple = self._calculate_r_multiple(position)
+            
+            # Record trade in database with R-multiple
             self.supabase.insert_trade({
                 'symbol': symbol,
                 'side': position.side,
@@ -613,11 +616,16 @@ class PositionManager:
                 'exit_price': position.current_price,
                 'pnl': position.unrealized_pl,
                 'pnl_pct': position.unrealized_pl_pct,
+                'r_multiple': r_multiple,  # NEW: R-multiple tracking
                 'entry_time': position.entry_time.isoformat(),
                 'exit_time': datetime.utcnow().isoformat(),
                 'strategy': 'EMA_Crossover',
                 'reason': reason
             })
+            
+            # Log R-multiple for performance analysis
+            r_emoji = "🟢" if r_multiple >= 0 else "🔴"
+            logger.info(f"{r_emoji} Trade closed: {symbol} | R-multiple: {r_multiple:.2f}R | PnL: ${position.unrealized_pl:.2f}")
             
             # Update metrics
             metrics = trading_state.get_metrics()
@@ -1178,3 +1186,49 @@ class PositionManager:
             
         except Exception as e:
             logger.error(f"Failed to recreate bracket for {symbol}: {e}")
+
+    def _calculate_r_multiple(self, position: Position) -> float:
+        """
+        Calculate R-multiple for a closed position.
+        
+        R = (Exit Price - Entry Price) / (Entry Price - Stop Loss)
+        
+        **Validates: Requirements 8.4 - R-Multiple Logging**
+        
+        Args:
+            position: Position being closed
+            
+        Returns:
+            R-multiple (positive = profit, negative = loss)
+        """
+        try:
+            entry_price = position.avg_entry_price
+            exit_price = position.current_price
+            stop_loss = position.stop_loss
+            
+            # If no stop loss recorded, estimate based on 1.5% default
+            if not stop_loss or stop_loss <= 0:
+                if position.side == 'buy':
+                    stop_loss = entry_price * 0.985  # 1.5% below entry
+                else:
+                    stop_loss = entry_price * 1.015  # 1.5% above entry
+            
+            # Calculate risk (R)
+            if position.side == 'buy':
+                risk = entry_price - stop_loss
+                reward = exit_price - entry_price
+            else:  # short
+                risk = stop_loss - entry_price
+                reward = entry_price - exit_price
+            
+            # Avoid division by zero
+            if risk <= 0:
+                risk = entry_price * 0.015  # Default to 1.5%
+            
+            r_multiple = reward / risk
+            
+            return round(r_multiple, 2)
+            
+        except Exception as e:
+            logger.error(f"Error calculating R-multiple: {e}")
+            return 0.0

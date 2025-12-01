@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     watchlist: str = "SPY,QQQ,AAPL,MSFT,NVDA"
     max_positions: int = 25  # Increased from 20 (Phase 2a: Conservative rollout) ✅
     risk_per_trade_pct: float = 0.01
-    max_position_pct: float = 0.20  # Increased to 20% (Hedge Fund Tweak) to unlock 2% risk sizing 🚀
+    max_position_pct: float = 0.10  # Base 10% per position (conservative default)
+    max_position_pct_scaled: float = 0.15  # Max 15% for high-confidence uptrends
     min_stop_distance_pct: float = 0.015  # Min 1.5% stop distance (was 1.0% - caused TDG bug!)
     circuit_breaker_pct: float = 0.05
     ema_short: int = 9
@@ -77,6 +78,19 @@ class Settings(BaseSettings):
     scanner_interval_hours: int = 1  # Scan every hour
     scanner_min_score: float = 65.0  # Balanced threshold (was 80.0 - too restrictive, 60.0 - too permissive)
     scanner_watchlist_size: int = 21  # Number of stocks in dynamic watchlist
+    
+    # Momentum Wave Rider Scanner (Alternative to AI Discovery)
+    USE_MOMENTUM_SCANNER: bool = True  # ENABLED - Real-time momentum scanning (32 property tests passing)
+    MOMENTUM_SCAN_INTERVAL: int = 300  # 5 minutes default scan interval
+    FIRST_HOUR_SCAN_INTERVAL: int = 120  # 2 minutes in first hour (9:30-10:30 AM)
+    MOMENTUM_MIN_SCORE: float = 60.0  # Minimum momentum score to consider
+    MOMENTUM_HIGH_CONFIDENCE_THRESHOLD: float = 85.0  # Score for high-confidence alerts
+    
+    # Confidence-Based Position Sizing Tiers
+    CONFIDENCE_TIER_ULTRA_HIGH: float = 90.0  # 15% max position
+    CONFIDENCE_TIER_HIGH: float = 80.0  # 12% max position
+    CONFIDENCE_TIER_MEDIUM: float = 70.0  # 10% max position
+    CONFIDENCE_TIER_LOW: float = 60.0  # 8% max position
     
     # Trading Mode Configuration
     long_only_mode: bool = False  # Allow both long and short positions
@@ -133,10 +147,10 @@ class Settings(BaseSettings):
     
     # Smart Order Executor Configuration (Industry-Standard Order Execution)
     USE_SMART_EXECUTOR: bool = True  # Enable smart order execution with slippage protection
-    SMART_EXECUTOR_MAX_SLIPPAGE_PCT: float = 0.001  # 0.10% max slippage
-    SMART_EXECUTOR_LIMIT_BUFFER_REGULAR: float = 0.0005  # 0.05% buffer for regular hours
-    SMART_EXECUTOR_LIMIT_BUFFER_EXTENDED: float = 0.0002  # 0.02% buffer for extended hours
-    SMART_EXECUTOR_FILL_TIMEOUT: int = 60  # 60 seconds to wait for fill
+    SMART_EXECUTOR_MAX_SLIPPAGE_PCT: float = 0.002  # 0.20% max slippage (increased for paper trading)
+    SMART_EXECUTOR_LIMIT_BUFFER_REGULAR: float = 0.001  # 0.10% buffer for regular hours
+    SMART_EXECUTOR_LIMIT_BUFFER_EXTENDED: float = 0.0005  # 0.05% buffer for extended hours
+    SMART_EXECUTOR_FILL_TIMEOUT: int = 120  # 120 seconds to wait for fill (increased for reliability)
     SMART_EXECUTOR_MIN_RR_RATIO: float = 2.0  # Minimum 1:2 risk/reward ratio
     SMART_EXECUTOR_ENABLE_EXTENDED_HOURS: bool = False  # Disable extended hours trading
 

@@ -30,105 +30,179 @@ class OpportunityScorer:
         """
         Score technical setup (0-40 points).
         
-        Simplified: Any reasonable technical setup gets good points.
+        MOMENTUM-FOCUSED: Rewards active momentum, not just trend existence.
         """
         score = 0.0
         
         try:
-            # EMA alignment (15 points) - much more permissive
-            ema_diff_pct = abs(features.get('ema_diff_pct', 0))
-            if ema_diff_pct > 0.05:  # Any trend at all
-                score += 15
-            else:
-                score += 10  # Even flat is okay
+            # EMA crossover recency (15 points) - REWARD FRESH CROSSOVERS
+            ema_diff_pct = features.get('ema_diff_pct', 0)
+            abs_diff = abs(ema_diff_pct)
             
-            # RSI position (10 points) - not oversold/overbought is good
+            # Fresh crossover (0.05-0.3%) = best for catching waves
+            if 0.05 <= abs_diff <= 0.3:
+                score += 15  # Perfect - just crossed, room to run
+            elif 0.3 < abs_diff <= 0.5:
+                score += 12  # Good - early in move
+            elif 0.5 < abs_diff <= 1.0:
+                score += 8   # Okay - mid-move
+            elif abs_diff > 1.0:
+                score += 4   # Late - might be extended
+            else:
+                score += 2   # No trend
+            
+            # RSI momentum zone (10 points) - REWARD MOMENTUM, NOT EXTREMES
             rsi = features.get('rsi', 50)
-            if 25 <= rsi <= 75:  # Reasonable range
-                score += 10
-            elif 20 <= rsi <= 80:
-                score += 7
+            # Best zones: 40-60 (room to move) or 30-40/60-70 (momentum building)
+            if 45 <= rsi <= 55:
+                score += 10  # Perfect neutral - can go either way
+            elif 35 <= rsi <= 45 or 55 <= rsi <= 65:
+                score += 8   # Good momentum zone
+            elif 30 <= rsi <= 35 or 65 <= rsi <= 70:
+                score += 6   # Momentum building
+            elif rsi < 30 or rsi > 70:
+                score += 3   # Oversold/overbought - risky
             else:
-                score += 5  # Even extreme RSI can work
+                score += 5
             
-            # MACD strength (10 points) - any signal is good
-            macd_histogram = abs(features.get('macd_histogram', 0))
-            if macd_histogram > 0.01:  # Any momentum
-                score += 10
+            # MACD histogram strength (10 points) - REWARD GROWING MOMENTUM
+            macd_histogram = features.get('macd_histogram', 0)
+            macd_signal = features.get('macd_signal', 0)
+            
+            # Check if histogram is growing (momentum increasing)
+            if abs(macd_histogram) > abs(macd_signal) * 0.5:
+                score += 10  # Strong momentum
+            elif abs(macd_histogram) > 0.1:
+                score += 7   # Decent momentum
             else:
-                score += 7  # Even no momentum is tradeable
+                score += 3   # Weak momentum
             
-            # VWAP position (5 points) - always give points
-            score += 5  # VWAP is informational, not restrictive
+            # VWAP position (5 points) - REWARD PRICE NEAR VWAP (good entry)
+            vwap = features.get('vwap', 0)
+            price = features.get('price', 0)
+            if vwap > 0 and price > 0:
+                vwap_dist = abs(price - vwap) / vwap * 100
+                if vwap_dist < 0.5:
+                    score += 5  # Very close to VWAP - great entry
+                elif vwap_dist < 1.0:
+                    score += 3  # Near VWAP
+                else:
+                    score += 1  # Far from VWAP
+            else:
+                score += 2
             
             return min(score, 40.0)
             
         except Exception as e:
             logger.error(f"Error scoring technical setup: {e}")
-            return 20.0  # Default to decent score on error
+            return 15.0  # Default to lower score on error
     
     @staticmethod
     def score_momentum(features: Dict) -> float:
         """
         Score momentum (0-25 points).
         
-        Simplified: Any momentum is tradeable.
+        WAVE-RIDING FOCUS: Rewards ACTIVE momentum, not just trend existence.
         """
         score = 0.0
         
         try:
-            # ADX strength (10 points) - much more permissive
+            # ADX strength (10 points) - REWARD STRONG TRENDS
             adx = features.get('adx', 0)
-            if adx > 15:  # Any trend
-                score += 10
+            if adx > 40:
+                score += 10  # Very strong trend - ride the wave!
+            elif adx > 30:
+                score += 8   # Strong trend
+            elif adx > 25:
+                score += 6   # Moderate trend
+            elif adx > 20:
+                score += 4   # Weak trend
             else:
-                score += 7  # Even weak trends work
+                score += 1   # No trend - avoid
             
-            # Directional movement (10 points) - any direction is fine
+            # Directional movement SPREAD (10 points) - REWARD CLEAR DIRECTION
             plus_di = features.get('plus_di', 0)
             minus_di = features.get('minus_di', 0)
-            if plus_di > 0 or minus_di > 0:  # Any directional movement
-                score += 10
-            else:
-                score += 7
+            di_spread = abs(plus_di - minus_di)
             
-            # Price momentum (5 points) - always give points
-            score += 5  # Momentum can change quickly
+            if di_spread > 20:
+                score += 10  # Very clear direction
+            elif di_spread > 15:
+                score += 8   # Clear direction
+            elif di_spread > 10:
+                score += 5   # Moderate direction
+            elif di_spread > 5:
+                score += 3   # Weak direction
+            else:
+                score += 1   # No clear direction
+            
+            # Price momentum (5 points) - REWARD RECENT PRICE MOVEMENT
+            price_change_pct = features.get('price_change_pct', 0)
+            if abs(price_change_pct) > 2.0:
+                score += 5   # Big move - momentum!
+            elif abs(price_change_pct) > 1.0:
+                score += 4   # Good move
+            elif abs(price_change_pct) > 0.5:
+                score += 2   # Small move
+            else:
+                score += 1   # No movement
             
             return min(score, 25.0)
             
         except Exception as e:
             logger.error(f"Error scoring momentum: {e}")
-            return 15.0  # Default to decent score
+            return 8.0  # Default to lower score
     
     @staticmethod
     def score_volume(features: Dict) -> float:
         """
         Score volume (0-20 points).
         
-        Simplified: Any volume is tradeable.
+        WAVE-RIDING FOCUS: High volume = institutional interest = bigger waves.
         """
         score = 0.0
         
         try:
-            # Volume ratio (10 points) - much more permissive
+            # Volume ratio (10 points) - REWARD HIGH VOLUME
             volume_ratio = features.get('volume_ratio', 1.0)
-            if volume_ratio > 0.5:  # Any reasonable volume
-                score += 10
+            if volume_ratio > 2.0:
+                score += 10  # Very high volume - big interest!
+            elif volume_ratio > 1.5:
+                score += 8   # High volume
+            elif volume_ratio > 1.0:
+                score += 6   # Above average
+            elif volume_ratio > 0.7:
+                score += 4   # Normal volume
+            elif volume_ratio > 0.5:
+                score += 2   # Low volume
             else:
-                score += 7  # Even low volume can work
+                score += 0   # Very low - avoid
             
-            # Volume spike (5 points) - always give points
-            score += 5  # Volume patterns are informational
+            # Volume spike detection (5 points) - REWARD VOLUME SURGES
+            # Volume surge indicates institutional activity
+            if volume_ratio > 1.5:
+                score += 5   # Volume surge!
+            elif volume_ratio > 1.2:
+                score += 3   # Elevated volume
+            else:
+                score += 1   # Normal
             
-            # OBV direction (5 points) - always give points
-            score += 5  # OBV is just one indicator
+            # OBV direction (5 points) - REWARD VOLUME CONFIRMING PRICE
+            obv_trend = features.get('obv_trend', 0)
+            price_trend = 1 if features.get('ema_diff_pct', 0) > 0 else -1
+            
+            if obv_trend * price_trend > 0:
+                score += 5   # Volume confirms price direction
+            elif obv_trend == 0:
+                score += 2   # Neutral
+            else:
+                score += 0   # Divergence - caution
             
             return min(score, 20.0)
             
         except Exception as e:
             logger.error(f"Error scoring volume: {e}")
-            return 15.0  # Default to decent score
+            return 5.0  # Default to lower score
     
     @staticmethod
     def score_volatility(features: Dict) -> float:

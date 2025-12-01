@@ -16,6 +16,17 @@ from scanner.opportunity_scanner import OpportunityScanner
 from config import settings
 from utils.logger import setup_logger
 
+# Momentum Wave Rider imports
+try:
+    from scanner.momentum_scanner import MomentumScanner
+    from scanner.momentum_scorer import MomentumScorer
+    from utils.confidence_sizer import ConfidenceBasedSizer
+    from trading.wave_entry import WaveEntryEngine
+    MOMENTUM_SCANNER_AVAILABLE = True
+except ImportError as e:
+    MOMENTUM_SCANNER_AVAILABLE = False
+    logger.warning(f"Momentum scanner not available: {e}")
+
 logger = setup_logger(__name__)
 
 
@@ -117,6 +128,34 @@ class TradingEngine:
         # Pass regime manager to position manager (Sprint 2)
         if hasattr(self.position_manager, 'set_regime_manager'):
             self.position_manager.set_regime_manager(self.regime_manager)
+        
+        # ==================== MOMENTUM WAVE RIDER SYSTEM ====================
+        # Initialize momentum scanner as alternative to AI discovery
+        self.use_momentum_scanner = getattr(settings, 'USE_MOMENTUM_SCANNER', False)
+        self.momentum_scan_interval = getattr(settings, 'MOMENTUM_SCAN_INTERVAL', 300)  # 5 min default
+        self.first_hour_scan_interval = getattr(settings, 'FIRST_HOUR_SCAN_INTERVAL', 120)  # 2 min in first hour
+        
+        self.momentum_scanner = None
+        self.momentum_scorer = None
+        self.confidence_sizer = None
+        self.wave_entry_engine = None
+        
+        if MOMENTUM_SCANNER_AVAILABLE and self.use_momentum_scanner:
+            try:
+                self.momentum_scanner = MomentumScanner(alpaca_client, market_data_manager)
+                self.momentum_scorer = MomentumScorer()
+                self.confidence_sizer = ConfidenceBasedSizer()
+                self.wave_entry_engine = WaveEntryEngine()
+                logger.info("✅ Momentum Wave Rider system initialized")
+                logger.info(f"   • Scan interval: {self.momentum_scan_interval}s (first hour: {self.first_hour_scan_interval}s)")
+                logger.info("   • Confidence-based position sizing enabled")
+                logger.info("   • Wave entry timing enabled")
+            except Exception as e:
+                logger.error(f"Failed to initialize momentum scanner: {e}")
+                self.use_momentum_scanner = False
+        elif self.use_momentum_scanner:
+            logger.warning("⚠️ Momentum scanner requested but not available - using AI discovery")
+            self.use_momentum_scanner = False
         self.daily_trade_count = 0
         self.symbol_trade_counts = {}  # {symbol: count}
         self.last_reset_date = None
@@ -178,6 +217,23 @@ class TradingEngine:
         if self.streaming_enabled:
             await self._start_streaming()
 
+        # CRITICAL: Run initial scan BEFORE any trading begins
+        # If momentum scanner is enabled, use it instead of AI discovery
+        if self.use_momentum_scanner and self.momentum_scanner:
+            logger.info("🌊 Running initial MOMENTUM scan BEFORE trading starts...")
+            try:
+                await self._run_momentum_scan()
+                logger.info(f"✅ Momentum watchlist ready: {len(self.watchlist)} symbols")
+            except Exception as e:
+                logger.warning(f"⚠️ Initial momentum scan failed: {e} - using static watchlist")
+        elif self.use_dynamic_watchlist:
+            logger.info("🔍 Running initial AI scan BEFORE trading starts...")
+            try:
+                await self._run_scanner_with_ai()
+                logger.info(f"✅ AI watchlist ready: {len(self.watchlist)} symbols - {', '.join(self.watchlist[:5])}...")
+            except Exception as e:
+                logger.warning(f"⚠️ Initial AI scan failed: {e} - using static watchlist")
+
         # Start all loops concurrently
         loops = [
             self.market_data_loop(),
@@ -187,10 +243,13 @@ class TradingEngine:
             self.regime_update_loop(),  # New regime update loop
         ]
         
-        # Add scanner loop if dynamic watchlist enabled
-        if self.use_dynamic_watchlist:
+        # Add scanner loop - momentum scanner takes priority over AI discovery
+        if self.use_momentum_scanner and self.momentum_scanner:
+            loops.append(self.momentum_scanner_loop())
+            logger.info("🌊 Momentum Wave Rider scanner loop started (replaces AI discovery)")
+        elif self.use_dynamic_watchlist:
             loops.append(self.scanner_loop())
-            logger.info("🔍 Dynamic watchlist enabled - scanner loop started")
+            logger.info("🔍 Dynamic watchlist enabled - AI scanner loop started (30-min refresh)")
         
         await asyncio.gather(*loops, return_exceptions=True)
     
@@ -785,6 +844,127 @@ class TradingEngine:
             except Exception as e:
                 logger.error(f"Error in scanner loop: {e}")
                 await asyncio.sleep(300)  # Wait 5 min on error
+    
+    async def momentum_scanner_loop(self):
+        """
+        Momentum Wave Rider scanner loop.
+        - Scans every 5 minutes during market hours
+        - Scans every 2 minutes in the first hour (9:30-10:30 AM ET)
+        - Alerts on high-confidence opportunities (score 85+)
+        
+        **Requirements: 1.5, 7.1, 7.2, 7.3, 7.4**
+        """
+        logger.info("🌊 Momentum scanner loop started")
+        
+        import pytz
+        ny_tz = pytz.timezone('America/New_York')
+        
+        while self.is_running:
+            try:
+                if not self.alpaca.is_market_open():
+                    logger.debug("Market closed, momentum scanner sleeping")
+                    await asyncio.sleep(60)
+                    continue
+                
+                # Determine scan interval based on time of day
+                now_ny = datetime.now(ny_tz)
+                
+                # First hour (9:30-10:30 AM) - scan more frequently
+                if now_ny.hour == 9 and now_ny.minute >= 30:
+                    scan_interval = self.first_hour_scan_interval
+                elif now_ny.hour == 10 and now_ny.minute < 30:
+                    scan_interval = self.first_hour_scan_interval
+                else:
+                    scan_interval = self.momentum_scan_interval
+                
+                # Run momentum scan
+                await self._run_momentum_scan()
+                
+                await asyncio.sleep(scan_interval)
+                
+            except Exception as e:
+                logger.error(f"Error in momentum scanner loop: {e}")
+                await asyncio.sleep(60)
+    
+    async def _run_momentum_scan(self):
+        """
+        Run momentum scanner and process results.
+        
+        **Requirements: 1.1, 1.2, 1.3, 1.4**
+        """
+        if not self.momentum_scanner:
+            return
+        
+        try:
+            logger.info("🌊 Running momentum wave scan...")
+            
+            # Scan for momentum waves
+            candidates = await self.momentum_scanner.scan_momentum_waves()
+            
+            if not candidates:
+                logger.debug("No momentum candidates found")
+                return
+            
+            # Score and filter candidates
+            scored_candidates = []
+            for candidate in candidates:
+                features = {
+                    'volume_ratio': candidate.get('volume_ratio', 1.0),
+                    'adx': candidate.get('adx', 0),
+                    'rsi': candidate.get('rsi', 50),
+                    'ema_diff': candidate.get('ema_diff', 0),
+                    'price': candidate.get('price', 0),
+                    'resistance': candidate.get('resistance', 0),
+                    'support': candidate.get('support', 0),
+                    'vwap_distance': candidate.get('vwap_distance', 0),
+                    'multi_tf_aligned': candidate.get('multi_tf_aligned', False)
+                }
+                
+                score = self.momentum_scorer.calculate_score(features)
+                candidate['momentum_score'] = score.total_score
+                candidate['score_breakdown'] = score
+                scored_candidates.append(candidate)
+            
+            # Sort by score
+            scored_candidates.sort(key=lambda x: x['momentum_score'], reverse=True)
+            
+            # Log top candidates
+            logger.info(f"🌊 Top Momentum Candidates ({len(scored_candidates)} found):")
+            for i, c in enumerate(scored_candidates[:5], 1):
+                alert = "🔥" if c['momentum_score'] >= 85 else "📈"
+                logger.info(
+                    f"  {alert} {i}. {c['symbol']}: Score {c['momentum_score']:.0f} | "
+                    f"Vol: {c.get('volume_ratio', 0):.1f}x | "
+                    f"ADX: {c.get('adx', 0):.0f} | "
+                    f"RSI: {c.get('rsi', 0):.0f}"
+                )
+                
+                # High-confidence alert (score 85+)
+                if c['momentum_score'] >= 85:
+                    logger.warning(
+                        f"🔥 HIGH CONFIDENCE ALERT: {c['symbol']} "
+                        f"Score {c['momentum_score']:.0f} - Consider immediate entry!"
+                    )
+            
+            # Update watchlist with top momentum candidates
+            if self.use_momentum_scanner:
+                top_symbols = [c['symbol'] for c in scored_candidates[:settings.max_positions]]
+                if top_symbols:
+                    old_watchlist = self.watchlist.copy()
+                    self.watchlist = top_symbols
+                    
+                    added = set(top_symbols) - set(old_watchlist)
+                    removed = set(old_watchlist) - set(top_symbols)
+                    
+                    if added or removed:
+                        logger.info(f"🌊 Momentum watchlist updated: {len(top_symbols)} symbols")
+                        if added:
+                            logger.info(f"  ➕ Added: {', '.join(sorted(added))}")
+                        if removed:
+                            logger.info(f"  ➖ Removed: {', '.join(sorted(removed))}")
+            
+        except Exception as e:
+            logger.error(f"Error in momentum scan: {e}", exc_info=True)
     
     async def _run_scanner_async(self):
         """Run AI-powered opportunity scan and update watchlist."""

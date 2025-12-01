@@ -36,6 +36,8 @@ class StopLossProtectionManager:
         self.alpaca = alpaca_client
         self.protected_positions = set()  # Track which positions we've protected
         self.last_check_time = {}  # Track last check time per symbol
+        self.recently_created = {}  # Track recently created stops to prevent loops
+        self.creation_cooldown = 30  # Seconds to wait before recreating stop for same symbol
         logger.info("✅ Stop Loss Protection Manager initialized")
     
     def verify_all_positions(self) -> Dict[str, str]:
@@ -95,6 +97,17 @@ class StopLossProtectionManager:
                         continue
                     
                     # No active stop - need to create one
+                    # BUT check if we recently created one (prevent loop)
+                    import time
+                    now = time.time()
+                    last_created = self.recently_created.get(symbol, 0)
+                    
+                    if now - last_created < self.creation_cooldown:
+                        # Recently created - skip to prevent loop
+                        logger.debug(f"⏳ {symbol} stop recently created ({int(now - last_created)}s ago), skipping...")
+                        results[symbol] = 'cooldown'
+                        continue
+                    
                     logger.warning(f"🚨 {symbol} has NO ACTIVE STOP LOSS - creating now...")
                     
                     # Create stop loss (will handle bracket recreation if needed)
@@ -103,6 +116,7 @@ class StopLossProtectionManager:
                     if success:
                         results[symbol] = 'created'
                         self.protected_positions.add(symbol)
+                        self.recently_created[symbol] = now  # Track creation time
                         logger.info(f"✅ Created stop loss for {symbol}")
                     else:
                         results[symbol] = 'failed'
@@ -136,19 +150,23 @@ class StopLossProtectionManager:
         Check if symbol has an active stop loss order.
         
         Returns:
-            (has_stop, stop_price) tuple
+            (has_stop, stop_price, order) tuple
         """
         for order in all_orders:
             if order.symbol != symbol:
                 continue
             
             # Check for stop or trailing_stop orders
-            if order.type.value not in ['stop', 'trailing_stop']:
+            order_type = order.type.value if hasattr(order.type, 'value') else str(order.type).lower()
+            if order_type not in ['stop', 'trailing_stop', 'stop_limit']:
                 continue
             
             # Must be in active status (not 'cancelled', 'filled')
             # CRITICAL: Include 'held' status for bracket order legs
-            if order.status.value not in ['new', 'accepted', 'pending_new', 'held']:
+            # Also include 'pending_cancel' as it's still technically active
+            order_status = order.status.value if hasattr(order.status, 'value') else str(order.status).lower()
+            active_statuses = ['new', 'accepted', 'pending_new', 'held', 'pending_cancel', 'pending_replace']
+            if order_status not in active_statuses:
                 continue
             
             # Found active stop loss
@@ -156,6 +174,7 @@ class StopLossProtectionManager:
             if hasattr(order, 'stop_price') and order.stop_price:
                 stop_price = float(order.stop_price)
             
+            logger.debug(f"✅ Found active stop for {symbol}: {order.id} @ ${stop_price} (status: {order_status})")
             return True, stop_price, order
         
         return False, None, None

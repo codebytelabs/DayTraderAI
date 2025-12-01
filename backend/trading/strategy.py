@@ -11,6 +11,14 @@ from utils.helpers import calculate_position_size, calculate_atr_stop, calculate
 from utils.dynamic_position_sizer import DynamicPositionSizer
 from utils.logger import setup_logger
 
+# Momentum Wave Rider imports
+try:
+    from utils.confidence_sizer import ConfidenceBasedSizer
+    from trading.wave_entry import WaveEntryEngine
+    MOMENTUM_SIZER_AVAILABLE = True
+except ImportError:
+    MOMENTUM_SIZER_AVAILABLE = False
+
 logger = setup_logger(__name__)
 
 
@@ -41,6 +49,20 @@ class EMAStrategy:
         # Adaptive thresholds
         self.adaptive_thresholds = AdaptiveThresholds()
         logger.info("✅ Adaptive thresholds initialized")
+        
+        # Momentum Wave Rider components
+        self.use_momentum_sizer = getattr(settings, 'USE_MOMENTUM_SCANNER', False)
+        self.confidence_sizer = None
+        self.wave_entry_engine = None
+        
+        if self.use_momentum_sizer and MOMENTUM_SIZER_AVAILABLE:
+            try:
+                self.confidence_sizer = ConfidenceBasedSizer()
+                self.wave_entry_engine = WaveEntryEngine()
+                logger.info("✅ Momentum Wave Rider position sizing enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize momentum sizer: {e}")
+                self.use_momentum_sizer = False
         
         # Initialize sentiment aggregator once (reuse for all checks)
         try:
@@ -599,13 +621,14 @@ class EMAStrategy:
             actual_stop_distance = abs(price - stop_price)
             
             # Use dynamic position sizer that considers all constraints
+            # Pass base max - the sizer will scale up based on confidence
             qty, sizing_reason = self.position_sizer.calculate_optimal_size(
                 symbol=symbol,
                 price=price,
                 stop_distance=actual_stop_distance,
                 confidence=confidence,
                 base_risk_pct=adjusted_risk_with_time,
-                max_position_pct=settings.max_position_pct,
+                max_position_pct=settings.max_position_pct,  # Base 10%, sizer scales to 15%
                 regime_data=regime_params
             )
             
@@ -615,21 +638,19 @@ class EMAStrategy:
                 logger.warning(f"Position size too small for {symbol}")
                 return False
             
-            # Cap position size at max position value AND available buying power
-            max_position_value = equity * settings.max_position_pct
-            position_value = qty * price
-            
-            # Final check: ensure we don't exceed max position size
-            max_position_value = equity * settings.max_position_pct
+            # Dynamic sizer already handles scaling - use scaled max for final cap
+            # This allows high-confidence trades to use up to 15% of equity
+            scaled_max_pct = getattr(settings, 'max_position_pct_scaled', 0.15)
+            max_position_value = equity * scaled_max_pct
             position_value = qty * price
             
             if position_value > max_position_value:
-                # Reduce quantity to fit within max position size
+                # Reduce quantity to fit within SCALED max position size
                 original_qty = qty
                 qty = int(max_position_value / price)
                 logger.warning(
                     f"Position size capped by equity limit: {original_qty} shares → {qty} shares "
-                    f"(${position_value:,.2f} → ${qty * price:,.2f}, max {settings.max_position_pct*100}% of equity)"
+                    f"(${position_value:,.2f} → ${qty * price:,.2f}, max {scaled_max_pct*100}% of equity)"
                 )
                 
                 if qty <= 0:

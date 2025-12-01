@@ -14,18 +14,18 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OrderConfig:
     """Configuration for smart order execution"""
-    max_slippage_pct: float = 0.001  # 0.10% max acceptable slippage
-    limit_buffer_regular: float = 0.0005  # 0.05% buffer for regular hours
-    limit_buffer_extended: float = 0.0002  # 0.02% buffer for extended hours
-    fill_timeout_seconds: int = 30  # Wait 30s for regular hours
-    fill_timeout_extended: int = 90  # Wait 90s for extended hours (slower fills)
+    max_slippage_pct: float = 0.005  # 0.50% max acceptable slippage (increased for reliability)
+    limit_buffer_regular: float = 0.001  # 0.10% buffer for regular hours (increased)
+    limit_buffer_extended: float = 0.0005  # 0.05% buffer for extended hours
+    fill_timeout_seconds: int = 120  # Wait 120s for regular hours (CRITICAL FIX)
+    fill_timeout_extended: int = 180  # Wait 180s for extended hours (slower fills)
     min_rr_ratio: float = 2.0  # Minimum 1:2 risk/reward
-    enable_extended_hours: bool = False  # Disable extended hours by default
+    enable_extended_hours: bool = True  # Enable extended hours trading
     
     # Fill detection configuration
-    fill_initial_poll_interval: float = 0.5  # Start checking every 0.5s
-    fill_max_poll_interval: float = 2.0  # Max 2s between checks
-    fill_max_retries: int = 3  # Retry API calls up to 3 times
+    fill_initial_poll_interval: float = 0.3  # Start checking every 0.3s (faster)
+    fill_max_poll_interval: float = 1.5  # Max 1.5s between checks
+    fill_max_retries: int = 5  # Retry API calls up to 5 times
     fill_enable_final_verification: bool = True  # Always do final check
     fill_enable_multi_method: bool = True  # Use all 4 verification methods
 
@@ -149,23 +149,38 @@ class SmartOrderExecutor:
                 filled_price = final_price
             else:
                 logger.warning(f"⚠️  Order {order_id} not filled within {timeout}s, attempting cancel...")
-                cancel_result = self._cancel_order(order_id)
-                
-                # ALWAYS do a final fill check after cancel attempt
-                # This catches the race condition where order fills during cancel
                 import time
-                time.sleep(0.5)  # Brief wait for order status to update
-                final_price = self._final_fill_check(order_id)
-                if final_price:
-                    logger.info(f"✅ Order filled (detected after cancel attempt) @ ${final_price:.2f}")
-                    filled_price = final_price
-                elif not cancel_result:
-                    # Cancel failed - try one more time
-                    time.sleep(0.3)
+                
+                # Try to cancel - but watch for "already filled" error
+                cancel_result, cancel_error = self._cancel_order_with_error(order_id)
+                
+                if cancel_error and 'filled' in cancel_error.lower():
+                    # CRITICAL: Cancel failed because order was ALREADY FILLED!
+                    logger.info(f"🎉 CANCEL RACE DETECTED! Order {order_id} was already filled")
+                    time.sleep(0.3)  # Brief wait for status to update
                     final_price = self._final_fill_check(order_id)
                     if final_price:
-                        logger.info(f"✅ Order filled (final retry) @ ${final_price:.2f}")
+                        logger.info(f"✅ Order filled (race condition detected) @ ${final_price:.2f}")
                         filled_price = final_price
+                    else:
+                        # Even if we can't get the price, the order IS filled
+                        # Use the limit price as fallback
+                        logger.warning(f"⚠️  Order filled but couldn't get fill price, using signal price")
+                        filled_price = signal_price
+                else:
+                    # ALWAYS do a final fill check after cancel attempt
+                    time.sleep(0.5)  # Brief wait for order status to update
+                    final_price = self._final_fill_check(order_id)
+                    if final_price:
+                        logger.info(f"✅ Order filled (detected after cancel attempt) @ ${final_price:.2f}")
+                        filled_price = final_price
+                    elif not cancel_result:
+                        # Cancel failed for other reason - try one more time
+                        time.sleep(0.3)
+                        final_price = self._final_fill_check(order_id)
+                        if final_price:
+                            logger.info(f"✅ Order filled (final retry) @ ${final_price:.2f}")
+                            filled_price = final_price
                 
                 if filled_price is None:
                     return OrderResult(success=False, reason="Fill timeout")
@@ -444,18 +459,27 @@ class SmartOrderExecutor:
         Cancel pending order.
         Returns True if cancelled, False if failed or already filled.
         """
+        success, _ = self._cancel_order_with_error(order_id)
+        return success
+    
+    def _cancel_order_with_error(self, order_id: str) -> tuple:
+        """
+        Cancel pending order and return error message if any.
+        Returns (success: bool, error_message: str or None)
+        """
         logger.info(f"Canceling order: {order_id}")
         try:
             result = self.alpaca.cancel_order(order_id)
-            return result if result is not None else True
+            return (result if result is not None else True, None)
         except Exception as e:
-            error_str = str(e).lower()
+            error_str = str(e)
+            error_lower = error_str.lower()
             # Check if order was already filled (not a real error)
-            if 'filled' in error_str or 'already' in error_str:
+            if 'filled' in error_lower or 'already' in error_lower:
                 logger.info(f"Order {order_id} already filled (cancel not needed)")
-                return False  # Return False to trigger final fill check
+                return (False, error_str)  # Return error so caller can detect race
             logger.error(f"Failed to cancel order: {e}")
-            return False
+            return (False, error_str)
     
     def _close_position(self, symbol: str, quantity: int, original_side: str) -> bool:
         """Close position immediately (opposite side)"""

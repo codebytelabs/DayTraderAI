@@ -2,6 +2,7 @@
 
 Scans the stock universe, calculates scores, and maintains a dynamic watchlist.
 NOW WITH AI-POWERED DISCOVERY using Perplexity!
+ALSO SUPPORTS: Momentum Wave Rider scanner as alternative to AI.
 """
 
 import asyncio
@@ -12,21 +13,45 @@ from data.features import FeatureEngine
 from scanner.stock_universe import StockUniverse
 from scanner.opportunity_scorer import OpportunityScorer
 from scanner.ai_opportunity_finder import get_ai_opportunity_finder
+from config import settings
 from utils.logger import setup_logger
+
+# Momentum Wave Rider imports
+try:
+    from scanner.momentum_scanner import MomentumScanner
+    from scanner.momentum_scorer import MomentumScorer
+    MOMENTUM_AVAILABLE = True
+except ImportError:
+    MOMENTUM_AVAILABLE = False
 
 logger = setup_logger(__name__)
 
 
 class OpportunityScanner:
-    """Scan stocks and find best trading opportunities using AI."""
+    """Scan stocks and find best trading opportunities using AI or Momentum Scanner."""
     
-    def __init__(self, market_data_manager: MarketDataManager, use_ai: bool = True, sentiment_analyzer=None):
+    def __init__(self, market_data_manager: MarketDataManager, use_ai: bool = True, 
+                 sentiment_analyzer=None, alpaca_client=None):
         self.market_data = market_data_manager
         self.scorer = OpportunityScorer(sentiment_analyzer=sentiment_analyzer)
         self.universe = StockUniverse()
         self.ai_finder = get_ai_opportunity_finder() if use_ai else None
         self.use_ai = use_ai
         self.sentiment_analyzer = sentiment_analyzer
+        
+        # Momentum Wave Rider scanner (alternative to AI)
+        self.use_momentum_scanner = getattr(settings, 'USE_MOMENTUM_SCANNER', False)
+        self.momentum_scanner = None
+        self.momentum_scorer = None
+        
+        if self.use_momentum_scanner and MOMENTUM_AVAILABLE and alpaca_client:
+            try:
+                self.momentum_scanner = MomentumScanner(alpaca_client, market_data_manager)
+                self.momentum_scorer = MomentumScorer()
+                logger.info("✅ Momentum Wave Rider scanner initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize momentum scanner: {e}")
+                self.use_momentum_scanner = False
         
         # Daily cache for enhanced scoring
         try:
@@ -42,7 +67,7 @@ class OpportunityScanner:
         self.last_scan_results = []
         self.scan_interval = timedelta(hours=1)  # Scan every hour
         
-        mode = "AI-powered" if use_ai else "traditional"
+        mode = "Momentum" if self.use_momentum_scanner else ("AI-powered" if use_ai else "traditional")
         enhanced = " + daily data" if self.daily_cache else ""
         logger.info(f"OpportunityScanner initialized ({mode} mode{enhanced})")
     
@@ -497,84 +522,74 @@ class OpportunityScanner:
             if not daily_data:
                 return bonus
             
-            # Bonus 1: Price vs 200-EMA (0-15 points) - DIRECTION AWARE
+            # Bonus 1: Price vs 200-EMA (0-8 points) - REDUCED to not dominate score
+            # Being in an uptrend is good but shouldn't be the main factor
             ema_200 = daily_data.get('ema_200', 0)
             if ema_200 > 0:
                 distance_pct = ((current_price - ema_200) / ema_200) * 100
                 
                 if signal == 'long':
-                    # LONG: Reward uptrends (above 200-EMA)
-                    if distance_pct > 15:  # >15% above
-                        bonus['ema_200_bonus'] = 15
-                        bonus['details'].append(f"Strong uptrend: {distance_pct:.1f}% above 200-EMA")
-                    elif distance_pct > 10:  # >10% above
-                        bonus['ema_200_bonus'] = 12
-                        bonus['details'].append(f"Good uptrend: {distance_pct:.1f}% above 200-EMA")
-                    elif distance_pct > 5:  # >5% above
-                        bonus['ema_200_bonus'] = 8
-                        bonus['details'].append(f"Moderate uptrend: {distance_pct:.1f}% above 200-EMA")
-                    elif distance_pct > 0:  # Above EMA
+                    # LONG: Small bonus for uptrends
+                    if distance_pct > 15:  # >15% above - might be extended
                         bonus['ema_200_bonus'] = 5
+                        bonus['details'].append(f"Extended uptrend: {distance_pct:.1f}% above 200-EMA")
+                    elif distance_pct > 5:  # >5% above - healthy trend
+                        bonus['ema_200_bonus'] = 8
+                        bonus['details'].append(f"Healthy uptrend: {distance_pct:.1f}% above 200-EMA")
+                    elif distance_pct > 0:  # Just above EMA - good entry
+                        bonus['ema_200_bonus'] = 6
                         bonus['details'].append(f"Above 200-EMA: {distance_pct:.1f}%")
                 
                 elif signal == 'short':
-                    # SHORT: Reward downtrends (below 200-EMA)
-                    if distance_pct < -15:  # >15% below
-                        bonus['ema_200_bonus'] = 15
-                        bonus['details'].append(f"Strong downtrend: {abs(distance_pct):.1f}% below 200-EMA")
-                    elif distance_pct < -10:  # >10% below
-                        bonus['ema_200_bonus'] = 12
-                        bonus['details'].append(f"Good downtrend: {abs(distance_pct):.1f}% below 200-EMA")
-                    elif distance_pct < -5:  # >5% below
-                        bonus['ema_200_bonus'] = 8
-                        bonus['details'].append(f"Moderate downtrend: {abs(distance_pct):.1f}% below 200-EMA")
-                    elif distance_pct < 0:  # Below EMA
+                    # SHORT: Small bonus for downtrends
+                    if distance_pct < -15:  # >15% below - might be oversold
                         bonus['ema_200_bonus'] = 5
+                        bonus['details'].append(f"Extended downtrend: {abs(distance_pct):.1f}% below 200-EMA")
+                    elif distance_pct < -5:  # >5% below - healthy downtrend
+                        bonus['ema_200_bonus'] = 8
+                        bonus['details'].append(f"Healthy downtrend: {abs(distance_pct):.1f}% below 200-EMA")
+                    elif distance_pct < 0:  # Just below EMA
+                        bonus['ema_200_bonus'] = 6
                         bonus['details'].append(f"Below 200-EMA: {abs(distance_pct):.1f}%")
             
-            # Bonus 2: Daily trend (0-15 points) - DIRECTION AWARE
+            # Bonus 2: Daily trend (0-8 points) - REDUCED to not dominate score
             trend = daily_data.get('trend', 'neutral')
             ema_9 = daily_data.get('ema_9', 0)
             ema_21 = daily_data.get('ema_21', 0)
             
             if signal == 'long' and trend == 'bullish':
-                # LONG: Reward bullish trend
+                # LONG: Small bonus for bullish trend
                 if ema_9 > 0 and ema_21 > 0:
                     trend_strength = ((ema_9 - ema_21) / ema_21) * 100
                     
-                    if trend_strength > 5:  # Strong bullish
-                        bonus['daily_trend_bonus'] = 15
+                    if trend_strength > 3:  # Strong bullish
+                        bonus['daily_trend_bonus'] = 8
                         bonus['details'].append(f"Strong bullish trend: {trend_strength:.1f}%")
-                    elif trend_strength > 2:  # Moderate bullish
-                        bonus['daily_trend_bonus'] = 10
+                    elif trend_strength > 1:  # Moderate bullish
+                        bonus['daily_trend_bonus'] = 5
                         bonus['details'].append(f"Bullish trend: {trend_strength:.1f}%")
                     else:  # Weak bullish
-                        bonus['daily_trend_bonus'] = 5
+                        bonus['daily_trend_bonus'] = 3
                         bonus['details'].append("Weak bullish trend")
             
             elif signal == 'short' and trend == 'bearish':
-                # SHORT: Reward bearish trend
+                # SHORT: Small bonus for bearish trend
                 if ema_9 > 0 and ema_21 > 0:
-                    trend_strength = ((ema_21 - ema_9) / ema_9) * 100  # Inverted for bearish
+                    trend_strength = ((ema_21 - ema_9) / ema_9) * 100
                     
-                    if trend_strength > 5:  # Strong bearish
-                        bonus['daily_trend_bonus'] = 15
+                    if trend_strength > 3:  # Strong bearish
+                        bonus['daily_trend_bonus'] = 8
                         bonus['details'].append(f"Strong bearish trend: {trend_strength:.1f}%")
-                    elif trend_strength > 2:  # Moderate bearish
-                        bonus['daily_trend_bonus'] = 10
+                    elif trend_strength > 1:  # Moderate bearish
+                        bonus['daily_trend_bonus'] = 5
                         bonus['details'].append(f"Bearish trend: {trend_strength:.1f}%")
                     else:  # Weak bearish
-                        bonus['daily_trend_bonus'] = 5
+                        bonus['daily_trend_bonus'] = 3
                         bonus['details'].append("Weak bearish trend")
             
-            # Bonus 3: Trend strength (0-10 points) - Works for both LONG and SHORT
-            # Combination of both factors
-            if bonus['ema_200_bonus'] > 10 and bonus['daily_trend_bonus'] > 10:
-                bonus['trend_strength_bonus'] = 10
-                direction = "bullish" if signal == 'long' else "bearish"
-                bonus['details'].append(f"Excellent {direction} alignment")
-            elif bonus['ema_200_bonus'] > 5 and bonus['daily_trend_bonus'] > 5:
-                bonus['trend_strength_bonus'] = 5
+            # Bonus 3: Trend alignment (0-4 points) - REDUCED
+            if bonus['ema_200_bonus'] >= 6 and bonus['daily_trend_bonus'] >= 5:
+                bonus['trend_strength_bonus'] = 4
                 direction = "bullish" if signal == 'long' else "bearish"
                 bonus['details'].append(f"Good {direction} alignment")
             

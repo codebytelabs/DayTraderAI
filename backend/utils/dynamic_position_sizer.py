@@ -39,13 +39,15 @@ class DynamicPositionSizer:
         """
         Calculate optimal position size considering all constraints.
         
+        Dynamic scaling: Base 10% → up to 15% for high-confidence uptrends
+        
         Args:
             symbol: Stock symbol
             price: Entry price
             stop_distance: Actual stop distance in dollars (e.g., |entry - stop|)
             confidence: Signal confidence (0-100)
             base_risk_pct: Base risk percentage of equity
-            max_position_pct: Maximum position size as % of equity
+            max_position_pct: Maximum position size as % of equity (base)
             regime_data: Optional regime data dictionary
             momentum_strength: Optional momentum strength (0-1) for momentum-confirmed sizing
         
@@ -53,6 +55,8 @@ class DynamicPositionSizer:
             (quantity, reasoning)
         """
         try:
+            from config import settings
+            
             account = self.alpaca.get_account()
             equity = float(account.equity)
             cash = float(account.cash)
@@ -63,16 +67,12 @@ class DynamicPositionSizer:
             if account.pattern_day_trader and daytrading_bp > 0:
                 available_bp = daytrading_bp
             else:
-                # Fallback: use cash or regular buying power (whichever is higher)
-                # This handles cases where daytrading_buying_power is 0 or account is not PDT
                 available_bp = max(cash, regular_bp)
             
             logger.info(f"Account status for {symbol}: Equity=${equity:,.0f}, Cash=${cash:,.0f}, RegularBP=${regular_bp:,.0f}, DayTradingBP=${daytrading_bp:,.0f}, PDT={account.pattern_day_trader}")
             logger.info(f"  Using BP: ${available_bp:,.0f}")
             
             # 1. Calculate base position size from risk using ACTUAL stop distance
-            # NOTE: base_risk_pct is already adjusted for confidence in strategy.py
-            # Do NOT apply confidence scaling again here!
             risk_amount = equity * base_risk_pct
             
             # Apply momentum-confirmed multiplier if available
@@ -97,8 +97,45 @@ class DynamicPositionSizer:
             bp_buffer = 0.8
             max_bp_qty = int((available_bp * bp_buffer) / price)
             
-            # 3. Calculate equity constraint
-            max_equity_value = equity * max_position_pct
+            # 3. DYNAMIC POSITION SIZE SCALING based on confidence + trend
+            # Base: 10% (max_position_pct from config)
+            # Scaled: up to 15% for high-confidence uptrends
+            base_max_pct = settings.max_position_pct  # 10%
+            scaled_max_pct = getattr(settings, 'max_position_pct_scaled', 0.15)  # 15%
+            
+            # Calculate dynamic max based on confidence and regime
+            # Confidence 70-79: Base (10%)
+            # Confidence 80-84: +2% (12%)
+            # Confidence 85-89: +3% (13%)
+            # Confidence 90+: +5% (15%)
+            # Bullish regime adds extra +2%
+            
+            dynamic_max_pct = base_max_pct
+            scaling_reason = "base"
+            
+            if confidence >= 90:
+                dynamic_max_pct = base_max_pct + 0.05  # +5%
+                scaling_reason = "exceptional confidence (90%+)"
+            elif confidence >= 85:
+                dynamic_max_pct = base_max_pct + 0.03  # +3%
+                scaling_reason = "excellent confidence (85%+)"
+            elif confidence >= 80:
+                dynamic_max_pct = base_max_pct + 0.02  # +2%
+                scaling_reason = "high confidence (80%+)"
+            
+            # Bullish regime bonus
+            if regime_data:
+                regime_name = regime_data.get('regime', '').lower()
+                if 'bull' in regime_name or regime_data.get('position_size_mult', 1.0) > 1.0:
+                    dynamic_max_pct += 0.02  # +2% for bullish regime
+                    scaling_reason += " + bullish regime"
+            
+            # Cap at scaled max (15%)
+            dynamic_max_pct = min(dynamic_max_pct, scaled_max_pct)
+            
+            logger.info(f"📊 Dynamic sizing for {symbol}: {dynamic_max_pct*100:.0f}% max ({scaling_reason})")
+            
+            max_equity_value = equity * dynamic_max_pct
             max_equity_qty = int(max_equity_value / price)
             
             # 4. Take the minimum of all constraints
@@ -127,7 +164,8 @@ class DynamicPositionSizer:
             # 6. Generate reasoning
             reasoning = self._generate_reasoning(
                 symbol, price, final_qty, limiting_factor, 
-                available_bp, equity, confidence, constraints, regime_data
+                available_bp, equity, confidence, constraints, regime_data,
+                dynamic_max_pct
             )
             
             return final_qty, reasoning
@@ -139,16 +177,18 @@ class DynamicPositionSizer:
     def _generate_reasoning(
         self, symbol: str, price: float, qty: int, limiting_factor: str,
         available_bp: float, equity: float, confidence: float, constraints: dict,
-        regime_data: Optional[Dict[str, Any]] = None
+        regime_data: Optional[Dict[str, Any]] = None,
+        dynamic_max_pct: float = 0.10
     ) -> str:
         """Generate human-readable reasoning for position size."""
         
         position_value = qty * price
+        equity_pct = (position_value / equity) * 100 if equity > 0 else 0
         
         reasoning = [
-            f"Position: {qty} shares × ${price:.2f} = ${position_value:,.0f}",
+            f"Position: {qty} shares × ${price:.2f} = ${position_value:,.0f} ({equity_pct:.1f}% of equity)",
             f"Confidence: {confidence:.0f}%",
-            f"Available BP: ${available_bp:,.0f}",
+            f"Max allowed: {dynamic_max_pct*100:.0f}%",
             f"Limited by: {limiting_factor}"
         ]
         
@@ -156,9 +196,6 @@ class DynamicPositionSizer:
         if limiting_factor == 'buying_power':
             bp_usage = (position_value / available_bp) * 100
             reasoning.append(f"BP usage: {bp_usage:.1f}%")
-        elif limiting_factor == 'equity':
-            equity_usage = (position_value / equity) * 100
-            reasoning.append(f"Equity usage: {equity_usage:.1f}%")
         elif limiting_factor == 'risk':
             reasoning.append(f"Risk-based sizing")
             
@@ -167,9 +204,9 @@ class DynamicPositionSizer:
             size_mult = regime_data.get('position_size_mult', 1.0)
             momentum_str = regime_data.get('momentum_strength')
             if momentum_str is not None:
-                reasoning.append(f"Regime: {regime_name} ({size_mult:.2f}x, momentum={momentum_str:.2f})")
+                reasoning.append(f"Regime: {regime_name} ({size_mult:.2f}x)")
             else:
-                reasoning.append(f"Regime: {regime_name} ({size_mult}x)")
+                reasoning.append(f"Regime: {regime_name}")
         
         return " | ".join(reasoning)
     
