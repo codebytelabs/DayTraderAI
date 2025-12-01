@@ -148,13 +148,23 @@ class SmartOrderExecutor:
                 logger.info(f"✅ Final check found fill @ ${final_price:.2f}")
                 filled_price = final_price
             else:
-                logger.warning(f"⚠️  Order {order_id} not filled within {timeout}s, canceling")
+                logger.warning(f"⚠️  Order {order_id} not filled within {timeout}s, attempting cancel...")
                 cancel_result = self._cancel_order(order_id)
-                # Check if cancel failed because order was already filled
-                if not cancel_result:
+                
+                # ALWAYS do a final fill check after cancel attempt
+                # This catches the race condition where order fills during cancel
+                import time
+                time.sleep(0.5)  # Brief wait for order status to update
+                final_price = self._final_fill_check(order_id)
+                if final_price:
+                    logger.info(f"✅ Order filled (detected after cancel attempt) @ ${final_price:.2f}")
+                    filled_price = final_price
+                elif not cancel_result:
+                    # Cancel failed - try one more time
+                    time.sleep(0.3)
                     final_price = self._final_fill_check(order_id)
                     if final_price:
-                        logger.info(f"✅ Order filled during cancel attempt @ ${final_price:.2f}")
+                        logger.info(f"✅ Order filled (final retry) @ ${final_price:.2f}")
                         filled_price = final_price
                 
                 if filled_price is None:
@@ -286,20 +296,48 @@ class SmartOrderExecutor:
         """
         Final direct check of order status before giving up.
         This catches fills that happened but weren't detected by the monitoring loop.
+        CRITICAL: This is the last line of defense against missed fills.
         """
         try:
             order = self.alpaca.get_order(order_id)
-            if order and hasattr(order, 'status'):
-                status = str(order.status).lower()
-                if 'filled' in status or status == 'fill':
-                    # Order was filled!
-                    if hasattr(order, 'filled_avg_price') and order.filled_avg_price:
-                        return float(order.filled_avg_price)
-                    elif hasattr(order, 'limit_price') and order.limit_price:
-                        return float(order.limit_price)
+            if not order:
+                logger.warning(f"Final fill check: Could not fetch order {order_id}")
+                return None
+            
+            # Log the raw status for debugging
+            raw_status = getattr(order, 'status', 'unknown')
+            logger.info(f"Final fill check for {order_id}: status={raw_status}")
+            
+            # Check status - handle all variations
+            status = str(raw_status).lower()
+            filled_indicators = ['filled', 'fill', 'executed', 'complete']
+            
+            if any(indicator in status for indicator in filled_indicators):
+                # Order was filled! Get the fill price
+                fill_price = None
+                
+                # Try filled_avg_price first (most accurate)
+                if hasattr(order, 'filled_avg_price') and order.filled_avg_price:
+                    fill_price = float(order.filled_avg_price)
+                    logger.info(f"Final fill check: Found fill @ ${fill_price:.2f} (filled_avg_price)")
+                # Fallback to limit_price
+                elif hasattr(order, 'limit_price') and order.limit_price:
+                    fill_price = float(order.limit_price)
+                    logger.info(f"Final fill check: Found fill @ ${fill_price:.2f} (limit_price)")
+                # Last resort - try to get any price
+                elif hasattr(order, 'filled_qty') and float(order.filled_qty or 0) > 0:
+                    # Order has filled quantity, use limit price as estimate
+                    if hasattr(order, 'limit_price') and order.limit_price:
+                        fill_price = float(order.limit_price)
+                        logger.info(f"Final fill check: Found fill @ ${fill_price:.2f} (estimated from limit)")
+                
+                return fill_price
+            
+            logger.info(f"Final fill check: Order {order_id} not filled (status: {status})")
             return None
+            
         except Exception as e:
-            logger.warning(f"Final fill check failed: {e}")
+            logger.warning(f"Final fill check failed for {order_id}: {e}")
             return None
 
     
@@ -402,11 +440,20 @@ class SmartOrderExecutor:
         return stop_loss, take_profit
     
     def _cancel_order(self, order_id: str) -> bool:
-        """Cancel pending order"""
+        """
+        Cancel pending order.
+        Returns True if cancelled, False if failed or already filled.
+        """
         logger.info(f"Canceling order: {order_id}")
         try:
-            return self.alpaca.cancel_order(order_id)
+            result = self.alpaca.cancel_order(order_id)
+            return result if result is not None else True
         except Exception as e:
+            error_str = str(e).lower()
+            # Check if order was already filled (not a real error)
+            if 'filled' in error_str or 'already' in error_str:
+                logger.info(f"Order {order_id} already filled (cancel not needed)")
+                return False  # Return False to trigger final fill check
             logger.error(f"Failed to cancel order: {e}")
             return False
     
