@@ -135,19 +135,24 @@ class AIOpportunityFinder:
             primary_failed = False
             
             # OPPORTUNITY DISCOVERY ALWAYS USES PERPLEXITY (real-time web search)
-            # Primary: Native Perplexity API (sonar-pro)
-            # Fallback: Perplexity via OpenRouter (perplexity/sonar-pro)
+            # Primary: Perplexity via OpenRouter (perplexity/sonar-pro)
+            # Fallback: Native Perplexity API (sonar-pro)
             #
             # NOTE: OpenRouter's Grok/GPT models do NOT have real-time data access
             # Only Perplexity has web search capability for finding current catalysts
             
-            # PRIMARY: Native Perplexity API
+            # PRIMARY: Perplexity via OpenRouter
             try:
-                logger.info("🤖 AI discovering trading opportunities using PERPLEXITY...")
-                result = await self.perplexity.search(query)
+                from advisory.openrouter_client import OpenRouterClient
+                perplexity_model = getattr(settings, 'openrouter_perplexity_model', 'perplexity/sonar-pro')
+                logger.info(f"🤖 AI discovering opportunities using OPENROUTER ({perplexity_model})...")
+                openrouter_perplexity = OpenRouterClient()
+                # Override model for this request to use Perplexity's sonar-pro
+                openrouter_perplexity.model = perplexity_model
+                result = await openrouter_perplexity.search(query)
                     
                 if not result or not result.get('content'):
-                    logger.warning("Native Perplexity returned no content")
+                    logger.warning("OpenRouter Perplexity returned no content")
                     primary_failed = True
                 else:
                     # Check if Perplexity returned a "can't help" response
@@ -162,34 +167,42 @@ class AIOpportunityFinder:
                         "no real-time",
                     ]
                     if any(indicator in content_lower for indicator in cant_help_indicators):
-                        logger.warning("⚠️ Perplexity returned a 'can't help' response - trying fallback")
+                        logger.warning("⚠️ OpenRouter Perplexity returned a 'can't help' response - trying native fallback")
                         primary_failed = True
                     
             except Exception as e:
-                logger.error(f"Native Perplexity failed: {e}")
+                logger.error(f"OpenRouter Perplexity failed: {e}")
                 primary_failed = True
             
-            # FALLBACK: Perplexity via OpenRouter
+            # FALLBACK: Native Perplexity API
             if primary_failed:
-                logger.info("🔄 Attempting fallback via PERPLEXITY on OPENROUTER...")
+                logger.info("🔄 Attempting fallback via NATIVE PERPLEXITY API...")
                 try:
-                    # Use Perplexity model via OpenRouter (has web search)
-                    from advisory.openrouter_client import OpenRouterClient
-                    perplexity_model = getattr(settings, 'openrouter_perplexity_model', 'perplexity/sonar-pro')
-                    openrouter_perplexity = OpenRouterClient()
-                    # Override model for this request to use Perplexity's sonar-pro
-                    openrouter_perplexity.model = perplexity_model
-                    logger.info(f"🔄 Using model: {perplexity_model} (overriding default)")
-                    result = await openrouter_perplexity.search(query)
+                    result = await self.perplexity.search(query)
                         
                     if not result or not result.get('content'):
-                        logger.error("Perplexity via OpenRouter also failed")
+                        logger.error("Native Perplexity also failed")
+                        return self._get_fallback_symbols()
+                    
+                    # Check for "can't help" response from native too
+                    content_lower = result['content'].lower()
+                    cant_help_indicators = [
+                        "i need to be transparent",
+                        "i cannot provide",
+                        "i can't provide",
+                        "current limitations",
+                        "do not include",
+                        "unable to access",
+                        "no real-time",
+                    ]
+                    if any(indicator in content_lower for indicator in cant_help_indicators):
+                        logger.warning("⚠️ Native Perplexity also returned 'can't help' - using fallback symbols")
                         return self._get_fallback_symbols()
                         
-                    logger.info("✅ Fallback successful via Perplexity on OpenRouter")
+                    logger.info("✅ Fallback successful via Native Perplexity")
                     
                 except Exception as e:
-                    logger.error(f"Perplexity via OpenRouter failed: {e}")
+                    logger.error(f"Native Perplexity failed: {e}")
                     return self._get_fallback_symbols()
             
             logger.info(f"✅ Got AI response: {len(result['content'])} chars")
