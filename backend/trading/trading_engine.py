@@ -364,6 +364,19 @@ class TradingEngine:
                         if signal:
                             logger.info(f"📈 Signal detected: {signal.upper()} {symbol}")
                             
+                            # ENTRY CUTOFF CHECK - No new positions near market close
+                            if getattr(settings, 'entry_cutoff_enabled', True):
+                                import pytz
+                                ny_tz = pytz.timezone('America/New_York')
+                                now_ny = datetime.now(ny_tz)
+                                try:
+                                    cutoff_hour, cutoff_minute = map(int, settings.entry_cutoff_time.split(':'))
+                                    if now_ny.hour > cutoff_hour or (now_ny.hour == cutoff_hour and now_ny.minute >= cutoff_minute):
+                                        logger.warning(f"⏰ {symbol} signal rejected: Entry cutoff at {settings.entry_cutoff_time} ET (current: {now_ny.strftime('%H:%M')})")
+                                        continue
+                                except ValueError:
+                                    pass  # Invalid cutoff time format, skip check
+                            
                             # Long-only mode filter
                             if getattr(settings, 'long_only_mode', False) and signal.upper() == 'SELL':
                                 logger.warning(f"⚠️  {symbol} SELL signal rejected: Long-only mode enabled")
@@ -1251,9 +1264,13 @@ class TradingEngine:
             from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
             from alpaca.trading.enums import QueryOrderStatus
             
-            # PROFESSIONAL SETTINGS (based on hedge fund research)
-            TRAIL_PERCENT = 2.5  # Trail 2.5% from current price (was 1.5% - too tight!)
-            MIN_PROFIT_TO_TRAIL = 2.0  # Only trail if 2%+ in profit (was 1%)
+            # ============ OPTIMAL TRAILING STOP SETTINGS ============
+            # Based on research: Van Tharp, prop firms, quantitative analysis
+            # See: backend/OPTIMAL_TRADING_SETTINGS.md for full documentation
+            TRAIL_PERCENT = 1.0  # 1.0% trailing (research optimal for day trading)
+            MIN_PROFIT_TO_TRAIL = 1.0  # Start trailing at 1% profit (1R equivalent)
+            MIN_PROFIT_FOR_BREAKEVEN = 0.5  # Move to breakeven at 0.5% profit
+            BREAKEVEN_BUFFER = 0.001  # 0.1% buffer above entry for slippage
             
             # Get positions directly from Alpaca for accurate current prices
             positions = self.alpaca.get_positions()
@@ -1281,8 +1298,8 @@ class TradingEngine:
                 qty = int(float(pos.qty))
                 pnl_pct = float(pos.unrealized_plpc) * 100
                 
-                # Skip if not enough profit
-                if pnl_pct < MIN_PROFIT_TO_TRAIL:
+                # Skip if not profitable enough for any action
+                if pnl_pct < MIN_PROFIT_FOR_BREAKEVEN:
                     continue
                 
                 stop_order = stop_orders.get(symbol)
@@ -1294,12 +1311,17 @@ class TradingEngine:
                 abs_qty = abs(qty)
                 
                 if is_long:
-                    # LONG position: trail stop BELOW current price, raise as price rises
-                    new_stop = round(current * (1 - TRAIL_PERCENT / 100), 2)
-                    
-                    # Ensure we're locking in profit (stop above entry)
-                    if new_stop <= entry:
-                        new_stop = round(entry * 1.005, 2)  # At minimum, 0.5% above entry
+                    # LONG position logic
+                    if pnl_pct >= MIN_PROFIT_TO_TRAIL:
+                        # Full trailing: 1% below current price (tighter to lock profits)
+                        new_stop = round(current * (1 - TRAIL_PERCENT / 100), 2)
+                        # Ensure stop is at least at breakeven + buffer
+                        breakeven_stop = round(entry * (1 + BREAKEVEN_BUFFER), 2)
+                        if new_stop < breakeven_stop:
+                            new_stop = breakeven_stop
+                    else:
+                        # Breakeven protection: move stop to entry + 0.1% buffer
+                        new_stop = round(entry * (1 + BREAKEVEN_BUFFER), 2)
                     
                     # Only update if new stop is HIGHER than current (tightening)
                     if new_stop <= current_stop:
@@ -1308,12 +1330,17 @@ class TradingEngine:
                     locked_pct = ((new_stop - entry) / entry) * 100
                     direction = "raised"
                 else:
-                    # SHORT position: trail stop ABOVE current price, lower as price falls
-                    new_stop = round(current * (1 + TRAIL_PERCENT / 100), 2)
-                    
-                    # Ensure we're locking in profit (stop below entry for shorts)
-                    if new_stop >= entry:
-                        new_stop = round(entry * 0.995, 2)  # At minimum, 0.5% below entry
+                    # SHORT position logic
+                    if pnl_pct >= MIN_PROFIT_TO_TRAIL:
+                        # Full trailing: 1% above current price
+                        new_stop = round(current * (1 + TRAIL_PERCENT / 100), 2)
+                        # Ensure stop is at least at breakeven - buffer
+                        breakeven_stop = round(entry * (1 - BREAKEVEN_BUFFER), 2)
+                        if new_stop > breakeven_stop:
+                            new_stop = breakeven_stop
+                    else:
+                        # Breakeven protection: move stop to entry - 0.1% buffer
+                        new_stop = round(entry * (1 - BREAKEVEN_BUFFER), 2)
                     
                     # Only update if new stop is LOWER than current (tightening for shorts)
                     if new_stop >= current_stop:

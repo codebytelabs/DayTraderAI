@@ -400,6 +400,8 @@ class StopLossProtectionManager:
         Recreate bracket order with BOTH stop-loss and take-profit.
         This is the KEY fix for positions with incomplete protection.
         
+        CRITICAL FIX: Properly handle BOTH long AND short positions!
+        
         Args:
             position: Position object from trading_state
             
@@ -412,32 +414,41 @@ class StopLossProtectionManager:
             entry_price = position.avg_entry_price
             current_price = position.current_price
             
-            # Calculate bracket prices (1.5% stop, 2.5% target for 1.67:1 R/R)
-            stop_loss_price = entry_price * 0.985  # 1.5% below entry
-            take_profit_price = entry_price * 1.025  # 2.5% above entry
+            # Determine position direction
+            is_long = position.side == 'buy'
             
-            # Safety check: Don't recreate if position is losing badly
-            if current_price < entry_price * 0.98:
-                logger.warning(f"⚠️  Position {symbol} losing >2%, using emergency stop only")
-                return self._create_fixed_stop(position)
+            # Calculate bracket prices based on position direction
+            if is_long:
+                # LONG: Stop below entry, target above entry
+                stop_loss_price = entry_price * 0.985  # 1.5% below entry
+                take_profit_price = entry_price * 1.025  # 2.5% above entry
+                exit_side = OrderSide.SELL  # Exit long = SELL
+                
+                # Safety check: Don't recreate if position is losing badly
+                if current_price < entry_price * 0.98:
+                    logger.warning(f"⚠️  LONG {symbol} losing >2%, using emergency stop only")
+                    return self._create_fixed_stop(position)
+            else:
+                # SHORT: Stop above entry, target below entry
+                stop_loss_price = entry_price * 1.015  # 1.5% above entry
+                take_profit_price = entry_price * 0.975  # 2.5% below entry
+                exit_side = OrderSide.BUY  # Exit short = BUY
+                
+                # Safety check: Don't recreate if position is losing badly
+                if current_price > entry_price * 1.02:
+                    logger.warning(f"⚠️  SHORT {symbol} losing >2%, using emergency stop only")
+                    return self._create_fixed_stop(position)
+            
+            logger.info(f"Creating bracket for {symbol} ({'LONG' if is_long else 'SHORT'}): "
+                       f"Entry ${entry_price:.2f}, SL ${stop_loss_price:.2f}, TP ${take_profit_price:.2f}")
             
             # Create separate stop-loss and take-profit orders (not a bracket)
             # We can't use bracket orders for existing positions
             from alpaca.trading.requests import LimitOrderRequest
             
-            # CRITICAL CHANGE: Submit STOP LOSS first!
+            # CRITICAL: Submit STOP LOSS first!
             # If we submit TP first, it locks shares and SL fails with "insufficient qty".
             # We prioritize protection (SL) over profit taking (TP).
-            
-            # Determine correct side for stop loss (EXIT order)
-            # Long position -> SELL order
-            # Short position -> BUY order
-            if position.side == 'buy':
-                exit_side = OrderSide.SELL
-            else:
-                exit_side = OrderSide.BUY
-                
-            logger.info(f"Creating stop loss for {symbol} (Position: {position.side}, Exit Side: {exit_side})")
 
             # 1. Create stop-loss order (PRIORITY)
             stop_request = StopOrderRequest(
@@ -452,11 +463,12 @@ class StopLossProtectionManager:
             logger.info(f"✅ Stop-loss created: ${stop_loss_price:.2f}")
             
             # 2. Create take-profit order (Best Effort)
+            # CRITICAL FIX: Use correct exit_side for BOTH long and short!
             try:
                 tp_request = LimitOrderRequest(
                     symbol=symbol,
                     qty=qty,
-                    side=OrderSide.SELL,  # Exit order for long position
+                    side=exit_side,  # FIXED: Use exit_side (SELL for long, BUY for short)
                     time_in_force=TimeInForce.GTC,
                     limit_price=round(take_profit_price, 2)
                 )

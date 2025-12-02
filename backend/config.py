@@ -54,15 +54,21 @@ class Settings(BaseSettings):
     risk_per_trade_pct: float = 0.015  # Increased from 1% to 1.5% for better capital utilization
     max_position_pct: float = 0.15  # Increased from 10% to 15% per position (deploy more capital)
     max_position_pct_scaled: float = 0.20  # Increased from 15% to 20% for high-confidence trades
-    min_stop_distance_pct: float = 0.015  # Min 1.5% stop distance (was 1.0% - caused TDG bug!)
-    circuit_breaker_pct: float = 0.05
+    # ============ OPTIMAL STOP LOSS SETTINGS (Research-Based) ============
+    # Based on: Van Tharp, prop trading firms, quantitative research
+    min_stop_distance_pct: float = 0.008  # 0.8% minimum (prevents noise exits)
+    max_stop_distance_pct: float = 0.020  # 2.0% maximum (caps risk)
+    circuit_breaker_pct: float = 0.03  # 3% daily max loss (was 5% - too loose)
     ema_short: int = 9
     ema_long: int = 21
-    stop_loss_atr_mult: float = 2.5  # Wider stops (was 2.0 - too tight)
-    take_profit_atr_mult: float = 5.0  # Wider targets for better R/R (was 4.0)
+    
+    # ATR-Based Stop Loss (optimal for day trading)
+    stop_loss_atr_mult: float = 1.5  # 1.5x ATR (day trading sweet spot, was 2.5)
+    stop_loss_atr_period: int = 10  # 10-period ATR (faster for intraday)
+    take_profit_atr_mult: float = 3.0  # 3x ATR for 1:2 R/R minimum (was 5.0)
     bracket_orders_enabled: bool = True
-    default_take_profit_pct: float = 2.0
-    default_stop_loss_pct: float = 1.0
+    default_take_profit_pct: float = 3.0  # 3% target (2:1 R/R with 1.5% stop)
+    default_stop_loss_pct: float = 1.5  # 1.5% stop (research optimal)
     
     # Options
     options_enabled: bool = False
@@ -108,22 +114,43 @@ class Settings(BaseSettings):
     trade_cooldown_minutes: int = 15  # Reduced from 30 - better for day trading momentum
     min_hold_time_minutes: int = 15  # Minimum time to hold position before manual exit (stops still work)
     
-    # Sprint 5: Trailing Stops Configuration
+    # ============ OPTIMAL TRAILING STOP SETTINGS (Research-Based) ============
+    # Based on: Professional prop firms, Van Tharp R-multiple methodology
     trailing_stops_enabled: bool = True  # ENABLED - Protect profits automatically
-    trailing_stops_activation_threshold: float = 2.0  # Activate after +2R profit
-    trailing_stops_distance_r: float = 0.5  # Trail by 0.5R
-    trailing_stops_min_distance_pct: float = 0.005  # Minimum 0.5% trailing distance
-    trailing_stops_use_atr: bool = True  # Use ATR for dynamic trailing distance
-    trailing_stops_atr_multiplier: float = 1.5  # 1.5x ATR for trailing distance
-    max_trailing_stop_positions: int = 999  # Limit for gradual rollout (999 = unlimited)
     
-    # Sprint 6: Partial Profit Taking Configuration
+    # Breakeven Protection (The "Free Trade")
+    breakeven_trigger_r: float = 1.0  # Move to breakeven at 1R profit
+    breakeven_buffer_pct: float = 0.001  # 0.1% above entry (slippage protection)
+    
+    # Trailing Stop Activation
+    trailing_stops_activation_r: float = 1.5  # Start trailing at 1.5R (was 2.0)
+    trailing_stops_activation_threshold: float = 1.5  # ALIAS for backward compatibility
+    trailing_stops_distance_pct: float = 0.01  # 1.0% trailing distance (was 0.5%)
+    trailing_stops_distance_r: float = 0.5  # ALIAS for backward compatibility
+    trailing_stops_min_distance_pct: float = 0.005  # ALIAS for backward compatibility
+    trailing_stops_atr_multiplier: float = 1.0  # 1x ATR for trailing (tighter than initial)
+    trailing_stops_use_atr: bool = True  # Use ATR for dynamic trailing
+    trailing_stops_update_seconds: int = 30  # Update every 30 seconds
+    max_trailing_stop_positions: int = 999  # Unlimited
+    
+    # ============ PARTIAL PROFIT TAKING (Scale Out) ============
+    # "Half Off at 1R" Strategy - proven by prop trading firms
     partial_profits_enabled: bool = True  # ENABLED - Lock in profits early
-    partial_profits_first_target_r: float = 1.0  # Take partial profits at +1R
-    partial_profits_percentage: float = 0.5  # Sell 50% of position
-    partial_profits_second_target_r: float = 2.0  # Let remaining run to +2R
-    partial_profits_use_trailing: bool = True  # Use trailing stops on remaining position
-    max_partial_profit_positions: int = 999  # Limit for gradual rollout
+    
+    # Scale Out Levels
+    partial_profits_1r_percent: float = 0.50  # Sell 50% at 1R
+    partial_profits_2r_percent: float = 0.25  # Sell 25% more at 2R
+    partial_profits_3r_percent: float = 0.25  # Trail remaining 25% at 3R+
+    
+    # After partial profit, tighten trailing
+    partial_profits_tight_trail_atr: float = 0.75  # 0.75x ATR after 3R
+    
+    # BACKWARD COMPATIBILITY ALIASES
+    partial_profits_first_target_r: float = 1.0  # Alias
+    partial_profits_percentage: float = 0.5  # Alias
+    partial_profits_second_target_r: float = 2.0  # Alias
+    partial_profits_use_trailing: bool = True  # Alias
+    max_partial_profit_positions: int = 999  # Alias
 
     # Copilot configuration
     copilot_context_enabled: bool = True
@@ -197,9 +224,13 @@ class Settings(BaseSettings):
     # EOD Risk Management (Sprint 8) - CRITICAL FOR DAY TRADING
     # Overnight gaps can destroy profits (e.g., COIN -$1,098 overnight gap)
     force_eod_exit: bool = True  # Force close all positions before market close
-    eod_exit_time: str = "15:55"  # 5 minutes before market close (ET) - gives time for fills
+    eod_exit_time: str = "15:57"  # 3 minutes before market close (ET) - NO EXCEPTIONS
     eod_close_all: bool = True  # True = close ALL positions, False = only close losers
     eod_loss_threshold: float = 2.0  # If eod_close_all=False, close positions with >X% loss
+    
+    # Entry Cutoff - No new positions near market close
+    entry_cutoff_time: str = "15:30"  # No new entries after 3:30 PM ET (30 min before close)
+    entry_cutoff_enabled: bool = True  # Enforce entry cutoff strictly
     
     class Config:
         env_file = ".env"

@@ -18,21 +18,23 @@ class FillDetectionConfig:
     This class defines all configurable parameters for the robust order
     execution system, allowing optimization for different market conditions
     and order types.
+    
+    OPTIMIZED Dec 2025: Faster polling for quicker fill detection
     """
     
-    # Timeout settings
-    timeout_seconds: int = 120
-    """Maximum time to wait for order fill before timeout (increased for reliability)"""
+    # Timeout settings - REDUCED for faster response
+    timeout_seconds: int = 30
+    """Maximum time to wait for order fill before timeout (30s is plenty for liquid stocks)"""
     
-    # Polling settings
-    initial_poll_interval: float = 0.5
-    """Initial polling interval in seconds (fast detection)"""
+    # Polling settings - FASTER for quicker detection
+    initial_poll_interval: float = 0.2
+    """Initial polling interval in seconds (very fast detection)"""
     
-    max_poll_interval: float = 2.0
-    """Maximum polling interval in seconds (API efficiency)"""
+    max_poll_interval: float = 1.0
+    """Maximum polling interval in seconds (still responsive)"""
     
-    poll_interval_increase: float = 0.1
-    """Amount to increase polling interval each iteration"""
+    poll_interval_increase: float = 0.05
+    """Amount to increase polling interval each iteration (slower ramp)"""
     
     # Retry settings
     max_retries: int = 3

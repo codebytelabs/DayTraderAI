@@ -17,9 +17,24 @@ class SupabaseClient:
     
     # Trades
     def insert_trade(self, trade_data: Dict[str, Any]):
-        """Insert completed trade."""
+        """Insert completed trade with schema-safe handling."""
         try:
-            result = self.client.table("trades").insert(trade_data).execute()
+            # Remove fields that might not exist in the database schema
+            # This prevents "column not found" errors
+            safe_fields = [
+                'symbol', 'side', 'qty', 'entry_price', 'exit_price',
+                'pnl', 'pnl_pct', 'entry_time', 'exit_time', 'strategy', 'reason'
+            ]
+            
+            # Filter to only include fields that exist in the schema
+            safe_data = {k: v for k, v in trade_data.items() if k in safe_fields}
+            
+            # Log r_multiple separately if provided (for debugging/analysis)
+            if 'r_multiple' in trade_data:
+                r_mult = trade_data['r_multiple']
+                logger.info(f"Trade R-multiple for {trade_data.get('symbol')}: {r_mult:.2f}R")
+            
+            result = self.client.table("trades").insert(safe_data).execute()
             logger.info(f"Trade inserted: {trade_data.get('symbol')}")
             return result.data[0] if result.data else None
         except Exception as e:

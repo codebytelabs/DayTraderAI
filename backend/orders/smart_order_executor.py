@@ -17,17 +17,20 @@ class OrderConfig:
     max_slippage_pct: float = 0.005  # 0.50% max acceptable slippage (increased for reliability)
     limit_buffer_regular: float = 0.001  # 0.10% buffer for regular hours (increased)
     limit_buffer_extended: float = 0.0005  # 0.05% buffer for extended hours
-    fill_timeout_seconds: int = 120  # Wait 120s for regular hours (CRITICAL FIX)
-    fill_timeout_extended: int = 180  # Wait 180s for extended hours (slower fills)
+    fill_timeout_seconds: int = 30  # Wait 30s for regular hours (REDUCED - orders fill fast)
+    fill_timeout_extended: int = 60  # Wait 60s for extended hours
     min_rr_ratio: float = 2.0  # Minimum 1:2 risk/reward
     enable_extended_hours: bool = True  # Enable extended hours trading
     
-    # Fill detection configuration
-    fill_initial_poll_interval: float = 0.3  # Start checking every 0.3s (faster)
-    fill_max_poll_interval: float = 1.5  # Max 1.5s between checks
-    fill_max_retries: int = 5  # Retry API calls up to 5 times
+    # Fill detection configuration - OPTIMIZED for faster detection
+    fill_initial_poll_interval: float = 0.2  # Start checking every 0.2s (faster)
+    fill_max_poll_interval: float = 1.0  # Max 1.0s between checks
+    fill_max_retries: int = 3  # Retry API calls up to 3 times
     fill_enable_final_verification: bool = True  # Always do final check
     fill_enable_multi_method: bool = True  # Use all 4 verification methods
+    
+    # CRITICAL: Check order status immediately after submission
+    fill_immediate_check_delay: float = 0.5  # Check 0.5s after submission
 
 
 @dataclass
