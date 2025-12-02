@@ -600,16 +600,20 @@ class EMAStrategy:
             )
             
             # Apply time-of-day position sizing multiplier
-            # UPDATED: Less aggressive reduction to deploy more capital
+            # RESEARCH-BACKED: More precise timing based on market microstructure
             time_passed, time_session = self._is_optimal_trading_time()
             time_multiplier = 1.0
             
             if time_session == "morning_session":
-                time_multiplier = 1.0  # Full size (9:30-11:00 AM)
-            elif time_session == "midday_session":
-                time_multiplier = 0.85  # 85% size (was 70% - too conservative)
-            elif time_session == "closing_session":
-                time_multiplier = 0.7  # 70% size (was 50% - too conservative)
+                time_multiplier = 1.0   # 100% (9:30-11:00 AM) - highest volatility
+            elif time_session == "late_morning_session":
+                time_multiplier = 0.95  # 95% (11:00-12:00 PM) - still good
+            elif time_session == "lunch_hour":
+                time_multiplier = 0.70  # 70% (12:00-1:00 PM) - THE dead zone
+            elif time_session == "afternoon_session":
+                time_multiplier = 0.90  # 90% (1:00-3:00 PM) - recovering
+            elif time_session == "power_hour":
+                time_multiplier = 1.0   # 100% (3:00-4:00 PM) - institutional activity
             
             adjusted_risk_with_time = adjusted_risk * time_multiplier
             
@@ -781,13 +785,15 @@ class EMAStrategy:
         """
         Check if current time is optimal for trading.
         
-        ENHANCED: Full day trading with adaptive position sizing
-        - 9:30-11:00 AM: Morning session (100% position size)
-        - 11:00 AM-2:00 PM: Midday session (70% position size)
-        - 2:00-3:30 PM: Closing session (50% position size)
+        RESEARCH-BACKED: More precise time-based sizing
+        - 9:30-11:00 AM: Morning session (100%) - highest volatility, best for momentum
+        - 11:00-12:00 PM: Late morning (95%) - still good, slight reduction
+        - 12:00-1:00 PM: Lunch hour (70%) - THE dead zone (research-backed)
+        - 1:00-3:00 PM: Afternoon session (90%) - recovering, decent volume
+        - 3:00-4:00 PM: Power hour (100%) - institutional activity, high volume
         
         Returns:
-            (is_optimal, reason_if_not)
+            (is_optimal, session_name)
         """
         try:
             now = datetime.now(tz=pytz.timezone('US/Eastern'))
@@ -795,35 +801,36 @@ class EMAStrategy:
             minute = now.minute
             current_minutes = hour * 60 + minute
             
-            # Morning session: 9:30-11:00 AM (100% size)
-            start_h1, start_m1 = settings.optimal_hours_start_1
-            end_h1, end_m1 = settings.optimal_hours_end_1
-            morning_start = start_h1 * 60 + start_m1
-            morning_end = end_h1 * 60 + end_m1
+            # Define time boundaries (in minutes from midnight)
+            market_open = 9 * 60 + 30      # 9:30 AM
+            late_morning = 11 * 60          # 11:00 AM
+            lunch_start = 12 * 60           # 12:00 PM
+            lunch_end = 13 * 60             # 1:00 PM
+            power_hour = 15 * 60            # 3:00 PM
+            market_close = 16 * 60          # 4:00 PM
             
-            if morning_start <= current_minutes < morning_end:
+            # Morning session: 9:30-11:00 AM (100% size)
+            if market_open <= current_minutes < late_morning:
                 return True, "morning_session"
             
-            # Midday session: 11:00 AM-2:00 PM (70% size)
-            start_h2, start_m2 = settings.optimal_hours_start_2
-            end_h2, end_m2 = settings.optimal_hours_end_2
-            midday_start = start_h2 * 60 + start_m2
-            midday_end = end_h2 * 60 + end_m2
+            # Late morning: 11:00 AM-12:00 PM (95% size)
+            if late_morning <= current_minutes < lunch_start:
+                return True, "late_morning_session"
             
-            if midday_start <= current_minutes < midday_end:
-                return True, "midday_session"
+            # Lunch hour: 12:00-1:00 PM (70% size) - THE dead zone
+            if lunch_start <= current_minutes < lunch_end:
+                return True, "lunch_hour"
             
-            # Closing session: 2:00-3:30 PM (50% size)
-            start_h3, start_m3 = settings.optimal_hours_start_3
-            end_h3, end_m3 = settings.optimal_hours_end_3
-            closing_start = start_h3 * 60 + start_m3
-            closing_end = end_h3 * 60 + end_m3
+            # Afternoon session: 1:00-3:00 PM (90% size)
+            if lunch_end <= current_minutes < power_hour:
+                return True, "afternoon_session"
             
-            if closing_start <= current_minutes < closing_end:
-                return True, "closing_session"
+            # Power hour: 3:00-4:00 PM (100% size)
+            if power_hour <= current_minutes < market_close:
+                return True, "power_hour"
             
             # Outside trading hours
-            return False, "Outside trading hours (9:30 AM - 3:30 PM)"
+            return False, "Outside trading hours (9:30 AM - 4:00 PM)"
             
         except Exception as e:
             logger.warning(f"Time-of-day filter error: {e}")
