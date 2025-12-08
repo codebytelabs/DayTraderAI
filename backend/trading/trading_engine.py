@@ -107,6 +107,11 @@ class TradingEngine:
         self.protection_manager = get_protection_manager(alpaca_client)
         logger.info("✅ Stop Loss Protection Manager initialized (5-second checks)")
         
+        # Initialize Momentum Wave Exit System - DISABLED
+        # DISABLED: Was causing premature exits on temporary momentum dips
+        # self.wave_exit_system = None  # Disabled - let positions run to R-targets
+        logger.info("🌊 Momentum Wave Exit System DISABLED (using R-multiple targets instead)")
+        
         # Initialize Intelligent Profit Protection System (R-multiple based)
         # This provides: Dynamic trailing stops, systematic profit taking at 2R/3R/4R
         from trading.profit_protection import get_profit_protection_manager
@@ -115,6 +120,7 @@ class TradingEngine:
         
         self.is_running = False
         self.watchlist = settings.watchlist_symbols
+        self.smart_watchlist = None  # Will be initialized in start()
         
         # Initialize Regime Manager (Sprint 2 - Regime Adaptive Strategy)
         from trading.regime_manager import RegimeManager
@@ -213,6 +219,22 @@ class TradingEngine:
         except Exception as e:
             logger.warning(f"⚠️ Failed to refresh daily cache: {e}")
             logger.warning("Sprint 7 filters will operate without daily data")
+        
+        # NEW: Initialize Smart Watchlist (50 stocks, 70/30 large/mid cap, 2hr refresh)
+        logger.info("� Initialiizing Smart Watchlist (50 stocks, 70% large-cap, 30% mid-cap)...")
+        try:
+            from scanner.smart_watchlist import get_smart_watchlist
+            self.smart_watchlist = get_smart_watchlist(self.alpaca, self.market_data)
+            watchlist_symbols = await self.smart_watchlist.get_watchlist(force_refresh=True)
+            
+            # Update trading watchlist with smart selection
+            self.watchlist = watchlist_symbols
+            logger.info(f"✅ Smart watchlist ready: {len(watchlist_symbols)} stocks")
+            logger.info(f"   Large-cap: {len(self.smart_watchlist.get_large_caps())} | Mid-cap: {len(self.smart_watchlist.get_mid_caps())}")
+            logger.info(f"   Top 10: {', '.join(watchlist_symbols[:10])}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize smart watchlist: {e}")
+            self.smart_watchlist = None
 
         if self.streaming_enabled:
             await self._start_streaming()
@@ -242,6 +264,11 @@ class TradingEngine:
             self.metrics_loop(),
             self.regime_update_loop(),  # New regime update loop
         ]
+        
+        # Add smart watchlist refresh loop (every 2 hours)
+        if self.smart_watchlist:
+            loops.append(self.watchlist_refresh_loop())
+            logger.info("� Somart watchlist refresh loop started (2-hour refresh)")
         
         # Add scanner loop - momentum scanner takes priority over AI discovery
         if self.use_momentum_scanner and self.momentum_scanner:
@@ -336,6 +363,12 @@ class TradingEngine:
                 
                 if not self.alpaca.is_market_open():
                     logger.debug("Market closed, skipping strategy evaluation")
+                    await asyncio.sleep(60)
+                    continue
+                
+                # EOD POSITION CLOSING CHECK - Close all positions before market close
+                if await self._check_and_execute_eod_close():
+                    # EOD close was triggered, wait and skip normal trading
                     await asyncio.sleep(60)
                     continue
                 
@@ -475,6 +508,7 @@ class TradingEngine:
         momentum_counter = 0
         protection_counter = 0
         trailing_stop_counter = 0  # Aggressive trailing stops every 60 seconds
+        remnant_cleanup_counter = 0  # Cleanup tiny remnant positions every 5 minutes
         
         # Parse EOD time
         try:
@@ -485,7 +519,7 @@ class TradingEngine:
         
         while self.is_running:
             try:
-                # Check for EOD Force Close
+                # Check for EOD Force Close - CRITICAL for day trading
                 if settings.force_eod_exit:
                     clock = self.alpaca.get_clock()
                     now = clock.timestamp
@@ -495,18 +529,19 @@ class TradingEngine:
                         self.eod_triggered = False
                         self.last_eod_date = now.date()
                     
-                    # Check if it's time to close
-                    # Convert to ET time components for comparison
-                    # Actually, let's rely on the clock object if possible or just simple hour/minute check from timestamp
-                    # Alpaca clock timestamp is UTC. We need to be careful.
-                    # Let's use the simple approach: Get current time in ET
+                    # Get current time in ET
                     import pytz
                     ny_tz = pytz.timezone('America/New_York')
                     now_ny = datetime.now(ny_tz)
                     
-                    if (now_ny.hour > eod_hour or (now_ny.hour == eod_hour and now_ny.minute >= eod_minute)) and \
-                       now_ny.hour <= 16 and \
-                       not self.eod_triggered:
+                    # ENHANCED EOD CHECK: Also close if market just closed and we still have positions
+                    # This catches cases where the 3:57 PM check was missed
+                    market_just_closed = not clock.is_open and now_ny.hour >= 16 and now_ny.hour < 20
+                    
+                    eod_time_reached = (now_ny.hour > eod_hour or (now_ny.hour == eod_hour and now_ny.minute >= eod_minute)) and \
+                                       now_ny.hour <= 16
+                    
+                    if (eod_time_reached or market_just_closed) and not self.eod_triggered:
                         
                         # Check if we should close ALL positions or just losers
                         eod_close_all = getattr(settings, 'eod_close_all', True)
@@ -555,6 +590,20 @@ class TradingEngine:
                     
                     # Verify all positions have stop loss protection (legacy check)
                     # self.position_manager.verify_position_protection()
+                
+                # REMNANT CLEANUP: Close tiny leftover positions every 5 minutes (30 iterations)
+                # This frees up capital and position slots for new full-size trades
+                remnant_cleanup_counter += 1
+                if remnant_cleanup_counter >= 30:  # Every 5 minutes (30 * 10 seconds)
+                    try:
+                        # Get remnant threshold from config (default 1% of equity)
+                        remnant_threshold = getattr(settings, 'remnant_position_pct', 0.01)
+                        closed = self.position_manager.cleanup_tiny_positions(min_pct=remnant_threshold)
+                        if closed > 0:
+                            logger.info(f"🧹 Auto-cleaned {closed} remnant positions (< {remnant_threshold*100:.1f}% of equity)")
+                    except Exception as e:
+                        logger.error(f"Remnant cleanup error: {e}")
+                    remnant_cleanup_counter = 0
                 
                 # Update position prices
                 self.position_manager.update_position_prices()
@@ -856,6 +905,61 @@ class TradingEngine:
                 
             except Exception as e:
                 logger.error(f"Error in scanner loop: {e}")
+                await asyncio.sleep(300)  # Wait 5 min on error
+    
+    async def watchlist_refresh_loop(self):
+        """
+        Smart watchlist refresh loop - updates every 2 hours.
+        
+        Refreshes the 50-stock watchlist (70% large-cap, 30% mid-cap)
+        based on volume, trend, and liquidity scores.
+        """
+        logger.info("🎯 Watchlist refresh loop started (2-hour interval)")
+        
+        import pytz
+        ny_tz = pytz.timezone('America/New_York')
+        
+        while self.is_running:
+            try:
+                # Wait 2 hours before first refresh (initial refresh done at startup)
+                await asyncio.sleep(2 * 60 * 60)  # 2 hours
+                
+                if not self.is_running:
+                    break
+                
+                # Only refresh during market hours
+                if not self.alpaca.is_market_open():
+                    logger.debug("Market closed, skipping watchlist refresh")
+                    continue
+                
+                # Refresh watchlist
+                logger.info("🔄 Refreshing smart watchlist (2-hour update)...")
+                new_watchlist = await self.smart_watchlist.get_watchlist(force_refresh=True)
+                
+                if new_watchlist:
+                    old_watchlist = set(self.watchlist)
+                    new_set = set(new_watchlist)
+                    
+                    added = new_set - old_watchlist
+                    removed = old_watchlist - new_set
+                    
+                    self.watchlist = new_watchlist
+                    
+                    logger.info(f"✅ Watchlist updated: {len(new_watchlist)} stocks")
+                    if added:
+                        logger.info(f"   ➕ Added: {', '.join(sorted(added)[:10])}{'...' if len(added) > 10 else ''}")
+                    if removed:
+                        logger.info(f"   ➖ Removed: {', '.join(sorted(removed)[:10])}{'...' if len(removed) > 10 else ''}")
+                    
+                    # Update streaming subscriptions if needed
+                    if self.streaming_enabled and self.stream_manager:
+                        try:
+                            await self.stream_manager.update_subscriptions(new_watchlist[:20])
+                        except Exception as e:
+                            logger.warning(f"Failed to update stream subscriptions: {e}")
+                
+            except Exception as e:
+                logger.error(f"Error in watchlist refresh loop: {e}")
                 await asyncio.sleep(300)  # Wait 5 min on error
     
     async def momentum_scanner_loop(self):
@@ -1223,6 +1327,15 @@ class TradingEngine:
                 if not market_data:
                     continue
                 
+                # ==================== WAVE EXIT SYSTEM - DISABLED ====================
+                # DISABLED: This was causing premature exits on temporary momentum dips
+                # The system was exiting profitable positions too early before they hit targets
+                # Re-enable after backtesting shows positive impact
+                # 
+                # Original code commented out - let positions run to their R-multiple targets
+                # instead of exiting on momentum decay signals
+                # ==================== END WAVE EXIT (DISABLED) ====================
+                
                 # Evaluate and adjust if momentum is strong
                 signal = self.momentum_engine.evaluate_and_adjust(
                     symbol=position.symbol,
@@ -1462,6 +1575,60 @@ class TradingEngine:
             'config': self.momentum_config.to_dict()
         }
     
+    async def _check_and_execute_eod_close(self) -> bool:
+        """
+        Check if it's time to close all positions (EOD) and execute if needed.
+        Uses config settings: eod_exit_time, force_eod_exit, eod_close_all
+        
+        Returns:
+            True if EOD close was triggered, False otherwise
+        """
+        try:
+            # Check if EOD exit is enabled
+            if not getattr(settings, 'force_eod_exit', True):
+                return False
+            
+            import pytz
+            ny_tz = pytz.timezone('America/New_York')
+            now_ny = datetime.now(ny_tz)
+            
+            # Parse EOD exit time from config (default: 15:57 = 3:57 PM ET)
+            eod_time_str = getattr(settings, 'eod_exit_time', '15:57')
+            try:
+                eod_hour, eod_minute = map(int, eod_time_str.split(':'))
+            except ValueError:
+                eod_hour, eod_minute = 15, 57  # Default fallback
+            
+            # Check if we're at or past EOD exit time
+            current_minutes = now_ny.hour * 60 + now_ny.minute
+            eod_minutes = eod_hour * 60 + eod_minute
+            
+            if current_minutes >= eod_minutes:
+                # Check if we already closed today (prevent repeated closes)
+                today_str = now_ny.strftime('%Y-%m-%d')
+                if not hasattr(self, '_eod_close_executed_date') or self._eod_close_executed_date != today_str:
+                    logger.warning(f"⏰ EOD EXIT TIME REACHED ({eod_time_str} ET) - Closing all positions!")
+                    
+                    if getattr(settings, 'eod_close_all', True):
+                        await self._close_all_positions_eod()
+                    else:
+                        # Only close losers above threshold
+                        loss_threshold = getattr(settings, 'eod_loss_threshold', 2.0)
+                        await self._close_losing_positions_eod(loss_threshold)
+                    
+                    self._eod_close_executed_date = today_str
+                    return True
+                else:
+                    # Already closed today, just skip trading
+                    logger.debug(f"EOD close already executed today, waiting for market close")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error in EOD close check: {e}")
+            return False
+    
     async def _close_all_positions_eod(self):
         """
         TRUE DAY TRADING: Close ALL positions before market close.
@@ -1495,12 +1662,24 @@ class TradingEngine:
                     status = "🟢" if unrealized_pnl >= 0 else "🔴"
                     logger.info(f"{status} Closing {symbol}: {qty} shares @ ${current_price:.2f} | P/L: ${unrealized_pnl:+.2f} ({pnl_pct:+.1f}%)")
                     
-                    # Cancel any existing orders first
+                    # Cancel any existing orders first - CRITICAL for EOD close
                     try:
-                        orders = self.alpaca.get_orders(symbol=symbol, status='open')
-                        for order in orders:
-                            self.alpaca.cancel_order(order.id)
-                            logger.debug(f"   Cancelled order {order.id} for {symbol}")
+                        # Get ALL open orders and filter by symbol
+                        all_orders = self.alpaca.get_orders(status='open')
+                        symbol_orders = [o for o in all_orders if o.symbol == symbol]
+                        
+                        for order in symbol_orders:
+                            try:
+                                self.alpaca.cancel_order(order.id)
+                                logger.info(f"   ✅ Cancelled order {order.id} for {symbol}")
+                            except Exception as cancel_err:
+                                logger.warning(f"   ⚠️  Could not cancel order {order.id}: {cancel_err}")
+                        
+                        # Wait for cancellations to process
+                        if symbol_orders:
+                            import time
+                            time.sleep(0.5)
+                            
                     except Exception as e:
                         logger.warning(f"   Could not cancel orders for {symbol}: {e}")
                     
@@ -1514,7 +1693,7 @@ class TradingEngine:
                             self.supabase.insert_trade({
                                 'symbol': symbol,
                                 'side': 'sell' if qty > 0 else 'buy',
-                                'qty': abs(qty),
+                                'qty': int(abs(qty)),  # FIXED: Convert to int for database
                                 'price': current_price,
                                 'reason': 'eod_force_close',
                                 'pnl': unrealized_pnl

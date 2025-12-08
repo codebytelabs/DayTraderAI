@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Optional, Tuple
 from datetime import datetime, time
 from dataclasses import dataclass
+from alpaca.trading.enums import OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class SmartOrderExecutor:
         # Step 8: Submit bracket orders (OCO)
         try:
             bracket_result = self._submit_bracket_orders(
-                symbol, quantity, stop_loss, take_profit
+                symbol, quantity, stop_loss, take_profit, entry_side=side
             )
             
             if not bracket_result:
@@ -468,18 +469,29 @@ class SmartOrderExecutor:
     def _cancel_order_with_error(self, order_id: str) -> tuple:
         """
         Cancel pending order and return error message if any.
+        CRITICAL: Detects "already filled" race conditions.
         Returns (success: bool, error_message: str or None)
         """
         logger.info(f"Canceling order: {order_id}")
         try:
-            result = self.alpaca.cancel_order(order_id)
-            return (result if result is not None else True, None)
+            # Use the new method that returns error message
+            if hasattr(self.alpaca, 'cancel_order_with_error'):
+                success, error_msg = self.alpaca.cancel_order_with_error(order_id)
+                if not success and error_msg:
+                    error_lower = error_msg.lower()
+                    if 'filled' in error_lower or 'already' in error_lower:
+                        logger.info(f"🎉 Order {order_id} already filled (race condition detected)")
+                return success, error_msg
+            else:
+                # Fallback to old method
+                result = self.alpaca.cancel_order(order_id)
+                return (result if result is not None else True, None)
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
             # Check if order was already filled (not a real error)
             if 'filled' in error_lower or 'already' in error_lower:
-                logger.info(f"Order {order_id} already filled (cancel not needed)")
+                logger.info(f"🎉 Order {order_id} already filled (cancel not needed)")
                 return (False, error_str)  # Return error so caller can detect race
             logger.error(f"Failed to cancel order: {e}")
             return (False, error_str)
@@ -512,41 +524,73 @@ class SmartOrderExecutor:
         symbol: str, 
         quantity: int, 
         stop_loss: float, 
-        take_profit: float
+        take_profit: float,
+        entry_side: str = None
     ) -> bool:
-        """Submit OCO bracket orders (stop loss + take profit)"""
+        """Submit OCO bracket orders (stop loss + take profit)
+        
+        Args:
+            symbol: Stock symbol
+            quantity: Number of shares
+            stop_loss: Stop loss price
+            take_profit: Take profit price
+            entry_side: Original entry side ('buy' or 'sell') - determines exit side
+        """
+        # Determine exit side based on stop_loss vs take_profit relationship
+        # For LONG: stop_loss < take_profit, exit side = SELL
+        # For SHORT: stop_loss > take_profit, exit side = BUY
+        if entry_side:
+            exit_side = OrderSide.SELL if entry_side == 'buy' else OrderSide.BUY
+        else:
+            # Infer from prices: if stop_loss < take_profit, it's a long position
+            exit_side = OrderSide.SELL if stop_loss < take_profit else OrderSide.BUY
+        
+        side_str = "SELL" if exit_side == OrderSide.SELL else "BUY"
         logger.info(
-            f"Submitting bracket: {symbol} SL=${stop_loss:.2f} TP=${take_profit:.2f}"
+            f"Submitting bracket: {symbol} SL=${stop_loss:.2f} TP=${take_profit:.2f} (exit: {side_str})"
         )
         try:
             from alpaca.trading.requests import LimitOrderRequest, StopOrderRequest
-            from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+            from alpaca.trading.enums import TimeInForce, OrderClass
             
-            # Submit stop loss order
+            # Submit stop loss order FIRST (priority - protection)
             stop_request = StopOrderRequest(
                 symbol=symbol,
                 qty=quantity,
-                side=OrderSide.SELL,  # Assuming long position
+                side=exit_side,
                 time_in_force=TimeInForce.GTC,
                 stop_price=round(stop_loss, 2)
             )
             
-            # Submit take profit order
+            stop_order = self.alpaca.submit_order_request(stop_request)
+            if stop_order is None:
+                logger.error(f"❌ Stop loss order failed for {symbol}")
+                return False
+            
+            logger.info(f"✅ Stop loss order submitted: {stop_order.id}")
+            
+            # Submit take profit order (best effort - may fail if shares locked)
             tp_request = LimitOrderRequest(
                 symbol=symbol,
                 qty=quantity,
-                side=OrderSide.SELL,  # Assuming long position
+                side=exit_side,
                 time_in_force=TimeInForce.GTC,
                 limit_price=round(take_profit, 2)
             )
             
-            # Note: Alpaca's OCO orders require special handling
-            # For now, submit as separate orders
-            # TODO: Implement proper OCO bracket
-            stop_order = self.alpaca.submit_order_request(stop_request)
-            tp_order = self.alpaca.submit_order_request(tp_request)
+            try:
+                tp_order = self.alpaca.submit_order_request(tp_request)
+                if tp_order:
+                    logger.info(f"✅ Take profit order submitted: {tp_order.id}")
+                else:
+                    logger.warning(f"⚠️  Take profit order failed for {symbol} (shares may be locked by SL)")
+            except Exception as tp_error:
+                # Take profit failure is not critical - stop loss is the priority
+                logger.warning(f"⚠️  Take profit order failed for {symbol}: {tp_error}")
             
-            return stop_order is not None and tp_order is not None
+            # Return True as long as stop loss was created (protection is priority)
+            return True
+            
         except Exception as e:
             logger.error(f"Failed to submit bracket orders: {e}")
             return False

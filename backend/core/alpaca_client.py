@@ -134,6 +134,23 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to cancel order {order_id}: {e}")
             return False
+    
+    def cancel_order_with_error(self, order_id: str) -> tuple:
+        """
+        Cancel an order and return both success status and error message.
+        CRITICAL: Used to detect "already filled" race conditions.
+        
+        Returns:
+            Tuple of (success: bool, error_message: str or None)
+        """
+        try:
+            self.trading_client.cancel_order_by_id(order_id)
+            logger.info(f"Order canceled: {order_id}")
+            return True, None
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Failed to cancel order {order_id}: {error_msg}")
+            return False, error_msg
             
     def replace_order(
         self,

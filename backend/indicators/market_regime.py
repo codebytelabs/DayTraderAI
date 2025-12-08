@@ -146,14 +146,25 @@ class MarketRegimeDetector:
             }
         """
         try:
-            # Use SPY as market proxy
-            from data.market_data import MarketDataManager
-            from core.supabase_client import get_client as get_supabase_client
+            # Use SPY as market proxy - get features from trading state first
+            from core.state import trading_state
             
-            market_data = MarketDataManager(self.alpaca, get_supabase_client())
-            features = market_data.get_latest_features('SPY')
+            features = trading_state.get_features('SPY')
             
+            # If SPY not in state, try to get from latest bars directly
             if not features:
+                try:
+                    bars = self.alpaca.get_latest_bars(['SPY'])
+                    if bars and 'SPY' in bars:
+                        spy_bar = bars['SPY']
+                        # Use simple price-based direction (no ADX available)
+                        return {
+                            'strength': 50,  # Default moderate strength
+                            'direction': 'bullish' if spy_bar.close > spy_bar.open else 'bearish',
+                            'adx': 20
+                        }
+                except Exception:
+                    pass
                 return {'strength': 50, 'direction': 'neutral'}
             
             adx = features.get('adx', 20)

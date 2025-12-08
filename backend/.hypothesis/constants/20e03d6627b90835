@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/mtf/data_manager.py
+# hypothesis_version: 6.148.3
+
+[100, 300, 900, 86400, '15min', '1min', '5min', 'Min', 'daily']

@@ -19,6 +19,13 @@ try:
 except ImportError:
     MOMENTUM_SIZER_AVAILABLE = False
 
+# Multi-Timeframe Analysis imports
+try:
+    from trading.mtf import MTFIntegration, MTFConfig
+    MTF_AVAILABLE = True
+except ImportError:
+    MTF_AVAILABLE = False
+
 logger = setup_logger(__name__)
 
 
@@ -75,6 +82,23 @@ class EMAStrategy:
             
         # Regime Manager (Sprint 2)
         self.regime_manager = None
+        
+        # Multi-Timeframe Analysis (MTF)
+        self.use_mtf_analysis = getattr(settings, 'ENABLE_MTF_ANALYSIS', False)
+        self.mtf_integration = None
+        
+        if self.use_mtf_analysis and MTF_AVAILABLE:
+            try:
+                mtf_config = MTFConfig(
+                    enabled=True,
+                    strict_mode=getattr(settings, 'MTF_STRICT_MODE', False),
+                    min_confidence=getattr(settings, 'MTF_MIN_CONFIDENCE', 60.0),
+                )
+                self.mtf_integration = MTFIntegration(self.alpaca, config=mtf_config)
+                logger.info("✅ Multi-Timeframe Analysis enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MTF analysis: {e}")
+                self.use_mtf_analysis = False
 
     def set_regime_manager(self, regime_manager):
         """Set the regime manager instance."""
@@ -120,8 +144,26 @@ class EMAStrategy:
         # Check if we already have a position
         existing_position = trading_state.get_position(symbol)
         if existing_position:
-            # Don't generate new signals if we have a position
-            return None
+            # Allow re-entry if existing position is a small remnant (< remnant_position_pct of equity)
+            # This enables taking fresh full-size positions after partial profit taking
+            try:
+                account = self.alpaca.get_account()
+                equity = float(account.equity)
+                remnant_threshold = getattr(settings, 'remnant_position_pct', 0.01)  # 1% default
+                position_value = abs(existing_position.market_value)
+                
+                if position_value < equity * remnant_threshold:
+                    logger.info(
+                        f"🔄 {symbol} has remnant position (${position_value:.0f} < {remnant_threshold*100:.0f}% of equity) - "
+                        f"allowing new signal evaluation"
+                    )
+                    # Continue to evaluate signal - remnant will be cleaned up separately
+                else:
+                    # Don't generate new signals if we have a meaningful position
+                    return None
+            except Exception as e:
+                logger.debug(f"Could not check remnant status for {symbol}: {e}")
+                return None
         
         # Sprint 7: Time-of-day filter (FIRST - eliminates 60-70%, FREE)
         if settings.enable_time_of_day_filter:
@@ -148,6 +190,27 @@ class EMAStrategy:
             return None
         
         signal = signal_info['signal']
+        
+        # Multi-Timeframe Analysis filter (if enabled)
+        if self.use_mtf_analysis and self.mtf_integration:
+            try:
+                mtf_result = self.mtf_integration.get_mtf_signal_result(symbol, signal)
+                if mtf_result:
+                    if not mtf_result.should_trade:
+                        logger.info(
+                            f"📊 MTF rejected {symbol} {signal.upper()}: {mtf_result.rejection_reason}"
+                        )
+                        return None
+                    
+                    # Store MTF result for position sizing
+                    features['_mtf_result'] = mtf_result
+                    logger.info(
+                        f"✓ MTF approved {symbol} {signal.upper()}: "
+                        f"Confidence {mtf_result.mtf_confidence:.1f}, "
+                        f"Size {mtf_result.position_size_multiplier:.2f}x"
+                    )
+            except Exception as e:
+                logger.warning(f"MTF analysis failed for {symbol}: {e}")
         confidence = signal_info['confidence']
         confirmations = signal_info['confirmations']
         confirmation_count = signal_info['confirmation_count']
@@ -272,13 +335,25 @@ class EMAStrategy:
                 )
                 return None
             
-            # 4. RSI filter - avoid shorting oversold (RSI < 30)
+            # 4. RSI filter - avoid shorting extremely oversold (RSI < 25)
+            # Lowered from 30 to 25 to allow more short entries
+            # EXCEPTION: Allow oversold shorts with strong volume surge (tsunami waves)
             rsi = signal_info.get('rsi', 50)
-            if rsi < 30:
-                logger.info(
-                    f"⛔ Short rejected {symbol}: Oversold - bounce risk (RSI: {rsi:.1f})"
-                )
-                return None
+            volume_surge = signal_info.get('volume_ratio', 1.0)
+            
+            if rsi < 25:
+                # Allow oversold shorts if volume surge is very strong (3x+)
+                # This catches "capitulation" moves that keep falling
+                if volume_surge >= 3.0 and confidence >= 75:
+                    logger.info(
+                        f"⚠️  Oversold short ALLOWED {symbol}: Strong volume surge "
+                        f"{volume_surge:.1f}x overrides RSI {rsi:.1f} (conf: {confidence:.0f}%)"
+                    )
+                else:
+                    logger.info(
+                        f"⛔ Short rejected {symbol}: Oversold - bounce risk (RSI: {rsi:.1f})"
+                    )
+                    return None
             
             # 5. Require HIGHER confidence for shorts - ADAPTIVE THRESHOLDS
             # Get dynamic threshold based on market conditions

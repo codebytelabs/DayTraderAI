@@ -116,23 +116,28 @@ class MomentumIntegrationExample:
             Dict with 'high', 'low', 'close', 'volume' lists
         """
         try:
+            from alpaca.data.timeframe import TimeFrame
+            from datetime import timedelta, timezone
+            
             # Fetch bars from Alpaca
+            start = datetime.now(timezone.utc) - timedelta(hours=5)
             barset = self.alpaca.get_bars(
-                symbol=symbol,
-                timeframe='5Min',  # 5-minute bars
+                symbols=[symbol],
+                timeframe=TimeFrame.Minute,
+                start=start,
                 limit=bars
             )
             
-            if not barset or len(barset) < 50:
-                logger.warning(f"Insufficient bars for {symbol}: {len(barset) if barset else 0}")
+            if barset is None or len(barset) < 50:
+                logger.warning(f"Insufficient bars for {symbol}: {len(barset) if barset is not None else 0}")
                 return None
             
-            # Extract OHLCV data
+            # Extract OHLCV data (barset is a DataFrame)
             market_data = {
-                'high': [float(bar.high) for bar in barset],
-                'low': [float(bar.low) for bar in barset],
-                'close': [float(bar.close) for bar in barset],
-                'volume': [float(bar.volume) for bar in barset],
+                'high': barset['high'].tolist(),
+                'low': barset['low'].tolist(),
+                'close': barset['close'].tolist(),
+                'volume': barset['volume'].tolist(),
                 'timestamp': datetime.now()
             }
             

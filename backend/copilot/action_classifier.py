@@ -251,9 +251,11 @@ class ActionClassifier:
                     ambiguities.append(f"Multiple symbols found: {', '.join(symbols)}")
                 else:
                     parameters["symbol"] = symbols[0]
-                    # Check if position value is high
+                    # Check if position value is high (relative to equity)
                     position_value = self._get_position_value(symbols[0], context)
-                    if position_value and position_value > 1000:
+                    equity = self._get_equity(context)
+                    confirm_threshold = equity * getattr(settings, 'copilot_require_confirmation_above_pct', 0.01)
+                    if position_value and position_value > confirm_threshold:
                         requires_confirmation = True
         
         # Check for cancel order
@@ -409,3 +411,8 @@ class ActionClassifier:
             if pos.get("symbol") == symbol:
                 return abs(pos.get("market_value", 0))
         return None
+    
+    def _get_equity(self, context: Dict[str, Any]) -> float:
+        """Get account equity from context."""
+        account = context.get("account", {})
+        return float(account.get("equity", 100000))  # Default fallback

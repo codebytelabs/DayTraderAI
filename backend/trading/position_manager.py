@@ -3,6 +3,7 @@ from datetime import datetime
 from core.alpaca_client import AlpacaClient
 from core.supabase_client import SupabaseClient
 from core.state import trading_state, Position
+from config import settings
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -192,18 +193,30 @@ class PositionManager:
             logger.error(f"Error cleaning up orphan orders: {e}")
             return 0
     
-    def cleanup_tiny_positions(self, min_value: float = 1000.0):
+    def cleanup_tiny_positions(self, min_pct: float = None):
         """
         Close positions that are too small to be meaningful.
         This frees up position slots for better opportunities.
         
         Args:
-            min_value: Minimum position value in dollars (default $1000)
+            min_pct: Minimum position value as percentage of equity (default from config: 0.5%)
         """
         try:
             positions = self.alpaca.get_positions()
             if not positions:
                 return 0
+            
+            # Get equity for percentage-based threshold
+            try:
+                account = self.alpaca.get_account()
+                equity = float(account.equity)
+            except:
+                equity = 100000  # Fallback
+            
+            # Use config setting or parameter
+            if min_pct is None:
+                min_pct = getattr(settings, 'min_position_pct', 0.005)  # 0.5% default
+            min_value = equity * min_pct
             
             closed_count = 0
             for position in positions:
@@ -211,7 +224,7 @@ class PositionManager:
                 market_value = abs(float(position.market_value))
                 
                 if market_value < min_value:
-                    logger.info(f"🧹 Closing tiny position {symbol}: ${market_value:.2f} < ${min_value:.0f} minimum")
+                    logger.info(f"🧹 Closing tiny position {symbol}: ${market_value:.2f} < ${min_value:.0f} ({min_pct*100:.1f}% of equity)")
                     
                     try:
                         # Cancel any existing orders first
@@ -234,7 +247,7 @@ class PositionManager:
                         logger.error(f"Failed to close tiny position {symbol}: {e}")
             
             if closed_count > 0:
-                logger.info(f"🧹 Cleaned up {closed_count} tiny positions (< ${min_value:.0f})")
+                logger.info(f"🧹 Cleaned up {closed_count} tiny positions (< {min_pct*100:.1f}% of equity = ${min_value:.0f})")
             
             return closed_count
             
@@ -768,14 +781,23 @@ class PositionManager:
                 return
             
             # CRITICAL: Check if remaining position would be too small
-            # For a $141K portfolio, minimum meaningful position is ~$1000 (0.7%)
+            # Use portfolio-relative threshold (0.5% of equity by default)
             remaining_qty = position.qty - shares_to_sell
             remaining_value = remaining_qty * position.current_price
-            min_position_value = 1000  # $1000 minimum remaining position
+            
+            # Get equity for percentage-based threshold
+            try:
+                account = self.alpaca.get_account()
+                equity = float(account.equity)
+            except:
+                equity = 100000  # Fallback if can't get account
+            
+            min_position_pct = getattr(settings, 'min_remaining_position_pct', 0.005)  # 0.5% default
+            min_position_value = equity * min_position_pct
             
             if remaining_value < min_position_value:
                 # Close entire position instead of leaving tiny remainder
-                logger.info(f"🎯 Closing FULL position {symbol}: remaining ${remaining_value:.0f} < ${min_position_value} minimum")
+                logger.info(f"🎯 Closing FULL position {symbol}: remaining ${remaining_value:.0f} < ${min_position_value:.0f} ({min_position_pct*100:.1f}% of equity)")
                 shares_to_sell = position.qty  # Sell all shares
             else:
                 logger.info(f"🎯 Taking partial profits for {symbol}: {shares_to_sell}/{position.qty} shares at +{profit_r:.2f}R (remaining: ${remaining_value:.0f})")

@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/mtf/sr_analyzer.py
+# hypothesis_version: 6.148.3
+
+[0.1, 0.3, 0.98, 1.0, 1.02, 100, 'buy', 'high', 'low', 'sell']

@@ -88,29 +88,29 @@ class AdaptiveThresholds:
         """
         Adjust thresholds based on ACTUAL market regime (most important factor)
         
-        Industry Standard Adjustments:
-        - Choppy markets: +10-15% (was +20-25%)
+        OPTIMIZED FOR DAY TRADING (Dec 2025):
+        - Choppy markets: +5-8% (was +10-15% - too restrictive)
         - Trending markets: 0-5% bonus
         - Strong trends: Up to 10% bonus
         
-        Rationale: Even choppy markets can be traded with proper risk management
+        Rationale: Day trading requires more activity; risk management handles choppy conditions
         """
         # Use multiplier as the primary signal (calculated from actual market data)
         if multiplier <= 0.4:
-            # Extremely choppy: +15% (was +25%)
-            return 0.15
-        elif multiplier <= 0.5:
-            # Very choppy: +12% (was +20%)
-            return 0.12
-        elif multiplier <= 0.6:
-            # Moderately choppy: +8% (was +15%)
+            # Extremely choppy: +8% (was +15%)
             return 0.08
+        elif multiplier <= 0.5:
+            # Very choppy: +6% (was +12%)
+            return 0.06
+        elif multiplier <= 0.6:
+            # Moderately choppy: +4% (was +8%)
+            return 0.04
         elif multiplier <= 0.7:
-            # Slightly choppy: +5% (was +10%)
-            return 0.05
-        elif multiplier <= 0.8:
-            # Transitional: +2% (was +5%)
+            # Slightly choppy: +2% (was +5%)
             return 0.02
+        elif multiplier <= 0.8:
+            # Transitional: +1% (was +2%)
+            return 0.01
         elif multiplier <= 0.9:
             # Trending: No adjustment
             return 0.0
@@ -161,22 +161,23 @@ class AdaptiveThresholds:
         """
         Adjust thresholds based on market sentiment
         
-        Industry Standard: Minimal sentiment adjustments (0-8%)
+        OPTIMIZED FOR DAY TRADING (Dec 2025):
+        - Minimal sentiment adjustments (0-5%)
         - Fear/greed creates opportunities, not just risk
         - Contrarian plays work well in extremes
         - Focus on technical setup quality over sentiment
         """
         if sentiment < 15:
             # Extreme fear: Contrarian long opportunities, risky shorts
-            return {'long': 0.05, 'short': 0.08}  # Was 0.08/0.10
+            return {'long': 0.02, 'short': 0.05}  # Was 0.05/0.08
         
         elif sentiment < 25:
             # Strong fear: Good for longs, careful on shorts
-            return {'long': 0.02, 'short': 0.05}  # Was 0.03/0.05
+            return {'long': 0.0, 'short': 0.03}  # Was 0.02/0.05
         
         elif sentiment < 40:
             # Fear: Slight caution
-            return {'long': 0.0, 'short': 0.03}  # Was 0.0/0.03
+            return {'long': 0.0, 'short': 0.02}  # Was 0.0/0.03
         
         elif sentiment <= 60:
             # Neutral: Ideal conditions
@@ -184,15 +185,15 @@ class AdaptiveThresholds:
         
         elif sentiment <= 75:
             # Greed: Slight caution
-            return {'long': 0.03, 'short': 0.0}  # Was 0.03/0.0
+            return {'long': 0.02, 'short': 0.0}  # Was 0.03/0.0
         
         elif sentiment <= 85:
             # Strong greed: Good for shorts, careful on longs
-            return {'long': 0.05, 'short': 0.02}  # Was 0.05/0.03
+            return {'long': 0.03, 'short': 0.0}  # Was 0.05/0.02
         
         else:
             # Extreme greed: Contrarian short opportunities, risky longs
-            return {'long': 0.08, 'short': 0.05}  # Was 0.10/0.08
+            return {'long': 0.05, 'short': 0.02}  # Was 0.08/0.05
     
     def should_pause_trading(
         self,

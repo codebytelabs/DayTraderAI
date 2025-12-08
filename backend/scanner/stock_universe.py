@@ -74,7 +74,19 @@ class StockUniverse:
     
     @classmethod
     def get_full_universe(cls) -> List[str]:
-        """Get complete stock universe (all categories)."""
+        """Get complete stock universe - now uses dynamic universe (150 growth-focused stocks)."""
+        try:
+            # Try to use dynamic universe first (growth-focused, refreshed daily)
+            from scanner.dynamic_universe import get_dynamic_universe
+            universe_manager = get_dynamic_universe()
+            symbols = universe_manager.get_symbols()
+            
+            if len(symbols) >= 50:
+                return symbols
+        except Exception:
+            pass
+        
+        # Fallback to static universe
         all_stocks = set()
         
         # Add all categories
@@ -93,14 +105,40 @@ class StockUniverse:
     
     @classmethod
     def get_high_priority(cls) -> List[str]:
-        """Get high-priority stocks (most liquid, best for day trading)."""
-        priority = set()
+        """Get high-priority stocks - now prioritizes GROWTH over stability."""
+        try:
+            # Try to use dynamic universe (growth-focused)
+            from scanner.dynamic_universe import get_dynamic_universe
+            universe_manager = get_dynamic_universe()
+            
+            # Get top 50 by growth potential
+            high_growth = universe_manager.get_high_growth(50)
+            if len(high_growth) >= 20:
+                return high_growth
+        except Exception:
+            pass
         
-        priority.update(cls.INDICES)
-        priority.update(cls.MEGA_CAP_TECH)
-        priority.update(cls.MOMENTUM_STOCKS[:10])  # Top 10 momentum
+        # Fallback: prioritize growth stocks over mega-caps
+        priority = []
         
-        return sorted(list(priority))
+        # Growth stocks first (higher opportunity)
+        priority.extend(cls.MOMENTUM_STOCKS)
+        priority.extend(cls.CLOUD_SOFTWARE[:10])
+        priority.extend(cls.SEMICONDUCTORS[:5])
+        
+        # Then indices and mega-caps
+        priority.extend(cls.INDICES)
+        priority.extend(cls.MEGA_CAP_TECH[:5])
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique = []
+        for s in priority:
+            if s not in seen:
+                seen.add(s)
+                unique.append(s)
+        
+        return unique
     
     @classmethod
     def get_by_sector(cls, sector: str) -> List[str]:

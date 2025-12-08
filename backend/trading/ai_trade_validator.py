@@ -1,8 +1,10 @@
 """
 AI Trade Validator
-Validates high-risk trades before execution using DeepSeek AI
+Validates high-risk trades before execution using AI
+All models are configurable via .env - NO HARDCODING
 """
 import asyncio
+import os
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 from advisory.openrouter import OpenRouterClient
@@ -15,6 +17,10 @@ class AITradeValidator:
     """
     Validates high-risk trades using AI before execution.
     Only validates trades that meet high-risk criteria to minimize latency.
+    
+    Models are configured via .env:
+    - AI_TRADE_VALIDATOR_MODEL: Primary model for validation
+    - AI_TRADE_VALIDATOR_FALLBACK_MODEL: Fallback if primary fails
     """
     
     def __init__(self):
@@ -25,7 +31,19 @@ class AITradeValidator:
         self.error_count = 0
         self.total_validation_time = 0.0
         
-        logger.info("🤖 AI Trade Validator initialized (DeepSeek V3.2-Exp)")
+        # Load model from .env with fallback to OpenRouter primary
+        self.validator_model = os.getenv(
+            'AI_TRADE_VALIDATOR_MODEL',
+            self.openrouter.primary_model
+        )
+        self.fallback_model = os.getenv(
+            'AI_TRADE_VALIDATOR_FALLBACK_MODEL',
+            self.openrouter.secondary_model
+        )
+        
+        # Extract model name for logging (remove provider prefix)
+        model_display = self.validator_model.split('/')[-1] if '/' in self.validator_model else self.validator_model
+        logger.info(f"🤖 AI Trade Validator initialized ({model_display})")
     
     def is_high_risk(self, symbol: str, signal: str, context: Dict) -> Tuple[bool, str]:
         """
@@ -98,7 +116,7 @@ class AITradeValidator:
             # Build concise prompt
             prompt = self._build_validation_prompt(symbol, signal, features, context)
             
-            # Quick AI validation with timeout
+            # Quick AI validation with timeout - uses configurable model from .env
             response = await asyncio.wait_for(
                 self.openrouter.chat_completion(
                     messages=[
@@ -111,7 +129,7 @@ class AITradeValidator:
                             "content": prompt
                         }
                     ],
-                    model=self.openrouter.primary_model,
+                    model=self.validator_model,  # From .env: AI_TRADE_VALIDATOR_MODEL
                     max_tokens=100
                 ),
                 timeout=timeout

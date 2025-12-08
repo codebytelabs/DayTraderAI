@@ -1,0 +1,1356 @@
+{
+  "date": "2025-12-09T02:56:52.200215",
+  "stocks": [
+    {
+      "symbol": "GME",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AMC",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BBBY",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CLOV",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "WISH",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SKLZ",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ARKK",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SOXL",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TQQQ",
+      "category": "high_beta_momentum",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 95,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "DOCN",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CFLT",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "S",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PATH",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "GTLB",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ESTC",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SUMO",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NEWR",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BILL",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SHOP",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HUT",
+      "category": "high_growth_tech",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 90,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AAPL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MSFT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "GOOGL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AMZN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "META",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NVDA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TSLA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AVGO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ADBE",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CRM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ORCL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CSCO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ACN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TXN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "QCOM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "INTC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AMD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NOW",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "INTU",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AMAT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "UNH",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "JNJ",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LLY",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ABBV",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MRK",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PFE",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TMO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ABT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "DHR",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BMY",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AMGN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "GILD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "VRTX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "REGN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ISRG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MDT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "JPM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "V",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BAC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "WFC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "GS",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MS",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BLK",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SCHW",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AXP",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "C",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "USB",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PNC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TFC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "COF",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CME",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MCD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NKE",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SBUX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TGT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LOW",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TJX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "COST",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "WMT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "KO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PEP",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "EL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CAT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "DE",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HON",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "UPS",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "UNP",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "RTX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LMT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "GE",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MMM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "EMR",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ITW",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ETN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PH",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ROK",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CMI",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "XOM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CVX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "COP",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SLB",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "EOG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MPC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PSX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "VLO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "OXY",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HAL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "DVN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HES",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "FANG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PXD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BKR",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "KMI",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PLTR",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SNOW",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "DDOG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CRWD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ZS",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NET",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MDB",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "OKTA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HUBS",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "TWLO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SQ",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "PYPL",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "AFRM",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SOFI",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "HOOD",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "COIN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "UPST",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LC",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "RIVN",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LCID",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "NIO",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "XPEV",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "LI",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CHPT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "ENPH",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "SEDG",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "MRNA",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "BNTX",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "CRSP",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    },
+    {
+      "symbol": "EDIT",
+      "category": "curated_mid_cap",
+      "avg_volume": 1000000,
+      "volatility": 0.02,
+      "growth_score": 88,
+      "momentum_rank": 50,
+      "liquidity_score": 50
+    }
+  ],
+  "version": "2.0"
+}

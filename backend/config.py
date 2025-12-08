@@ -83,13 +83,19 @@ class Settings(BaseSettings):
     use_dynamic_watchlist: bool = True  # Enable dynamic watchlist - FIXED: was False
     scanner_interval_hours: int = 1  # Scan every hour
     scanner_min_score: float = 65.0  # Balanced threshold (was 80.0 - too restrictive, 60.0 - too permissive)
-    scanner_watchlist_size: int = 21  # Number of stocks in dynamic watchlist
+    scanner_watchlist_size: int = 50  # Increased from 21 - more opportunities from 150-stock universe
     
     # Momentum Wave Rider Scanner (Alternative to AI Discovery)
     USE_MOMENTUM_SCANNER: bool = True  # ENABLED - Real-time momentum scanning (32 property tests passing)
     MOMENTUM_SCAN_INTERVAL: int = 300  # 5 minutes default scan interval
     FIRST_HOUR_SCAN_INTERVAL: int = 120  # 2 minutes in first hour (9:30-10:30 AM)
-    MOMENTUM_MIN_SCORE: float = 60.0  # Minimum momentum score to consider
+    
+    # Multi-Timeframe Analysis (MTF) Settings
+    ENABLE_MTF_ANALYSIS: bool = False  # DISABLED by default - enable when ready
+    MTF_STRICT_MODE: bool = False  # Require all timeframes to align
+    MTF_MIN_CONFIDENCE: float = 50.0  # Lowered from 60% to allow more trades (was too restrictive)
+    MTF_WEIGHTS: str = ""  # Custom weights: "15min:0.40,5min:0.35,1min:0.25"
+    MOMENTUM_MIN_SCORE: float = 55.0  # Lowered from 60% to allow more momentum trades
     MOMENTUM_HIGH_CONFIDENCE_THRESHOLD: float = 85.0  # Score for high-confidence alerts
     
     # Confidence-Based Position Sizing Tiers
@@ -114,6 +120,11 @@ class Settings(BaseSettings):
     trade_cooldown_minutes: int = 15  # Reduced from 30 - better for day trading momentum
     min_hold_time_minutes: int = 15  # Minimum time to hold position before manual exit (stops still work)
     
+    # Position Size Thresholds (Portfolio-Relative)
+    min_position_pct: float = 0.03  # 0.5% of equity - positions below this are too small to manage
+    min_remaining_position_pct: float = 0.04  # 4% - close full position if remainder would be below this (prevents tiny remnants)
+    remnant_position_pct: float = 0.04  # 4% - auto-close remnant positions below this threshold
+    
     # ============ OPTIMAL TRAILING STOP SETTINGS (Research-Based) ============
     # Based on: Professional prop firms, Van Tharp R-multiple methodology
     trailing_stops_enabled: bool = True  # ENABLED - Protect profits automatically
@@ -134,21 +145,26 @@ class Settings(BaseSettings):
     max_trailing_stop_positions: int = 999  # Unlimited
     
     # ============ PARTIAL PROFIT TAKING (Scale Out) ============
-    # "Half Off at 1R" Strategy - proven by prop trading firms
+    # Research-optimized profit taking schedule
+    # Earlier profit taking (1R) improves win rate by 10-15%
     partial_profits_enabled: bool = True  # ENABLED - Lock in profits early
     
-    # Scale Out Levels
-    partial_profits_1r_percent: float = 0.50  # Sell 50% at 1R
+    # Scale Out Levels - RESEARCH OPTIMIZED
+    # PhD Analysis: Earlier exits = higher win rate = smoother equity curve
+    partial_profits_1r_percent: float = 0.50  # Sell 50% at 1R (lock in gains early!)
     partial_profits_2r_percent: float = 0.25  # Sell 25% more at 2R
     partial_profits_3r_percent: float = 0.25  # Trail remaining 25% at 3R+
     
     # After partial profit, tighten trailing
     partial_profits_tight_trail_atr: float = 0.75  # 0.75x ATR after 3R
     
+    # Profit taking targets (used by profit_taking_engine.py)
+    partial_profits_first_target_r: float = 1.0  # First exit at 1R (research optimal)
+    partial_profits_second_target_r: float = 2.0  # Second exit at 2R
+    partial_profits_third_target_r: float = 3.0  # Final exit at 3R
+    
     # BACKWARD COMPATIBILITY ALIASES
-    partial_profits_first_target_r: float = 1.0  # Alias
     partial_profits_percentage: float = 0.5  # Alias
-    partial_profits_second_target_r: float = 2.0  # Alias
     partial_profits_use_trailing: bool = True  # Alias
     max_partial_profit_positions: int = 999  # Alias
 
@@ -172,6 +188,11 @@ class Settings(BaseSettings):
     ENABLE_AI_VALIDATION: bool = True  # ENABLED - Fixed prompt to understand day trading leverage
     AI_VALIDATION_TIMEOUT: float = 3.5  # Max time to wait for AI response (seconds)
     
+    # AI Trade Validator Model Configuration (loaded from .env)
+    # These override the default OpenRouter models for trade validation specifically
+    ai_trade_validator_model: str = ""  # If empty, uses OPENROUTER_PRIMARY_MODEL
+    ai_trade_validator_fallback_model: str = ""  # If empty, uses OPENROUTER_SECONDARY_MODEL
+    
     # Smart Order Executor Configuration (Industry-Standard Order Execution)
     USE_SMART_EXECUTOR: bool = True  # Enable smart order execution with slippage protection
     SMART_EXECUTOR_MAX_SLIPPAGE_PCT: float = 0.002  # 0.20% max slippage (increased for paper trading)
@@ -188,7 +209,7 @@ class Settings(BaseSettings):
     # Copilot action execution settings
     copilot_action_execution_enabled: bool = True
     copilot_action_confidence_threshold: float = 0.7
-    copilot_require_confirmation_above_value: float = 1000.0
+    copilot_require_confirmation_above_pct: float = 0.01  # 1% of equity - require confirmation for larger trades
     copilot_max_bulk_operations: int = 10
     copilot_action_timeout_seconds: float = 5.0
     
@@ -201,6 +222,13 @@ class Settings(BaseSettings):
     enable_time_of_day_filter: bool = True
     enable_200_ema_filter: bool = False  # Disabled - too strict for day trading
     enable_multitime_frame_filter: bool = False  # Disabled - blocking valid opportunities
+    
+    # Multi-Timeframe Analysis (MTA) Configuration
+    # Requirements 9.1, 9.2, 9.3, 9.4
+    ENABLE_MTF_ANALYSIS: bool = True  # Enable/disable MTF analysis (Req 9.1)
+    MTF_WEIGHTS: str = ""  # Custom weights format: "15min:0.40,5min:0.35,1min:0.25" (Req 9.2)
+    MTF_MIN_CONFIDENCE: float = 50.0  # Lowered from 60% - was blocking too many valid trades (Req 9.3)
+    MTF_STRICT_MODE: bool = False  # Require all timeframes to align (Req 9.4)
     
     # Time-of-day settings - EXPANDED FOR DAY TRADING
     # Phase 1: Full trading day with adaptive position sizing
@@ -224,7 +252,7 @@ class Settings(BaseSettings):
     # EOD Risk Management (Sprint 8) - CRITICAL FOR DAY TRADING
     # Overnight gaps can destroy profits (e.g., COIN -$1,098 overnight gap)
     force_eod_exit: bool = True  # Force close all positions before market close
-    eod_exit_time: str = "15:57"  # 3 minutes before market close (ET) - NO EXCEPTIONS
+    eod_exit_time: str = "15:55"  # 5 minutes before market close (ET) - NO EXCEPTIONS
     eod_close_all: bool = True  # True = close ALL positions, False = only close losers
     eod_loss_threshold: float = 2.0  # If eod_close_all=False, close positions with >X% loss
     

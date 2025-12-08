@@ -2,7 +2,8 @@
 Profit Taking Engine
 
 Executes systematic partial profit taking at predefined R-multiple milestones.
-Implements 50% at 2R, 25% at 3R, 25% at 4R profit taking schedule.
+UPDATED: Now uses config values for profit taking levels.
+Default: 50% at 1R, 25% at 2R, 25% at 3R (research-optimized)
 """
 
 from typing import Optional, List
@@ -58,17 +59,31 @@ class ProfitTakingEngine:
         self.alpaca = alpaca_client
         self.tracker = get_position_tracker()
         
-        # Profit taking schedule
+        # Load profit taking schedule from config (research-optimized defaults)
+        # CRITICAL FIX: Use config values instead of hardcoded 2R/3R/4R
+        # Research shows earlier profit taking (1R) improves win rate by 10-15%
+        from config import settings
+        
+        # Get config values with fallbacks
+        first_target_r = getattr(settings, 'partial_profits_first_target_r', 1.0)
+        first_pct = getattr(settings, 'partial_profits_1r_percent', 0.50)
+        second_target_r = getattr(settings, 'partial_profits_second_target_r', 2.0)
+        second_pct = getattr(settings, 'partial_profits_2r_percent', 0.25)
+        third_pct = getattr(settings, 'partial_profits_3r_percent', 0.25)
+        
+        # Build profit schedule from config
         self.profit_schedule = {
-            2.0: 0.50,  # Take 50% at 2R
-            3.0: 0.25,  # Take 25% at 3R
-            4.0: 0.25   # Take remaining 25% at 4R
+            first_target_r: first_pct,   # Default: 50% at 1R
+            second_target_r: second_pct,  # Default: 25% at 2R
+            second_target_r + 1.0: third_pct   # Default: 25% at 3R
         }
         
+        logger.info(f"📊 Profit schedule loaded: {self.profit_schedule}")
+        
         # Momentum Wave Rider enhancements
-        self.move_stop_to_breakeven_at = 2.0  # Move stop to breakeven after 2R
-        self.tighten_trailing_at = 3.0  # Tighten trailing stop at 3R
-        self.trailing_stop_r = 1.0  # Trail by 1R after 3R
+        self.move_stop_to_breakeven_at = first_target_r  # Move to breakeven at first target
+        self.tighten_trailing_at = second_target_r + 1.0  # Tighten at third target
+        self.trailing_stop_r = 1.0  # Trail by 1R after tightening
         
         # Exit signal thresholds
         self.adx_momentum_loss_threshold = 20  # Exit if ADX drops below 20
@@ -80,6 +95,9 @@ class ProfitTakingEngine:
         """
         Check if position has reached a profit milestone requiring action.
         
+        UPDATED: Now uses dynamic profit schedule from config.
+        Default: 1R (50%), 2R (25%), 3R (25%) - research-optimized
+        
         Args:
             position_state: Current position state
             
@@ -87,62 +105,45 @@ class ProfitTakingEngine:
             ProfitAction if action needed, None otherwise
         """
         r = position_state.r_multiple
-        current_state = position_state.protection_state.state
         
         # Check if we've already taken profits at this level
         partial_exits = position_state.share_allocation.partial_exits
         num_exits = len(partial_exits)
         
+        # Get sorted milestones from profit schedule
+        milestones = sorted(self.profit_schedule.keys())
+        
         # Check each milestone based on number of exits already taken
-        if r >= 2.0 and num_exits == 0:
-            # Time for first partial profit (50%)
-            quantity = self._calculate_partial_quantity(
-                position_state.share_allocation.original_quantity,
-                position_state.share_allocation.remaining_quantity,
-                2.0
-            )
-            
-            expected_profit = quantity * (position_state.current_price - position_state.entry_price)
-            
-            return ProfitAction(
-                symbol=position_state.symbol,
-                milestone=2.0,
-                quantity=quantity,
-                reason="2R milestone - take 50% profit",
-                expected_profit=expected_profit
-            )
-        
-        elif r >= 3.0 and num_exits == 1:
-            # Time for second partial profit (25% of original)
-            quantity = self._calculate_partial_quantity(
-                position_state.share_allocation.original_quantity,
-                position_state.share_allocation.remaining_quantity,
-                3.0
-            )
-            
-            expected_profit = quantity * (position_state.current_price - position_state.entry_price)
-            
-            return ProfitAction(
-                symbol=position_state.symbol,
-                milestone=3.0,
-                quantity=quantity,
-                reason="3R milestone - take 25% profit",
-                expected_profit=expected_profit
-            )
-        
-        elif r >= 4.0 and num_exits == 2:
-            # Time for final partial profit (remaining shares)
-            quantity = position_state.share_allocation.remaining_quantity
-            
-            expected_profit = quantity * (position_state.current_price - position_state.entry_price)
-            
-            return ProfitAction(
-                symbol=position_state.symbol,
-                milestone=4.0,
-                quantity=quantity,
-                reason="4R milestone - take final profit",
-                expected_profit=expected_profit
-            )
+        for i, milestone in enumerate(milestones):
+            if r >= milestone and num_exits == i:
+                # Time for this partial profit
+                pct = self.profit_schedule[milestone]
+                
+                # Calculate quantity based on milestone
+                if i == len(milestones) - 1:
+                    # Final milestone - take remaining shares
+                    quantity = position_state.share_allocation.remaining_quantity
+                else:
+                    quantity = self._calculate_partial_quantity(
+                        position_state.share_allocation.original_quantity,
+                        position_state.share_allocation.remaining_quantity,
+                        milestone
+                    )
+                
+                if quantity <= 0:
+                    continue
+                
+                expected_profit = quantity * abs(position_state.current_price - position_state.entry_price)
+                if position_state.direction == 'short':
+                    expected_profit = quantity * (position_state.entry_price - position_state.current_price)
+                
+                return ProfitAction(
+                    symbol=position_state.symbol,
+                    milestone=milestone,
+                    quantity=quantity,
+                    reason=f"{milestone}R milestone - take {int(pct*100)}% profit",
+                    expected_profit=expected_profit
+                )
         
         return None
     
@@ -246,6 +247,8 @@ class ProfitTakingEngine:
         """
         Calculate quantity to exit at given milestone.
         
+        UPDATED: Now uses dynamic profit schedule from config.
+        
         Args:
             original_quantity: Original position size
             remaining_quantity: Current remaining shares
@@ -254,17 +257,15 @@ class ProfitTakingEngine:
         Returns:
             Number of shares to sell
         """
-        if milestone == 2.0:
-            # 50% of original position
-            return int(original_quantity * 0.5)
-        elif milestone == 3.0:
-            # 25% of original position
-            return int(original_quantity * 0.25)
-        elif milestone >= 4.0:
-            # Remaining shares
-            return remaining_quantity
+        # Get percentage from profit schedule
+        if milestone in self.profit_schedule:
+            pct = self.profit_schedule[milestone]
+            calculated_qty = int(original_quantity * pct)
+            # Don't exceed remaining quantity
+            return min(calculated_qty, remaining_quantity)
         
-        return 0
+        # Fallback for unknown milestones - take remaining
+        return remaining_quantity
     
     def _log_partial_profit(
         self,

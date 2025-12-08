@@ -28,7 +28,7 @@ class CopilotConfig:
     # Action execution settings
     action_execution_enabled: bool = True
     action_confidence_threshold: float = 0.7
-    require_confirmation_above_value: float = 1000.0  # USD
+    require_confirmation_above_pct: float = 0.01  # 1% of equity
     max_bulk_operations: int = 10
     action_timeout_seconds: float = 5.0
 
@@ -51,7 +51,7 @@ class CopilotConfig:
             max_news_items=self.max_news_items,
             action_execution_enabled=self.action_execution_enabled,
             action_confidence_threshold=self.action_confidence_threshold,
-            require_confirmation_above_value=self.require_confirmation_above_value,
+            require_confirmation_above_pct=self.require_confirmation_above_pct,
             max_bulk_operations=self.max_bulk_operations,
             action_timeout_seconds=self.action_timeout_seconds,
         )
@@ -77,7 +77,7 @@ def build_copilot_config(app_settings: Settings = settings) -> CopilotConfig:
         max_news_items=app_settings.copilot_news_max_items,
         action_execution_enabled=app_settings.copilot_action_execution_enabled,
         action_confidence_threshold=app_settings.copilot_action_confidence_threshold,
-        require_confirmation_above_value=app_settings.copilot_require_confirmation_above_value,
+        require_confirmation_above_pct=app_settings.copilot_require_confirmation_above_pct,
         max_bulk_operations=app_settings.copilot_max_bulk_operations,
         action_timeout_seconds=app_settings.copilot_action_timeout_seconds,
     )

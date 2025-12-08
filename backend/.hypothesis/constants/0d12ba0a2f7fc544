@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/mtf/feature_engine.py
+# hypothesis_version: 6.148.3
+
+[0.0, 1.0, 50.0, 100, 200, '15min', '1min', '5min', 'adx', 'close', 'daily', 'ema_200', 'ema_50', 'ema_long', 'ema_short', 'high', 'low', 'macd', 'macd_histogram', 'macd_signal', 'rsi', 'volume', 'volume_avg', 'volume_ratio']

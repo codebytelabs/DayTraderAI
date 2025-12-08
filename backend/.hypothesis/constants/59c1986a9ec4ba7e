@@ -1,0 +1,4 @@
+# file: /Users/vishnuvardhanmedara/DayTraderAI/backend/trading/mtf/models.py
+# hypothesis_version: 6.148.3
+
+[0.0, 0.1, 0.25, 0.3, 0.35, 0.4, 0.7, 0.99, 1.0, 1.01, 1.5, 60.0, 100.0, 100, ',', '15min', '1min', '5min', ':', 'ENABLE_MTF_ANALYSIS', 'MTFConfig', 'MTF_MIN_CONFIDENCE', 'MTF_STRICT_MODE', 'MTF_WEIGHTS', 'TrendBias', 'bearish', 'bullish', 'daily', 'neutral']

@@ -135,63 +135,113 @@ class MomentumScanner:
     
     async def _get_curated_movers(self, direction: str, limit: int) -> List[Dict]:
         """
-        Get movers from a curated list of high-liquidity symbols.
+        Get movers from smart watchlist EFFICIENTLY.
+        
+        TWO-PHASE APPROACH:
+        1. Quick filter using snapshots (1 API call for all symbols)
+        2. Fetch bars ONLY for top candidates that pass filter
         """
-        # High-volume, liquid symbols for momentum trading
-        momentum_universe = [
-            # Tech momentum leaders
-            'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'TSLA', 'AMD', 'NFLX',
-            'AVGO', 'CRM', 'ADBE', 'ORCL', 'INTC', 'CSCO',
-            # Market ETFs (high liquidity)
-            'SPY', 'QQQ', 'IWM', 'DIA',
-            # Financial momentum
-            'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C',
-            # Healthcare momentum
-            'UNH', 'JNJ', 'PFE', 'LLY', 'ABBV', 'MRK',
-            # Energy momentum
-            'XOM', 'CVX', 'COP', 'SLB',
-            # Consumer momentum
-            'AMZN', 'WMT', 'HD', 'NKE', 'MCD', 'COST',
-            # Industrial momentum
-            'BA', 'CAT', 'GE', 'UPS', 'HON', 'MMM'
-        ]
+        # Get watchlist symbols
+        try:
+            from scanner.smart_watchlist import get_smart_watchlist
+            watchlist_manager = get_smart_watchlist(self.alpaca, self.market_data)
+            momentum_universe = await watchlist_manager.get_watchlist()
+            
+            if len(momentum_universe) < 30:
+                momentum_universe = watchlist_manager._get_fallback_watchlist()
+            
+        except Exception as e:
+            logger.warning(f"Smart watchlist unavailable: {e}")
+            momentum_universe = [
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA', 'AVGO',
+                'JPM', 'V', 'MA', 'UNH', 'HD', 'COST', 'WMT', 'CRM', 'AMD',
+                'SPY', 'QQQ', 'IWM', 'PLTR', 'SNOW', 'CRWD', 'NET', 'SQ',
+                'COIN', 'ABNB', 'UBER', 'DASH', 'MRNA', 'SHOP'
+            ]
         
+        # PHASE 1: Quick filter using snapshots (efficient)
+        pre_filtered = await self._quick_filter_snapshots(momentum_universe, direction, limit * 3)
+        
+        if not pre_filtered:
+            logger.debug(f"No {direction} movers found in quick filter")
+            return []
+        
+        logger.info(f"📊 Quick filter: {len(pre_filtered)} {direction} candidates from {len(momentum_universe)} stocks")
+        
+        # PHASE 2: Fetch bars ONLY for pre-filtered candidates
         movers = []
-        
-        for symbol in momentum_universe[:limit * 2]:
+        for symbol, snap_data in pre_filtered[:limit * 2]:
             try:
                 bars = await self._get_recent_bars(symbol, periods=60)
                 if not bars or len(bars) < 10:
                     continue
                 
-                current_price = bars[-1]['close']
-                hour_ago_price = bars[0]['close']
-                
-                price_change_pct = ((current_price - hour_ago_price) / hour_ago_price) * 100
-                
-                if direction == 'up' and price_change_pct >= self.min_price_move * 100:
-                    movers.append({
-                        'symbol': symbol,
-                        'price': current_price,
-                        'change_pct': price_change_pct,
-                        'bars': bars,
-                        'volume': bars[-1]['volume']
-                    })
-                elif direction == 'down' and price_change_pct <= -self.min_price_move * 100:
-                    movers.append({
-                        'symbol': symbol,
-                        'price': current_price,
-                        'change_pct': price_change_pct,
-                        'bars': bars,
-                        'volume': bars[-1]['volume']
-                    })
-                    
+                movers.append({
+                    'symbol': symbol,
+                    'price': bars[-1]['close'],
+                    'change_pct': snap_data['change_pct'],
+                    'bars': bars,
+                    'volume': bars[-1]['volume']
+                })
             except Exception as e:
-                logger.debug(f"Error getting data for {symbol}: {e}")
+                logger.debug(f"Error getting bars for {symbol}: {e}")
                 continue
         
         movers.sort(key=lambda x: abs(x['change_pct']), reverse=True)
         return movers[:limit]
+    
+    async def _quick_filter_snapshots(self, symbols: List[str], direction: str, limit: int) -> List[tuple]:
+        """
+        Quick filter using Alpaca snapshots - ONE API call for all symbols.
+        
+        Returns list of (symbol, snapshot_data) tuples that pass the filter.
+        """
+        try:
+            if not self.alpaca or not hasattr(self.alpaca, 'client'):
+                return [(s, {'change_pct': 0}) for s in symbols[:limit]]
+            
+            # Get snapshots for all symbols in ONE call
+            from alpaca.data.requests import StockSnapshotRequest
+            from alpaca.data import StockHistoricalDataClient
+            
+            # Use the data client
+            if hasattr(self.alpaca.client, 'get_snapshots'):
+                request = StockSnapshotRequest(symbol_or_symbols=symbols)
+                snapshots = self.alpaca.client.get_snapshots(request)
+            else:
+                # Fallback - return all symbols
+                return [(s, {'change_pct': 0}) for s in symbols[:limit]]
+            
+            # Filter by direction
+            candidates = []
+            for symbol, snap in snapshots.items():
+                if not snap or not snap.daily_bar:
+                    continue
+                
+                current = snap.daily_bar.close
+                prev = snap.previous_daily_bar.close if snap.previous_daily_bar else snap.daily_bar.open
+                
+                if prev <= 0:
+                    continue
+                
+                change_pct = ((current - prev) / prev) * 100
+                
+                # Filter by direction and minimum move
+                min_move = self.min_price_move * 100  # 2%
+                
+                if direction == 'up' and change_pct >= min_move:
+                    candidates.append((symbol, {'change_pct': change_pct, 'price': current}))
+                elif direction == 'down' and change_pct <= -min_move:
+                    candidates.append((symbol, {'change_pct': change_pct, 'price': current}))
+            
+            # Sort by absolute change
+            candidates.sort(key=lambda x: abs(x[1]['change_pct']), reverse=True)
+            return candidates[:limit]
+            
+        except Exception as e:
+            logger.debug(f"Snapshot filter error: {e}")
+            # Fallback - return symbols without filtering
+            return [(s, {'change_pct': 0}) for s in symbols[:limit]]
 
     async def _get_recent_bars(self, symbol: str, periods: int = 60) -> List[Dict]:
         """

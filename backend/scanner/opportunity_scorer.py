@@ -1,12 +1,15 @@
-"""Opportunity Scorer - 120-point scoring system for stock opportunities.
+"""Opportunity Scorer - 130-point scoring system for stock opportunities.
+
+GROWTH-FOCUSED SCORING: Prioritizes momentum and growth potential over stability.
 
 Scores stocks based on:
 - Technical setup (40 points)
-- Momentum (25 points)
+- Momentum (25 points) - ENHANCED for growth stocks
 - Volume (20 points)
-- Volatility (15 points)
+- Volatility (15 points) - Higher volatility = more opportunity
 - Market regime (10 points)
-- Market sentiment (10 points) ← NEW
+- Market sentiment (10 points)
+- Growth potential (10 points) ← NEW - rewards mid-caps with momentum
 """
 
 import pandas as pd
@@ -15,6 +18,16 @@ from typing import Dict, Optional
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+# Growth potential bonuses by stock characteristics
+# Mid-caps and high-beta stocks get bonuses to compete with mega-caps
+GROWTH_POTENTIAL_BONUSES = {
+    'high_volatility': 5,      # >3% daily moves
+    'strong_momentum': 5,      # ADX > 30 with clear direction
+    'volume_surge': 3,         # 2x+ volume
+    'fresh_breakout': 5,       # Near 52-week high
+    'oversold_bounce': 4,      # RSI < 35 turning up
+}
 
 
 class OpportunityScorer:
@@ -309,9 +322,64 @@ class OpportunityScorer:
             logger.error(f"Error scoring sentiment: {e}")
             return 5.0  # Neutral on error
     
+    def score_growth_potential(self, features: Dict) -> float:
+        """
+        Score growth potential (0-10 points).
+        
+        NEW: Rewards characteristics that indicate higher upside potential.
+        This helps mid-caps and growth stocks compete with stable mega-caps.
+        """
+        score = 0.0
+        
+        try:
+            # High volatility bonus (more opportunity for day trading)
+            atr = features.get('atr', 0)
+            price = features.get('price', 100)
+            if price > 0:
+                atr_pct = (atr / price) * 100
+                if atr_pct > 3.0:  # >3% daily range
+                    score += 3
+                elif atr_pct > 2.0:
+                    score += 2
+                elif atr_pct > 1.5:
+                    score += 1
+            
+            # Strong momentum bonus (ADX > 30 with clear direction)
+            adx = features.get('adx', 0)
+            plus_di = features.get('plus_di', 0)
+            minus_di = features.get('minus_di', 0)
+            di_spread = abs(plus_di - minus_di)
+            
+            if adx > 30 and di_spread > 15:
+                score += 3  # Strong trend with clear direction
+            elif adx > 25 and di_spread > 10:
+                score += 2
+            
+            # Volume surge bonus (institutional interest)
+            volume_ratio = features.get('volume_ratio', 1.0)
+            if volume_ratio > 2.0:
+                score += 2  # 2x+ volume = big interest
+            elif volume_ratio > 1.5:
+                score += 1
+            
+            # RSI momentum bonus (not overbought/oversold extremes)
+            rsi = features.get('rsi', 50)
+            if 40 <= rsi <= 60:
+                score += 2  # Room to move in either direction
+            elif 30 <= rsi <= 40 or 60 <= rsi <= 70:
+                score += 1  # Momentum building
+            
+            return min(score, 10.0)
+            
+        except Exception as e:
+            logger.error(f"Error scoring growth potential: {e}")
+            return 3.0  # Default moderate score
+    
     def calculate_total_score(self, features: Dict, direction: str = 'long') -> Dict[str, float]:
         """
-        Calculate total opportunity score (0-120 with sentiment).
+        Calculate total opportunity score (0-130 with growth potential).
+        
+        GROWTH-FOCUSED: Mid-caps with momentum can now outrank stable mega-caps.
         
         Args:
             features: Stock features dict
@@ -328,9 +396,10 @@ class OpportunityScorer:
             volatility = self.score_volatility(features)
             regime = self.score_market_regime(features)
             sentiment = self.score_market_sentiment(direction)
+            growth = self.score_growth_potential(features)  # NEW
             
-            # Total score (now 0-120)
-            total = technical + momentum + volume + volatility + regime + sentiment
+            # Total score (now 0-130 with growth potential)
+            total = technical + momentum + volume + volatility + regime + sentiment + growth
             
             return {
                 'total_score': round(total, 1),
@@ -340,6 +409,7 @@ class OpportunityScorer:
                 'volatility_score': round(volatility, 1),
                 'regime_score': round(regime, 1),
                 'sentiment_score': round(sentiment, 1),
+                'growth_score': round(growth, 1),  # NEW
                 'grade': self._get_grade(total)
             }
             
@@ -353,23 +423,24 @@ class OpportunityScorer:
                 'volatility_score': 0.0,
                 'regime_score': 0.0,
                 'sentiment_score': 0.0,
+                'growth_score': 0.0,
                 'grade': 'F'
             }
     
     @staticmethod
     def _get_grade(score: float) -> str:
-        """Convert score to letter grade (adjusted for 0-120 scale)."""
-        if score >= 90:
+        """Convert score to letter grade (adjusted for 0-130 scale)."""
+        if score >= 100:
             return 'A+'
-        elif score >= 85:
+        elif score >= 92:
             return 'A'
-        elif score >= 80:
+        elif score >= 85:
             return 'A-'
-        elif score >= 75:
+        elif score >= 78:
             return 'B+'
-        elif score >= 70:
+        elif score >= 72:
             return 'B'
-        elif score >= 65:
+        elif score >= 66:
             return 'B-'
         elif score >= 60:
             return 'C+'

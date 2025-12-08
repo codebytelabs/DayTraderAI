@@ -9,7 +9,7 @@ Combines multiple sentiment indicators:
 """
 
 from typing import Dict, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from core.alpaca_client import AlpacaClient
 from utils.logger import setup_logger
 from alpaca.data.timeframe import TimeFrame
@@ -114,25 +114,25 @@ class MarketSentimentAnalyzer:
         """
         try:
             # Get VIX data
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=5)
             
             bars = self.alpaca.get_bars(
-                'VIX',
-                start=start.strftime('%Y-%m-%d'),
-                end=end.strftime('%Y-%m-%d'),
-                timeframe=TimeFrame.Day
+                symbols=['VIX'],
+                timeframe=TimeFrame.Day,
+                start=start,
+                end=end
             )
             
             if bars is None or len(bars) == 0:
                 logger.warning("No VIX data available")
                 return 50.0  # Neutral
             
-            # Get latest VIX value
-            latest_vix = float(bars[-1].close)
+            # Get latest VIX value (bars is a DataFrame)
+            latest_vix = float(bars.iloc[-1]['close'])
             
             # Calculate 5-day average for context
-            vix_values = [float(bar.close) for bar in bars]
+            vix_values = bars['close'].tolist()
             avg_vix = sum(vix_values) / len(vix_values)
             
             # Convert VIX to sentiment score (inverse relationship)
@@ -168,7 +168,7 @@ class MarketSentimentAnalyzer:
         try:
             # Get data for major indices
             symbols = ['SPY', 'QQQ', 'IWM', 'DIA']
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=2)
             
             advancing = 0
@@ -177,15 +177,15 @@ class MarketSentimentAnalyzer:
             for symbol in symbols:
                 try:
                     bars = self.alpaca.get_bars(
-                        symbol,
-                        start=start.strftime('%Y-%m-%d'),
-                        end=end.strftime('%Y-%m-%d'),
-                        timeframe=TimeFrame.Day
+                        symbols=[symbol],
+                        timeframe=TimeFrame.Day,
+                        start=start,
+                        end=end
                     )
                     
-                    if len(bars) >= 2:
-                        today = float(bars[-1].close)
-                        yesterday = float(bars[-2].close)
+                    if bars is not None and len(bars) >= 2:
+                        today = float(bars.iloc[-1]['close'])
+                        yesterday = float(bars.iloc[-2]['close'])
                         
                         if today > yesterday:
                             advancing += 1
@@ -228,7 +228,7 @@ class MarketSentimentAnalyzer:
             growth_sectors = ['XLK', 'XLY']  # Tech, Consumer Discretionary
             defensive_sectors = ['XLU', 'XLP']  # Utilities, Consumer Staples
             
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=5)
             
             growth_performance = []
@@ -238,14 +238,14 @@ class MarketSentimentAnalyzer:
             for symbol in growth_sectors:
                 try:
                     bars = self.alpaca.get_bars(
-                        symbol,
-                        start=start.strftime('%Y-%m-%d'),
-                        end=end.strftime('%Y-%m-%d'),
-                        timeframe=TimeFrame.Day
+                        symbols=[symbol],
+                        timeframe=TimeFrame.Day,
+                        start=start,
+                        end=end
                     )
                     
-                    if len(bars) >= 2:
-                        perf = ((float(bars[-1].close) / float(bars[0].close)) - 1) * 100
+                    if bars is not None and len(bars) >= 2:
+                        perf = ((float(bars.iloc[-1]['close']) / float(bars.iloc[0]['close'])) - 1) * 100
                         growth_performance.append(perf)
                 except:
                     continue
@@ -254,14 +254,14 @@ class MarketSentimentAnalyzer:
             for symbol in defensive_sectors:
                 try:
                     bars = self.alpaca.get_bars(
-                        symbol,
-                        start=start.strftime('%Y-%m-%d'),
-                        end=end.strftime('%Y-%m-%d'),
-                        timeframe=TimeFrame.Day
+                        symbols=[symbol],
+                        timeframe=TimeFrame.Day,
+                        start=start,
+                        end=end
                     )
                     
-                    if len(bars) >= 2:
-                        perf = ((float(bars[-1].close) / float(bars[0].close)) - 1) * 100
+                    if bars is not None and len(bars) >= 2:
+                        perf = ((float(bars.iloc[-1]['close']) / float(bars.iloc[0]['close'])) - 1) * 100
                         defensive_performance.append(perf)
                 except:
                     continue
@@ -304,21 +304,21 @@ class MarketSentimentAnalyzer:
         """
         try:
             # Analyze SPY volume
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=10)
             
             bars = self.alpaca.get_bars(
-                'SPY',
-                start=start.strftime('%Y-%m-%d'),
-                end=end.strftime('%Y-%m-%d'),
-                timeframe=TimeFrame.Day
+                symbols=['SPY'],
+                timeframe=TimeFrame.Day,
+                start=start,
+                end=end
             )
             
-            if len(bars) < 5:
+            if bars is None or len(bars) < 5:
                 return 50.0
             
-            # Calculate average volume
-            volumes = [float(bar.volume) for bar in bars]
+            # Calculate average volume (bars is a DataFrame)
+            volumes = bars['volume'].tolist()
             avg_volume = sum(volumes) / len(volumes)
             
             # Analyze recent days
@@ -326,9 +326,9 @@ class MarketSentimentAnalyzer:
             down_volume = 0
             
             for i in range(1, min(5, len(bars))):
-                today_close = float(bars[i].close)
-                yesterday_close = float(bars[i-1].close)
-                volume = float(bars[i].volume)
+                today_close = float(bars.iloc[i]['close'])
+                yesterday_close = float(bars.iloc[i-1]['close'])
+                volume = float(bars.iloc[i]['volume'])
                 
                 if today_close > yesterday_close:
                     up_volume += volume
@@ -343,7 +343,7 @@ class MarketSentimentAnalyzer:
             up_volume_pct = (up_volume / total_volume) * 100
             score = up_volume_pct
             
-            latest_volume = float(bars[-1].volume)
+            latest_volume = float(bars.iloc[-1]['volume'])
             volume_trend = 'high' if latest_volume > avg_volume * 1.2 else 'low' if latest_volume < avg_volume * 0.8 else 'normal'
             
             self.cache['volume_data'] = {

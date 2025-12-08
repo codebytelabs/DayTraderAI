@@ -43,45 +43,72 @@ class IntelligentStopManager:
         entry_price: float,
         current_price: float,
         initial_risk: float,
-        r_multiple: float
+        r_multiple: float,
+        side: str = 'long'
     ) -> float:
         """
         Calculate trailing stop price based on R-multiple.
         
         Trailing Stop Algorithm:
         - At 1.0R: Move stop to breakeven (entry price)
-        - At 1.5R: Trail at 0.5R below current (lock in 0.5R profit)
-        - At 2.0R: Trail at 1.0R below current (lock in 1.0R profit)
-        - At 3.0R: Trail at 1.5R below current (lock in 1.5R profit)
-        - At 4.0R+: Trail at 2.0R below current (lock in 2.0R profit)
+        - At 1.5R: Trail at 0.5R profit locked
+        - At 2.0R: Trail at 1.0R profit locked
+        - At 3.0R: Trail at 1.5R profit locked
+        - At 4.0R+: Trail at 2.0R profit locked
+        
+        For LONG positions: Stop moves UP (higher stop = better protection)
+        For SHORT positions: Stop moves DOWN (lower stop = better protection)
         
         Args:
             entry_price: Original entry price
             current_price: Current market price
-            initial_risk: Initial risk amount (entry - stop)
+            initial_risk: Initial risk amount (always positive)
             r_multiple: Current R-multiple
+            side: 'long' or 'short'
             
         Returns:
             New stop loss price
         """
-        if r_multiple < 1.0:
-            # Below breakeven - keep initial stop
-            return entry_price - initial_risk
-        elif r_multiple < 1.5:
-            # At breakeven - move stop to entry
-            return entry_price
-        elif r_multiple < 2.0:
-            # Trail at 0.5R
-            return entry_price + (0.5 * initial_risk)
-        elif r_multiple < 3.0:
-            # Trail at 1.0R
-            return entry_price + (1.0 * initial_risk)
-        elif r_multiple < 4.0:
-            # Trail at 1.5R
-            return entry_price + (1.5 * initial_risk)
+        if side == 'long':
+            # LONG: Stop is BELOW entry, moves UP as profit increases
+            if r_multiple < 1.0:
+                # Below breakeven - keep initial stop
+                return entry_price - initial_risk
+            elif r_multiple < 1.5:
+                # At breakeven - move stop to entry
+                return entry_price
+            elif r_multiple < 2.0:
+                # Trail at 0.5R profit locked
+                return entry_price + (0.5 * initial_risk)
+            elif r_multiple < 3.0:
+                # Trail at 1.0R profit locked
+                return entry_price + (1.0 * initial_risk)
+            elif r_multiple < 4.0:
+                # Trail at 1.5R profit locked
+                return entry_price + (1.5 * initial_risk)
+            else:
+                # Trail at 2.0R profit locked
+                return entry_price + (2.0 * initial_risk)
         else:
-            # Trail at 2.0R
-            return entry_price + (2.0 * initial_risk)
+            # SHORT: Stop is ABOVE entry, moves DOWN as profit increases
+            if r_multiple < 1.0:
+                # Below breakeven - keep initial stop (above entry)
+                return entry_price + initial_risk
+            elif r_multiple < 1.5:
+                # At breakeven - move stop to entry
+                return entry_price
+            elif r_multiple < 2.0:
+                # Trail at 0.5R profit locked (stop moves down)
+                return entry_price - (0.5 * initial_risk)
+            elif r_multiple < 3.0:
+                # Trail at 1.0R profit locked
+                return entry_price - (1.0 * initial_risk)
+            elif r_multiple < 4.0:
+                # Trail at 1.5R profit locked
+                return entry_price - (1.5 * initial_risk)
+            else:
+                # Trail at 2.0R profit locked
+                return entry_price - (2.0 * initial_risk)
     
     def move_to_breakeven(self, symbol: str) -> bool:
         """
@@ -141,7 +168,8 @@ class IntelligentStopManager:
                 position_state.entry_price,
                 position_state.current_price,
                 initial_risk,
-                position_state.r_multiple
+                position_state.r_multiple,
+                position_state.side
             )
             
             # Validate stop update (must be better than current)
@@ -254,7 +282,8 @@ class IntelligentStopManager:
                 position_state.entry_price,
                 position_state.current_price,
                 initial_risk,
-                position_state.r_multiple
+                position_state.r_multiple,
+                position_state.side
             )
             
             # Check if update is needed
